@@ -24,6 +24,7 @@ const withToken = { "Cf-Access-Jwt-Assertion": token };
 describe("api", () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it("api: rejects request without access", async () => {
@@ -73,6 +74,36 @@ describe("api", () => {
       expect(await res.text(), path).toBe('{"error":"unauthorized"}');
       expect(res.headers.get("Cache-Control"), path).toBe("no-store");
     }
+  });
+
+  it("api: handler error is a fixed 500", async () => {
+    // json e colonna `version` non coerenti: il store lancia un ParseError dentro il handler.
+    await env.DB.prepare(
+      "INSERT INTO scheda (version, valid_from, valid_to, json, md) VALUES (?1, ?2, ?3, ?4, ?5)",
+    )
+      .bind(
+        schedaFixture.version,
+        schedaFixture.valid_from,
+        schedaFixture.valid_to,
+        JSON.stringify({ ...schedaFixture, version: "2026-10" }),
+        SCHEDA_MD,
+      )
+      .run();
+    const logs = [
+      vi.spyOn(console, "error"),
+      vi.spyOn(console, "warn"),
+      vi.spyOn(console, "log"),
+    ];
+    const res = await app.request(
+      "/api/scheda",
+      { headers: withToken },
+      bindings,
+    );
+    expect(res.status).toBe(500);
+    // Corpo fisso: il messaggio del ParseError (con la versione) non arriva al client.
+    expect(await res.text()).toBe('{"error":"internal"}');
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    for (const log of logs) expect(log).not.toHaveBeenCalled();
   });
 
   it("api: reports unknown month", async () => {
