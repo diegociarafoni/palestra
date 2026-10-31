@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -50,6 +51,28 @@ describe("render-wrangler", () => {
     expect(result.status).toBe(78);
     expect(result.stderr).toContain("D1_DATABASE_ID");
     expect(result.stdout + result.stderr).not.toContain("not-a-uuid-value");
+    expect(existsSync(join(dir, "wrangler.toml"))).toBe(false);
+  });
+
+  it.each([
+    {
+      label: "missing",
+      prepare: () => rmSync(join(dir, "wrangler.template.toml")),
+    },
+    {
+      label: "without placeholder",
+      prepare: () =>
+        writeFileSync(
+          join(dir, "wrangler.template.toml"),
+          'name = "palestra"\n',
+        ),
+    },
+  ])("render-wrangler: exit 78 when the template is $label", ({ prepare }) => {
+    prepare();
+    const result = render({ D1_DATABASE_ID: DUMMY_ID });
+    expect(result.status).toBe(78);
+    expect(result.stderr).toContain("wrangler.template.toml");
+    expect(result.stdout + result.stderr).not.toContain(DUMMY_ID);
     expect(existsSync(join(dir, "wrangler.toml"))).toBe(false);
   });
 });
