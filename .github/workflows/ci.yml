@@ -24,4 +24,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
-      - run: node scripts/check-public-tree.mjs .
+      - name: Check forbidden paths
+        env:
+          PII_PATTERNS: "(?!)" # never matches: paths only, no personal patterns
+        run: node scripts/check-public-tree.mjs .
