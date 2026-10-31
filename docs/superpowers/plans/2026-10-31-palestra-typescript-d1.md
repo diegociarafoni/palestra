@@ -142,17 +142,17 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
   - `writeAudit(db, actor, table, rowKey, action: "insert" | "update" | "delete"): Promise<void>` — chiamata da ogni scrittura manuale.
   - Tipi di dominio `Session`, `Exercise`, `StrengthSet`, `Scheda`, `Measure`, `Feedback`, `FeedbackInput` in `src/domain/types.ts` con gli schemi `zod` corrispondenti, campi come `scheda/SCHEMA.md`.
 
-- [ ] **Step 1: Test** (D1 locale con migrazioni):
+- [x] **Step 1: Test** (D1 locale con migrazioni):
   - `store: upsert session is idempotent` — due `upsertSession` dello stesso id → una riga.
   - `store: known ids within lookback` — sedute del 2026-10-01 e 2026-10-29, `sinceDate "2026-10-16"` → `Set {"<id del 29>"}`.
   - `store: feedback rejects unknown class` — `class: "stanco"` → errore di validazione, nessuna riga.
   - `store: feedback upsert keeps one per day and writes audit` — due salvataggi per `2026-11-03` → una riga con il secondo valore, due righe `audit`.
   - `store: active scheda by date` — versioni `2026-11` (`2026-11-03`–`2026-11-30`) e `2026-12` → `getActiveScheda(db, "2026-12-02")?.version === "2026-12"`.
   - `d1-http: 403 raises AuthError`, `d1-http: retries 503 then succeeds` (2 chiamate), `d1-http: invalid body raises ParseError` (MSW).
-- [ ] **Step 2:** `npm test` → FAIL.
-- [ ] **Step 3:** implementare migrazione, `d1-http.ts`, moduli `store`, `render-wrangler.mjs` (scrive `wrangler.toml` da `wrangler.template.toml` sostituendo `D1_DATABASE_ID` da env; il file generato è in `.gitignore`).
-- [ ] **Step 4:** `npm test` → PASS; aggiornare `scheda/SCHEMA.md`.
-- [ ] **Step 5: Commit** `feat(store): d1 access layer and schema`
+- [x] **Step 2:** `npm test` → FAIL.
+- [x] **Step 3:** implementare migrazione, `d1-http.ts`, moduli `store`, `render-wrangler.mjs` (scrive `wrangler.toml` da `wrangler.template.toml` sostituendo `D1_DATABASE_ID` da env; il file generato è in `.gitignore`).
+- [x] **Step 4:** `npm test` → PASS; aggiornare `scheda/SCHEMA.md`.
+- [x] **Step 5: Commit** `feat(store): d1 access layer and schema`
 - [ ] **Step 6 (utente + Claude):** applicare le migrazioni al database reale; Claude inserisce via connettore i dati personali dal repository privato (`measures`, `profile` con chiavi `profilo`, `obiettivi`, `livello`, `obiettivo`, `protocollo_bia` (fascia oraria e condizioni della BIA), `settimana_tipo` nel formato `WeekTemplate` del Task 4b, con i giorni reali dell'utente), ciascuno con `audit`.
 
 ---
