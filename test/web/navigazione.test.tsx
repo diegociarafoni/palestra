@@ -42,6 +42,21 @@ describe("web", () => {
     ]);
   });
 
+  it("web: bottom navigation fits 360 px", () => {
+    // Cinque voci: con la larghezza minima di MUI (80 px) servirebbero 400 px.
+    renderConTema(<Navigazione />);
+
+    const nav = screen.getByRole("navigation", { name: "Pagine" });
+    const actions = [
+      ...within(nav).getAllByRole("link"),
+      within(nav).getByRole("button", { name: "Altro" }),
+    ];
+    expect(actions).toHaveLength(5);
+    for (const action of actions) {
+      expect(getComputedStyle(action).minWidth).toBe("0px");
+    }
+  });
+
   it("web: navigation uses tabs from md", () => {
     // Schermo largo: ogni media query risulta vera (jsdom non ha `matchMedia`). Il tema usa anche
     // la vecchia API `addListener` per seguire lo schema colore del sistema.

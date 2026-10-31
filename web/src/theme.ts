@@ -66,6 +66,8 @@ export const theme = createTheme({
     // Aree toccabili di almeno 48 px (docs/buone-pratiche-mui.md § 8).
     MuiButton: { styleOverrides: { root: { minHeight: 48 } } },
     MuiIconButton: { defaultProps: { size: "large" } },
+    // Cinque voci in basso a 360 px: senza la larghezza minima di MUI (80 px) ognuna ha 72 px.
+    MuiBottomNavigationAction: { styleOverrides: { root: { minWidth: 0 } } },
     MuiMenuItem: {
       styleOverrides: {
         // Da `sm` in su MUI riduce l'altezza minima: qui resta 48 px a ogni larghezza.
