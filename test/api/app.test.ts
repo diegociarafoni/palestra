@@ -56,6 +56,25 @@ describe("api", () => {
     expect(unconfigured.headers.get("Cache-Control")).toBe("no-store");
   });
 
+  it("api: every route requires access", async () => {
+    await saveReport(env.DB, "2026-11", "report", REPORT_MD);
+    await seedScheda(env.DB, schedaFixture, SCHEDA_MD);
+    // Anche mese non valido e rotta inesistente: Access viene prima di validazione e 404.
+    for (const path of [
+      "/api",
+      "/api/measures",
+      "/api/scheda",
+      "/api/reports/2026-11",
+      "/api/reports/nov",
+      "/api/nulla",
+    ]) {
+      const res = await app.request(path, {}, bindings);
+      expect(res.status, path).toBe(401);
+      expect(await res.text(), path).toBe('{"error":"unauthorized"}');
+      expect(res.headers.get("Cache-Control"), path).toBe("no-store");
+    }
+  });
+
   it("api: reports unknown month", async () => {
     const res = await app.request(
       "/api/reports/2026-09",
