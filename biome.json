@@ -6,6 +6,7 @@
       "!!node_modules",
       "!!.superpowers",
       "!!docs/riferimenti",
+      "!!test/fixtures",
       "!!**/*.md",
       "!!package-lock.json"
     ]
