@@ -3,12 +3,12 @@ tipo: decisione
 slug: 2026-10-31-prova-ripristino-in-workflow
 titolo: La prova di ripristino del backup gira come workflow manuale che stampa solo i conteggi e cancella il database di prova
 data: 2026-10-31
-stato: accettata
+stato: superata
 aggiornato: 2026-10-31
 ---
 # La prova di ripristino del backup gira come workflow manuale che stampa solo i conteggi e cancella il database di prova
 
-**Data**: 2026-10-31 · **Stato**: accettata · **Decisa da**: l'utente (workflow e cancellazione automatica); Claude per il modo, nel Task 13, Step 4
+**Data**: 2026-10-31 · **Stato**: superata da [il confronto col dump](2026-10-31-prova-ripristino-confronto-col-dump.md) · **Decisa da**: l'utente (workflow e cancellazione automatica); Claude per il modo, nel Task 13, Step 4
 
 ## Decisione e motivazione
 - La prova di ripristino si lancia da GitHub (Actions → `restore-test`, solo `workflow_dispatch`), così non serve un computer con wrangler. Lo script locale `scripts/prova-ripristino.sh` resta come alternativa e serve a leggere l'errore di un passo fallito.
