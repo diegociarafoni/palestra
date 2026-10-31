@@ -1,7 +1,8 @@
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
+import { queryKeys } from "../../web/src/api/keys";
 import Misure from "../../web/src/pagine/misure/Misure";
 import measures from "../fixtures/dashboard/measures.json";
 import { renderConTema } from "./render";
@@ -117,5 +118,28 @@ describe("web", () => {
     ).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(requests).toBe(2);
+  });
+
+  it("web: failed refetch keeps data", async () => {
+    // Le misure arrivano; il nuovo caricamento in background (es. ritorno sulla pagina) fallisce.
+    let requests = 0;
+    server.use(
+      http.get("/api/measures", () => {
+        requests += 1;
+        return requests === 1
+          ? HttpResponse.json({ measures })
+          : HttpResponse.json({ error: "internal" }, { status: 500 });
+      }),
+    );
+    const { queryClient } = renderConTema(<Misure />);
+    await screen.findByRole("table", { name: "Tutte le misure" });
+
+    await act(() => queryClient.refetchQueries());
+    // TanStack Query avvisa i componenti con un setTimeout(0): si aspetta quel giro prima di guardare.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(requests).toBe(2);
+    expect(queryClient.getQueryState(queryKeys.measures)?.status).toBe("error");
+    expect(screen.getByRole("table", { name: "Tutte le misure" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

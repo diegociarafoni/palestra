@@ -14,8 +14,10 @@ type StatoQueryProps<T> = {
 };
 
 /**
- * Stati di una query di pagina: caricamento (Skeleton), errore (messaggio e "Riprova", che rilancia
- * la query; per la sessione non valida un messaggio suo), vuoto ("Nessun dato": risposta `null`, cioè 404, o lista vuota) oppure i dati.
+ * Stati di una query di pagina: caricamento (Skeleton), errore senza dati (messaggio e "Riprova",
+ * che rilancia la query; per la sessione non valida un messaggio suo), vuoto ("Nessun dato":
+ * risposta `null`, cioè 404, o lista vuota) oppure i dati, che restano anche se un nuovo
+ * caricamento in background fallisce.
  */
 export function StatoQuery<T>({ query, children }: StatoQueryProps<T>) {
   if (query.isPending) {
@@ -26,7 +28,7 @@ export function StatoQuery<T>({ query, children }: StatoQueryProps<T>) {
       </Stack>
     );
   }
-  if (query.isError) {
+  if (query.isLoadingError) {
     return (
       <Alert
         severity="error"
