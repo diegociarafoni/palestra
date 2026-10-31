@@ -42,17 +42,17 @@ Prova di ripristino su un database separato, `palestra-restore-test`. Il contenu
 
 #### Workflow `restore-test` (da GitHub, anche senza computer)
 
-1. **Utente**, dopo un run verde del workflow `backup`: Actions → restore-test → Run workflow, con la data nel nome del file caricato (campo vuoto: oggi, ora di Roma).
+1. **Utente**, dopo un run verde del workflow `backup`: Actions → restore-test → Run workflow, con la data nel nome del file caricato (campo vuoto: oggi, ora di Roma). Un workflow con solo `workflow_dispatch` compare in Actions solo quando il file è su `main`.
 2. Il job esegue `npm run restore-test` (`src/cli/restore-test.ts`):
    - scarica il backup con le chiavi R2 del bucket, in una cartella temporanea cancellata subito dopo l'import;
    - crea `palestra-restore-test` con giurisdizione EU e vi importa il file, con `CF_TOKEN_D1` (D1 Edit sull'account);
    - legge l'elenco delle tabelle (escluse `sqlite_*` e `_cf_*`) e il numero di righe di ciascuna, in `palestra-restore-test` e in `palestra`, con sole `SELECT`;
    - stampa la tabella del confronto e cancella `palestra-restore-test` anche quando un passo fallisce. La cancellazione automatica a fine prova è una scelta dell'utente (31/10).
-3. Exit code: 0 conteggi identici · 64 data non valida · 65 conteggi diversi (righe `DIVERSO`) · 69 backup vuoto, passo di wrangler non riuscito, risposta inattesa o errore di R2 · 75 errore transitorio di R2 · 78 segreti mancanti o rifiutati. L'output di wrangler non si vede mai: per leggere l'errore di un passo si usa l'alternativa in locale.
+3. Exit code: 0 conteggi identici · 1 conteggi diversi (righe `DIVERSO`: la prova ha girato, con esito negativo) · 64 data non valida · 65 risposta di wrangler non interpretabile o nome di tabella non ammesso · 69 backup vuoto, passo di wrangler non riuscito (anche `CF_TOKEN_D1` scaduto o rifiutato) o errore di R2 · 75 errore transitorio di R2 · 78 segreti mancanti o chiavi R2 rifiutate. L'output di wrangler non si vede mai. Per un 69 alla creazione, senza computer: controllare nel dashboard Cloudflare (o chiedere a Claude, che lo legge con il connettore) se `palestra-restore-test` esiste già e se `CF_TOKEN_D1` è ancora attivo; il resto si diagnostica con l'alternativa in locale o, per il token, con la procedura di «Se il backup fallisce».
 4. Una differenza va spiegata con le scritture successive al backup: per le tabelle scritte a mano c'è una riga in `audit`; sync e report non scrivono `audit`, quindi per `sessions`, `timeseries`, `planned_sessions`, `metrics` e `reports` contano gli orari dei loro run.
 5. Una riga nel registro in fondo a questa sezione, con i soli conteggi.
 
-Se il run viene annullato, va in timeout o fallisce, il `finally` della CLI può non girare: un passo finale del job (`if: cancelled() || failure()`) cancella comunque `palestra-restore-test`, con l'output di wrangler scartato. Il passo della prova ha un timeout di 12 minuti, così alla pulizia restano almeno 3 minuti dei 15 del job. Se fallisce anche la pulizia, il run successivo si ferma alla creazione: il database va cancellato dal dashboard Cloudflare oppure da Claude con il connettore, dopo aver ricontrollato nome e id.
+Se il run viene annullato, va in timeout o fallisce, il `finally` della CLI può non girare: un passo finale del job (`if: cancelled() || failure()`) cancella comunque `palestra-restore-test`, con l'output di wrangler scartato. Il passo della prova ha un timeout di 12 minuti, così alla pulizia restano almeno 3 minuti dei 15 del job. Se fallisce anche la pulizia, il run successivo si ferma alla creazione: il database va cancellato dal dashboard Cloudflare oppure da Claude con il connettore, con la conferma dell'utente e dopo aver ricontrollato nome e id.
 
 #### Alternativa in locale (`scripts/prova-ripristino.sh`)
 

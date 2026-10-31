@@ -16,7 +16,7 @@ aggiornato: 2026-10-31
 - **Nel log solo nomi delle tabelle e conteggi.** I log delle Actions di un repository pubblico sono pubblici: l'output di wrangler non si mostra mai, e quello delle query di conteggio resta in memoria, validato con `zod`, senza essere stampato.
 - **`palestra-restore-test` si cancella alla fine, anche dopo un errore**, perché contiene una copia dei dati personali. La cancellazione automatica sostituisce la conferma manuale, su scelta dell'utente.
 - I nomi delle tabelle si leggono da `sqlite_schema` a ogni prova (escluse `sqlite_*` e `_cf_*`), così una tabella nuova entra nel confronto senza modifiche; entrano nella query solo se sono identificatori semplici.
-- Conteggi diversi danno exit 65 (run rosso): una differenza va spiegata con le scritture successive al backup.
+- Conteggi diversi danno exit 1 (run rosso): la prova ha girato con esito negativo, e una differenza va spiegata con le scritture successive al backup. 65 resta, come in `docs/buone-pratiche.md` § 8, per una risposta di wrangler che non rispetta lo schema.
 
 ## Alternative scartate
 - Solo lo script locale con i conteggi fatti da Claude con il connettore: richiede un computer con wrangler, che l'utente non sempre ha.
