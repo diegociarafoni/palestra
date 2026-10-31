@@ -18,7 +18,7 @@ Nel log delle Actions un export fallito compare solo come `Export D1 non riuscit
 
 ```bash
 dir="$(mktemp -d)"
-npx wrangler d1 export palestra --remote --skip-confirmation --output "$dir/palestra.sql"
+npx --no -- wrangler d1 export palestra --remote --skip-confirmation --output "$dir/palestra.sql"
 rm -r "$dir"
 ```
 
@@ -40,10 +40,15 @@ rm -r "$dir"
 
 Prova di ripristino su un database separato, `palestra-restore-test`. Il contenuto del backup non passa mai da chat, log o repository: si confrontano solo i conteggi delle righe.
 
-1. **Utente**, in locale dalla radice del repository, dopo `npm ci` e `npx wrangler login`: `bash scripts/prova-ripristino.sh AAAA-MM-GG` (senza data, quella di oggi a Roma). Lo script scarica il backup in una cartella temporanea, crea `palestra-restore-test` con giurisdizione EU, vi importa il file e cancella la cartella. Dell'output di wrangler mostra solo l'esito di ogni passo e non usa mai `palestra`. Se `palestra-restore-test` esiste già, la creazione fallisce: il database della prova precedente va cancellato prima, con la conferma dell'utente.
-2. **Claude**, con il connettore Cloudflare in sola lettura: la query di conteggio qui sotto su `palestra-restore-test` e su `palestra`, poi una tabella di confronto con i soli nomi delle tabelle e i numeri. Una differenza va spiegata con le righe di `audit` scritte dopo il backup.
+1. **Utente**, in locale dalla radice del repository, dopo `npm ci` e `npx wrangler login` e dopo un run verde del workflow `backup`: `bash scripts/prova-ripristino.sh AAAA-MM-GG`, con la data nel nome del file caricato (senza data, quella di oggi a Roma). Lo script scarica il backup in una cartella temporanea, crea `palestra-restore-test` con giurisdizione EU, vi importa il file e cancella la cartella. Dell'output di wrangler mostra solo l'esito di ogni passo e non usa mai `palestra`. Se `palestra-restore-test` esiste già, la creazione fallisce: il database della prova precedente va cancellato prima, con la conferma dell'utente.
+2. **Claude**, con il connettore Cloudflare in sola lettura: la query di conteggio qui sotto su `palestra-restore-test` e su `palestra`, poi una tabella di confronto con i soli nomi delle tabelle e i numeri. Una differenza va spiegata con le scritture successive al backup: per le tabelle scritte a mano c'è una riga in `audit`; sync e report non scrivono `audit`, quindi per `sessions`, `timeseries`, `planned_sessions`, `metrics` e `reports` contano gli orari dei loro run.
 3. **Utente**: conferma esplicita della cancellazione. Poi Claude, con il connettore dopo aver ricontrollato nome e id, oppure l'utente: `npx wrangler d1 delete palestra-restore-test --skip-confirmation`.
 4. Una riga nel registro in fondo a questa sezione.
+
+Se un passo della prova fallisce, lo script mostra solo il passo e l'exit code di wrangler:
+
+- **download o creazione**: l'utente rilancia a mano il comando del passo, per esempio `npx --no -- wrangler d1 create palestra-restore-test --jurisdiction eu`, e legge l'errore: il loro output non contiene righe del backup. Cause tipiche: nessun file con quella data nel bucket, login di wrangler scaduto (`npx wrangler login`), più account (`CLOUDFLARE_ACCOUNT_ID` nella shell), `palestra-restore-test` rimasto da una prova precedente;
+- **import**: `palestra-restore-test` resta, vuoto o parziale. Va cancellato con la conferma dell'utente; poi l'utente ripete a mano i tre passi (`mktemp -d`, `r2 object get`, `d1 create`, `d1 execute … --file … --yes`, `rm -r`) per leggere l'errore. Quell'output può contenere righe del backup: resta nel terminale locale e in chat si riporta solo il tipo di errore.
 
 Query di conteggio, un'unica istruzione valida sia per il connettore sia per `npx wrangler d1 execute <database> --remote --command "…"`. L'elenco delle tabelle va ricontrollato con `SELECT name FROM sqlite_schema WHERE type = 'table'` quando lo schema cambia; `_cf_KV` e `sqlite_sequence` sono interne.
 

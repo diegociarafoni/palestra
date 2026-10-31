@@ -8,6 +8,8 @@
 # database vuoto palestra-restore-test e vi importa il file; la cartella si cancella sempre.
 # L'output di wrangler non si mostra mai: in caso di errore può contenere righe del backup.
 # Non usa mai il database palestra e non cancella palestra-restore-test.
+# Exit code: 0 import completato · 64 argomenti non validi · 69 backup vuoto o passo di
+# wrangler non riuscito · 130 interrotto (Ctrl+C, SIGTERM).
 set -euo pipefail
 
 readonly TARGET="palestra-restore-test"
@@ -32,7 +34,8 @@ step() {
     npx --no -- wrangler "$@" </dev/null >/dev/null 2>&1; then
     echo "Fatto: $what" >&2
   else
-    echo "Non riuscito: $what (wrangler exit $?)" >&2
+    echo "Non riuscito: $what (wrangler exit $?)." \
+      "Vedere docs/dashboard.md, «Se un passo della prova fallisce»." >&2
     exit 69
   fi
 }

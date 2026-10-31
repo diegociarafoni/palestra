@@ -187,4 +187,10 @@ describe("prova-ripristino", () => {
     expect(result.stderr).toContain("Uso: bash scripts/prova-ripristino.sh");
     expect(calls()).toEqual([]);
   });
+
+  it("prova-ripristino: exit 64 with more than one argument", () => {
+    const result = run(["2026-10-31", "palestra"]);
+    expect(result.status).toBe(64);
+    expect(calls()).toEqual([]);
+  });
 });

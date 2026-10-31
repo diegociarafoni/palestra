@@ -21,7 +21,6 @@ const REQUIRED_ENV = [
   "R2_SECRET_ACCESS_KEY",
 ] as const;
 
-/** Esporta il database remoto `palestra` nel file indicato; restituisce l'exit code di wrangler. */
 function wranglerEnv(): NodeJS.ProcessEnv {
   const { R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, ...env } = process.env;
   return {
@@ -31,6 +30,7 @@ function wranglerEnv(): NodeJS.ProcessEnv {
   };
 }
 
+/** Esporta il database remoto `palestra` nel file indicato; restituisce l'exit code di wrangler. */
 function exportWithWrangler(output: string): Promise<number> {
   return new Promise((resolve) => {
     // stdio "ignore", mai "inherit": wrangler stampa un link firmato (valido un'ora)
