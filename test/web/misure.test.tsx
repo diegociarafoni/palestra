@@ -8,6 +8,13 @@ import measures from "../fixtures/dashboard/measures.json";
 import { renderConTema } from "./render";
 import { server } from "./setup";
 
+// x di ogni punto della linea dal `d` del path SVG: l'ultima coppia "x,y" di ogni comando (M, L, C).
+const vertexXs = (d: string) =>
+  d
+    .split(/[MLC]/)
+    .filter(Boolean)
+    .map((command) => Number(command.split(",").at(-2)));
+
 const cells = (row: HTMLElement) =>
   within(row)
     .getAllByRole("cell")
@@ -93,6 +100,32 @@ describe("web", () => {
     const chart = screen.getByRole("region", { name: "Peso in protocollo" });
     expect(within(chart).getByText("Nessun dato")).toBeTruthy();
     expect(chart.querySelector("svg")).toBeNull();
+  });
+
+  it("web: weight chart spaces points by date", async () => {
+    // Tre misure in protocollo il 3, il 5 e il 24 novembre: la seconda sta a 2/21 del tratto.
+    const [base] = measures;
+    const inProtocol = [
+      ["2026-11-03", 80],
+      ["2026-11-05", 80.5],
+      ["2026-11-24", 81],
+    ].map(([date, weight_kg]) => ({ ...base, date, weight_kg }));
+    server.use(
+      http.get("/api/measures", () =>
+        HttpResponse.json({ measures: inProtocol }),
+      ),
+    );
+    renderConTema(<Misure />);
+
+    const chart = await screen.findByRole("region", {
+      name: "Peso in protocollo",
+    });
+    const line = chart.querySelector(".MuiLineChart-linePlot path");
+    const [x0, x1, x2] = vertexXs(line?.getAttribute("d") ?? "");
+    if (x0 === undefined || x1 === undefined || x2 === undefined) {
+      throw new Error("punti della linea mancanti");
+    }
+    expect((x1 - x0) / (x2 - x0)).toBeCloseTo(2 / 21, 3);
   });
 
   it("web: api error shows retry", async () => {

@@ -5,7 +5,7 @@ import { LineChart } from "@mui/x-charts/LineChart";
 import { useId } from "react";
 import type { Measure } from "../../../src/domain/types";
 import { testi } from "../testi";
-import { formatShortDate } from "../utils/date";
+import { chartDate, formatChartDate } from "../utils/date";
 
 type GraficoPesoProps = { measures: Measure[] };
 
@@ -30,9 +30,10 @@ export function GraficoPeso({ measures }: GraficoPesoProps) {
           hideLegend
           xAxis={[
             {
-              scaleType: "point",
-              data: points.map((m) => m.date),
-              valueFormatter: (date: string) => formatShortDate(date),
+              // Asse del tempo: le distanze tra i punti seguono i giorni tra le misure.
+              scaleType: "utc",
+              data: points.map((m) => chartDate(m.date)),
+              valueFormatter: (value: Date) => formatChartDate(value),
             },
           ]}
           yAxis={[{ label: testi.measures.kg }]}

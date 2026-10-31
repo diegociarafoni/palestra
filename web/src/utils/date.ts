@@ -30,6 +30,19 @@ export function formatShortDate(date: string): string {
   return shortDate.format(middayOf(date));
 }
 
+/**
+ * `2026-11-03` → la data per un asse del tempo: mezzanotte UTC, dove l'asse mette le tacche dei
+ * giorni; a Roma (UTC+1 o UTC+2) è lo stesso giorno di calendario.
+ */
+export function chartDate(date: string): Date {
+  return new Date(`${date}T00:00:00Z`);
+}
+
+/** Data di un asse del tempo → "3 nov 2026". */
+export function formatChartDate(value: Date): string {
+  return shortDate.format(value);
+}
+
 /** `2026-11-03`, `08:00` → "3 nov 2026, 08:00"; senza ora solo la data. L'ora (`HH:MM`, scritta a mano) resta com'è. */
 export function formatShortDateTime(date: string, time: string | null): string {
   return time === null
