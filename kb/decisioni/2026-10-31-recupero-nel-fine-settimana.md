@@ -21,7 +21,8 @@ Una seduta fatta di sabato o di domenica, fuori da ogni finestra, si abbina come
 - Recupero in qualunque giorno disponibile fuori dalle finestre: il fine settimana resta l'unica zona di recupero, coerente con lo spostamento dal calendario (Task 12), ammesso nella finestra o nel sabato e nella domenica della stessa settimana.
 
 ## Limiti noti
-- Il giorno fissato dall'utente nel calendario (campo `date` dello slot) non entra ancora nell'abbinamento: se due slot sono mancati e l'utente ha spostato il secondo al sabato, la seduta del sabato recupera comunque il primo.
+- Il giorno fissato dall'utente nel calendario (campo `date` dello slot) non entra ancora nell'abbinamento: se due slot sono mancati e l'utente ha spostato il secondo al sabato, la seduta del sabato recupera comunque il primo. Neppure la scadenza lo considera: lo slot spostato diventa `da_confermare` alla fine della sua finestra.
+- L'esito dipende dall'ordine in cui la sync abbina le sedute: per questo il piano (Task 4) le abbina in ordine di data, aggiornando gli slot dopo ogni abbinamento.
 - Le finestre del modello stanno nei giorni feriali; uno slot con una finestra nel fine settimana violerebbe la specifica.
 
 ## Riferimenti

@@ -28,6 +28,8 @@ La data della seduta è quella di Roma (una seduta delle 23:30 UTC di giovedì i
 2. Di sabato o di domenica, il primo slot non fatto della settimana (in ordine di numero) diventa `spostata`: è il recupero ([decisione del 2026-10-31](../decisioni/2026-10-31-recupero-nel-fine-settimana.md)).
 3. In tutti gli altri casi la seduta è **extra**. È extra anche una seconda seduta nella finestra di uno slot già fatto.
 
+Le sedute nuove si abbinano una alla volta, in ordine di data, e ogni abbinamento aggiorna lo stato degli slot prima del successivo: con due slot mancati il sabato recupera lo slot 1 e la domenica lo slot 2.
+
 Uno slot `programmata` la cui finestra è tutta passata diventa `da_confermare` alla sync successiva; uno slot già `da_confermare` non viene ricontato.
 
 Esempio con un modello fittizio (slot 1 martedì o mercoledì, giorno A; slot 2 giovedì, giorno B; lunedì e venerdì non disponibili):
@@ -44,8 +46,10 @@ Esempio con un modello fittizio (slot 1 martedì o mercoledì, giorno A; slot 2 
 
 ## Aderenza
 
-Il report mensile conta come svolti gli slot `fatta` e `spostata` sul totale degli slot programmati; le sedute extra non entrano nell'aderenza ([linee guida § 5](../../docs/linee-guida-allenamento.md)).
+Il report mensile (piano, Task 6, `adherence`) conta come svolti gli slot `fatta` e `spostata` sul totale degli slot programmati; le sedute extra non entrano nell'aderenza (specifica § 5, voce "Sedute programmate"). La soglia di aderenza è nelle [linee guida § 5](../../docs/linee-guida-allenamento.md).
 
 ## Punti aperti
 
 - Il giorno fissato o spostato dall'utente nel calendario (campo `date` dello slot, Task 12) non entra ancora nell'abbinamento: uno slot spostato al fine settimana viene recuperato solo dalla regola 2, che sceglie il primo slot non fatto.
+- Anche la scadenza ignora quel giorno: uno slot spostato al fine settimana diventa `da_confermare` alla fine della sua finestra, e il calendario chiede "Saltata?" prima del giorno scelto.
+- Una seduta feriale che arriva da Mywellness dopo che il fine settimana ha già recuperato il suo slot resta extra, perché l'abbinamento già fatto non si rifà.
