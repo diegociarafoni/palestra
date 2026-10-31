@@ -411,4 +411,39 @@ describe("d1-http", () => {
       db.batch([db.prepare("SELECT 1"), db.prepare("SELECT 2")]),
     ).rejects.toBeInstanceOf(ParseError);
   });
+
+  it("d1-http: empty batch rejects without a request", async () => {
+    // Come il binding ("No SQL statements detected"): nessuna chiamata HTTP.
+    const calls = respondWith(() => HttpResponse.json(okBody([])));
+    await expect(testDb().batch([])).rejects.toThrow("batch vuoto");
+    expect(calls.count).toBe(0);
+  });
+
+  it("d1-http: retried response body is cancelled", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    // fetch iniettato con Response nativa: MSW duplica il corpo (tee) e
+    // nasconderebbe la cancellazione alla sorgente.
+    let cancelled = false;
+    let calls = 0;
+    const db = createD1HttpDb({
+      accountId: ACCOUNT_ID,
+      databaseId: DATABASE_ID,
+      token: "test-token",
+      fetch: async () => {
+        calls++;
+        if (calls > 1) return new Response(JSON.stringify(okBody([[]])));
+        const body = new ReadableStream({
+          cancel() {
+            cancelled = true;
+          },
+        });
+        return new Response(body, { status: 503 });
+      },
+    });
+    const pending = db.prepare("SELECT 1").all();
+    await vi.runAllTimersAsync();
+    await pending;
+    expect(calls).toBe(2);
+    expect(cancelled).toBe(true);
+  });
 });

@@ -153,6 +153,9 @@ export function createD1HttpDb(opts: {
             `D1: HTTP ${response.status} dopo ${attempt + 1} tentativi`,
           );
         }
+        // Libera la connessione prima del nuovo tentativo, senza attendere: con un corpo
+        // duplicato (tee) cancel() si risolve solo quando lo sono entrambi i rami.
+        void response.body?.cancel().catch(() => undefined);
         await sleep(delay);
         continue;
       }
@@ -192,6 +195,10 @@ export function createD1HttpDb(opts: {
   return {
     prepare: (sql) => new HttpStatement(execute, sql),
     batch: async <T>(statements: D1PreparedStatement[]) => {
+      // Come il binding, che rifiuta un batch vuoto ("No SQL statements detected").
+      if (statements.length === 0) {
+        throw new Error("D1: batch vuoto, nessuna istruzione SQL");
+      }
       const queries = statements.map((s) => {
         if (!(s instanceof HttpStatement) || s.execute !== execute) {
           throw new TypeError("D1: istruzione preparata da un altro database");
