@@ -300,15 +300,17 @@ describe("backup", () => {
   });
 
   it("backup: wrangler output never reaches the logs", () => {
-    // `npx` finto, primo nel PATH: registra gli argomenti, scrive l'export e stampa un
-    // link firmato su stdout e stderr, come wrangler.
+    // `npx` finto, primo nel PATH: registra gli argomenti e WRANGLER_WRITE_LOGS, scrive
+    // l'export e stampa un link firmato su stdout e stderr, come wrangler.
     fakeDir = mkdtempSync(join(tmpdir(), "backup-fake-npx-"));
     const argsFile = join(fakeDir, "args.txt");
+    const writeLogsFile = join(fakeDir, "write-logs.txt");
     writeFileSync(
       join(fakeDir, "npx"),
       [
         "#!/bin/sh",
         `printf '%s\\n' "$@" > '${argsFile}'`,
+        `printf '%s' "\${WRANGLER_WRITE_LOGS-unset}" > '${writeLogsFile}'`,
         'prev=""',
         'for a in "$@"; do',
         '  if [ "$prev" = "--output" ]; then printf \'CREATE TABLE t(x);\\n\' > "$a"; fi',
@@ -351,6 +353,8 @@ describe("backup", () => {
     expect(basename(dirname(output))).toMatch(/^palestra-backup-.{6}$/);
     expect(basename(output)).toMatch(/^palestra-\d{4}-\d{2}-\d{2}\.sql$/);
     expect(existsSync(dirname(output))).toBe(false);
+    // Wrangler scrive ogni riga di log, link firmato compreso, anche in un file su disco.
+    expect(readFileSync(writeLogsFile, "utf8")).toBe("false");
   });
 
   it("backup: exit 69 when npx cannot be started", () => {

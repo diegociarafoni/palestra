@@ -26,6 +26,7 @@ function exportWithWrangler(output: string): Promise<number> {
   return new Promise((resolve) => {
     // stdio "ignore", mai "inherit": wrangler stampa un link firmato (valido un'ora)
     // all'export completo del database, e i log delle Actions sono pubblici.
+    // WRANGLER_WRITE_LOGS=false: lo stesso link finirebbe anche nel log su disco di wrangler.
     // `--no`: mai scaricare un wrangler non fissato se manca quello locale (l'ambiente
     // contiene i segreti); `--` perché npm non legga come propri i flag di wrangler.
     const child = spawn(
@@ -42,7 +43,10 @@ function exportWithWrangler(output: string): Promise<number> {
         "--output",
         output,
       ],
-      { stdio: "ignore" },
+      {
+        stdio: "ignore",
+        env: { ...process.env, WRANGLER_WRITE_LOGS: "false" },
+      },
     );
     // npx non avviabile (es. assente dal PATH): export fallito, 127 come nella shell.
     child.on("error", () => resolve(127));
