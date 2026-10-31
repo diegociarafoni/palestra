@@ -178,6 +178,35 @@ describe("store feedback", () => {
     ]);
   });
 
+  it("store: feedback re-save with its own links succeeds", async () => {
+    const save = (cls: "buona" | "ottima") =>
+      upsertFeedback(
+        env.DB,
+        {
+          date: "2026-11-03",
+          class: cls,
+          joint_pain: false,
+          planned_id: "2026-W45-1",
+          session_id: "sess-001",
+        },
+        ACTOR,
+      );
+    await save("buona");
+    // SQLite controlla prima il vincolo di (date, seq): i link UNIQUE della riga stessa non bloccano la modifica.
+    await expect(save("ottima")).resolves.toMatchObject({
+      date: "2026-11-03",
+      seq: 1,
+      class: "ottima",
+      planned_id: "2026-W45-1",
+      session_id: "sess-001",
+    });
+    expect(await count("feedback")).toBe(1);
+    const audit = await env.DB.prepare(
+      "SELECT action FROM audit ORDER BY id",
+    ).all();
+    expect(audit.results).toEqual([{ action: "insert" }, { action: "update" }]);
+  });
+
   it.each(["planned_id", "session_id"] as const)(
     "store: feedback rejects a %s already linked to another seduta",
     async (link) => {
@@ -203,11 +232,11 @@ describe("store feedback", () => {
     },
   );
 
-  it("store: feedback rejects seq 0", async () => {
+  it.each([0, 1.5])("store: feedback rejects seq %s", async (seq) => {
     await expect(
       upsertFeedback(
         env.DB,
-        { date: "2026-11-03", seq: 0, class: "buona", joint_pain: false },
+        { date: "2026-11-03", seq, class: "buona", joint_pain: false },
         ACTOR,
       ),
     ).rejects.toBeInstanceOf(ParseError);
