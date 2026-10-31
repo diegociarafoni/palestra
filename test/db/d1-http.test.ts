@@ -369,4 +369,26 @@ describe("d1-http", () => {
       expect(calls.count).toBe(0);
     },
   );
+
+  it("d1-http: body read failure on 2xx raises TransientError", async () => {
+    const calls = respondWith(
+      () =>
+        new HttpResponse(
+          new ReadableStream({
+            pull(controller) {
+              controller.enqueue(new TextEncoder().encode('{"success":'));
+              controller.error(new Error("connessione interrotta"));
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    );
+    const error = await testDb()
+      .prepare("SELECT 1")
+      .all()
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(TransientError);
+    expect((error as Error).cause).toBeDefined();
+    expect(calls.count).toBe(1);
+  });
 });

@@ -156,9 +156,18 @@ export function createD1HttpDb(opts: {
         await sleep(delay);
         continue;
       }
+      // Leggere il corpo è ancora rete (connessione interrotta, timeout): errore transitorio.
+      let text: string;
+      try {
+        text = await response.text();
+      } catch (error) {
+        throw new TransientError("D1: lettura della risposta non riuscita", {
+          cause: error,
+        });
+      }
       let json: unknown;
       try {
-        json = await response.json();
+        json = JSON.parse(text);
       } catch {
         // Niente cause: il SyntaxError cita l'inizio del corpo della risposta.
         if (response.ok) throw new ParseError("D1: risposta non JSON");
