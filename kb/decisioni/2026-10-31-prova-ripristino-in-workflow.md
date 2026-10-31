@@ -26,7 +26,7 @@ aggiornato: 2026-10-31
 ## Note tecniche
 - `wrangler d1 execute <db> --remote --json --command "<sql>"` scrive su stdout solo `JSON.stringify` della risposta: un array con un elemento per istruzione, `{ results, success, meta }`. Con `--json` non c'è banner né domanda di conferma.
 - `wrangler d1 create` scrive la configurazione del binding solo in un file di configurazione JSON; senza file o con `wrangler.toml` si limita a stamparla.
-- Un job interrotto (timeout, annullamento) può lasciare `palestra-restore-test`: il run successivo fallisce alla creazione e il database va cancellato a mano.
+- Un run annullato o in timeout riceve SIGINT/SIGTERM e il `finally` di Node non gira: per questo un passo finale `if: cancelled() || failure()` cancella `palestra-restore-test`, e il passo della prova ha un timeout più corto di quello del job, così la pulizia ha tempo. Se fallisce anche la pulizia, il run successivo si ferma alla creazione e il database va cancellato a mano.
 
 ## Riferimenti
 `.github/workflows/restore-test.yml`, `src/cli/restore-test.ts`, `src/cli/wrangler.ts`, `src/r2/get-object.ts`, `scripts/prova-ripristino.sh`; `docs/dashboard.md`, «Backup e ripristino»; nota [Il backup mensile di D1 va su R2 con chiavi S3 limitate al bucket, senza mai mostrare l'output di wrangler](2026-10-31-backup-d1-su-r2.md).

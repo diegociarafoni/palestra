@@ -52,7 +52,7 @@ Prova di ripristino su un database separato, `palestra-restore-test`. Il contenu
 4. Una differenza va spiegata con le scritture successive al backup: per le tabelle scritte a mano c'è una riga in `audit`; sync e report non scrivono `audit`, quindi per `sessions`, `timeseries`, `planned_sessions`, `metrics` e `reports` contano gli orari dei loro run.
 5. Una riga nel registro in fondo a questa sezione, con i soli conteggi.
 
-Un job interrotto (timeout, annullamento) può lasciare `palestra-restore-test`, e il run successivo fallisce alla creazione: va cancellato dal dashboard Cloudflare oppure da Claude con il connettore, dopo aver ricontrollato nome e id.
+Se il run viene annullato, va in timeout o fallisce, il `finally` della CLI può non girare: un passo finale del job (`if: cancelled() || failure()`) cancella comunque `palestra-restore-test`, con l'output di wrangler scartato. Il passo della prova ha un timeout di 12 minuti, così alla pulizia restano almeno 3 minuti dei 15 del job. Se fallisce anche la pulizia, il run successivo si ferma alla creazione: il database va cancellato dal dashboard Cloudflare oppure da Claude con il connettore, dopo aver ricontrollato nome e id.
 
 #### Alternativa in locale (`scripts/prova-ripristino.sh`)
 
