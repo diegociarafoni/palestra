@@ -1,5 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
@@ -66,13 +73,25 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterAll(() => server.close());
 
 let stderr: ReturnType<typeof vi.spyOn>;
+let fakeDir: string | undefined;
 beforeEach(() => {
   stderr = vi.spyOn(console, "error").mockImplementation(() => undefined);
 });
 afterEach(() => {
   server.resetHandlers();
   vi.restoreAllMocks();
+  if (fakeDir) rmSync(fakeDir, { recursive: true, force: true });
+  fakeDir = undefined;
 });
+
+/** Esegue la CLI come `npm run backup` (tsx), con l'ambiente indicato e nient'altro. */
+function runCli(env: Record<string, string | undefined>) {
+  return spawnSync(
+    process.execPath,
+    ["--import", "tsx", join(import.meta.dirname, "../../src/cli/backup.ts")],
+    { env, encoding: "utf8" },
+  );
+}
 
 describe("backup", () => {
   it("backup: exit 78 without r2 keys", async () => {
@@ -218,14 +237,64 @@ describe("backup", () => {
   });
 
   it("backup: direct run exits 78 without env", () => {
-    // Come `npm run backup` (tsx), con un ambiente senza credenziali: wrangler non parte.
-    const result = spawnSync(
-      process.execPath,
-      ["--import", "tsx", join(import.meta.dirname, "../../src/cli/backup.ts")],
-      { env: { PATH: process.env.PATH }, encoding: "utf8" },
-    );
+    // Con un ambiente senza credenziali: wrangler non parte.
+    const result = runCli({ PATH: process.env.PATH });
     expect(result.status).toBe(78);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("CLOUDFLARE_API_TOKEN");
+  });
+
+  it("backup: wrangler output never reaches the logs", () => {
+    // `npx` finto, primo nel PATH: registra gli argomenti, scrive l'export e stampa un
+    // link firmato su stdout e stderr, come wrangler.
+    fakeDir = mkdtempSync(join(tmpdir(), "backup-fake-npx-"));
+    const argsFile = join(fakeDir, "args.txt");
+    writeFileSync(
+      join(fakeDir, "npx"),
+      [
+        "#!/bin/sh",
+        `printf '%s\\n' "$@" > '${argsFile}'`,
+        'prev=""',
+        'for a in "$@"; do',
+        '  if [ "$prev" = "--output" ]; then printf \'CREATE TABLE t(x);\\n\' > "$a"; fi',
+        '  prev="$a"',
+        "done",
+        "echo https://signed.invalid/xyz",
+        "echo https://signed.invalid/xyz >&2",
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    // Account id non valido: putObject fallisce con AuthError prima di qualunque rete.
+    const result = runCli({
+      PATH: `${fakeDir}:${process.env.PATH}`,
+      TMPDIR: tmpdir(),
+      CLOUDFLARE_API_TOKEN: "t",
+      CLOUDFLARE_ACCOUNT_ID: "x/y",
+      R2_ACCESS_KEY_ID: "k",
+      R2_SECRET_ACCESS_KEY: "s",
+    });
+    expect(result.status).toBe(78);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Backup non riuscito: R2:");
+    expect(result.stderr).not.toContain("signed.invalid");
+    const args = readFileSync(argsFile, "utf8").split("\n").slice(0, -1);
+    const output = args.at(-1) ?? "";
+    expect(args).toEqual([
+      "--no",
+      "--",
+      "wrangler",
+      "d1",
+      "export",
+      "palestra",
+      "--remote",
+      "--skip-confirmation",
+      "--output",
+      output,
+    ]);
+    expect(dirname(dirname(output))).toBe(tmpdir());
+    expect(basename(dirname(output))).toMatch(/^palestra-backup-.{6}$/);
+    expect(basename(output)).toMatch(/^palestra-\d{4}-\d{2}-\d{2}\.sql$/);
+    expect(existsSync(dirname(output))).toBe(false);
   });
 });

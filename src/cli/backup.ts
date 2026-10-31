@@ -27,9 +27,13 @@ function exportWithWrangler(output: string): Promise<number> {
   return new Promise((resolve, reject) => {
     // stdio "ignore", mai "inherit": wrangler stampa un link firmato (valido un'ora)
     // all'export completo del database, e i log delle Actions sono pubblici.
+    // `--no`: mai scaricare un wrangler non fissato se manca quello locale (l'ambiente
+    // contiene i segreti); `--` perché npm non legga come propri i flag di wrangler.
     const child = spawn(
       "npx",
       [
+        "--no",
+        "--",
         "wrangler",
         "d1",
         "export",
