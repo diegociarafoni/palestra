@@ -83,6 +83,8 @@ type Analysis = {
   strength: StrengthTable;
   series: E1rmSeries;
   weekly: WeeklyVolume;
+  // Settimane con serie registrate: le sole confrontate per il tonnellaggio.
+  lifting: WeeklyVolume;
   weeks: number;
   muscles: Record<string, number>;
   patterns: Record<string, number>;
@@ -134,8 +136,10 @@ function analyse(input: ReportInput): Analysis {
   const trend = measuresTrend(input.measures);
   const weeks = weeksInMonth(input.month);
 
-  const firstKgPerSet = round(weekly[0]?.kg_per_set ?? 0);
-  const lastKgPerSet = round(weekly.at(-1)?.kg_per_set ?? 0);
+  // Una settimana di solo cardio non entra nel confronto del tonnellaggio.
+  const lifting = weekly.filter((w) => w.sets > 0);
+  const firstKgPerSet = round(lifting[0]?.kg_per_set ?? 0);
+  const lastKgPerSet = round(lifting.at(-1)?.kg_per_set ?? 0);
   const adherencePct = adh.planned > 0 ? (adh.done / adh.planned) * 100 : null;
   const deltas = present(strength.map((r) => r.e1rm_delta_pct));
   const e1rmMean = mean(deltas);
@@ -151,11 +155,11 @@ function analyse(input: ReportInput): Analysis {
       adherencePct === null
         ? null
         : status("adherence", round(adherencePct) / 100, null),
-    tonnage_first_week_kg: weekly[0]?.tonnage_kg ?? null,
-    tonnage_last_week_kg: weekly.at(-1)?.tonnage_kg ?? null,
+    tonnage_first_week_kg: lifting[0]?.tonnage_kg ?? null,
+    tonnage_last_week_kg: lifting.at(-1)?.tonnage_kg ?? null,
     // kg per serie, "a parità di serie" (linee guida § 5); una base a 0 renderebbe tutto ✓.
     tonnage_status:
-      weekly.length >= 2 && firstKgPerSet > 0
+      lifting.length >= 2 && firstKgPerSet > 0
         ? status("tonnage", lastKgPerSet, firstKgPerSet)
         : null,
     e1rm_mean_delta_pct: e1rmMean,
@@ -193,6 +197,7 @@ function analyse(input: ReportInput): Analysis {
     strength,
     series,
     weekly,
+    lifting,
     weeks,
     muscles,
     patterns,
@@ -280,8 +285,8 @@ function summaryRows(input: ReportInput, a: Analysis): SummaryRow[] {
   const { kpi } = a;
   const fat = change(present(a.trend.map((m) => m.fat_mass_kg)));
   const muscle = change(present(a.trend.map((m) => m.skeletal_muscle_kg)));
-  const first = a.weekly[0];
-  const last = a.weekly.at(-1);
+  const first = a.lifting[0];
+  const last = a.lifting.at(-1);
   const withUnit = (n: number | null, unit: string) =>
     n === null ? "—" : `${num(n)} ${unit}`;
   const either = (x: number | null, y: number | null, text: string) =>
@@ -300,7 +305,7 @@ function summaryRows(input: ReportInput, a: Analysis): SummaryRow[] {
       label: "Tonnellaggio settimanale",
       value: last === undefined ? null : `${num(last.tonnage_kg)} kg`,
       compare:
-        a.weekly.length < 2 || first === undefined || last === undefined
+        a.lifting.length < 2 || first === undefined || last === undefined
           ? "—"
           : [
               `da ${num(first.tonnage_kg)} kg`,
