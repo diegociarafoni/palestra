@@ -222,31 +222,43 @@ describe("backup", () => {
   });
 
   it("backup: default upload puts the file in the eu bucket", async () => {
-    const requests: { authorization: string | null; body: string }[] = [];
+    // Stessi valori del test di put-object (credenziali dell'AWS SigV4 test suite):
+    // firma letterale, quindi anche un segreto o un istante sbagliati la cambiano.
+    const objectUrl =
+      "https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com/palestra-backup/palestra-2026-11-02.sql";
+    const requests: {
+      url: string;
+      authorization: string | null;
+      body: string;
+    }[] = [];
     server.use(
-      http.put(
-        `https://${ENV.CLOUDFLARE_ACCOUNT_ID}.eu.r2.cloudflarestorage.com/palestra-backup/palestra-2026-11-02.sql`,
-        async ({ request }) => {
-          requests.push({
-            authorization: request.headers.get("authorization"),
-            body: await request.text(),
-          });
-          return new HttpResponse(null, { status: 200 });
-        },
-      ),
+      http.put(objectUrl, async ({ request }) => {
+        requests.push({
+          url: request.url,
+          authorization: request.headers.get("authorization"),
+          body: await request.text(),
+        });
+        return new HttpResponse(null, { status: 200 });
+      }),
     );
-    const { deps } = fakes({ content: SQL });
-    const code = await main([], ENV, {
-      exportDb: deps.exportDb,
-      now: deps.now,
-    });
+    const { deps } = fakes({ content: SQL, now: "2026-11-02T03:00:00Z" });
+    const code = await main(
+      [],
+      {
+        CLOUDFLARE_API_TOKEN: "test-token",
+        CLOUDFLARE_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
+        R2_ACCESS_KEY_ID: "AKIDEXAMPLE",
+        R2_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY",
+      },
+      { exportDb: deps.exportDb, now: deps.now },
+    );
     expect(code).toBe(0);
     expect(requests).toEqual([
       {
-        authorization: expect.stringMatching(
-          /^AWS4-HMAC-SHA256 Credential=test-key-id\/\d{8}\/auto\/s3\/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=[0-9a-f]{64}$/,
-        ),
-        body: SQL,
+        url: objectUrl,
+        authorization:
+          "AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20261102/auto/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=2bbc901ccde0233bbd7a061337479044d1394a0df54613d02d39e02385664763",
+        body: "CREATE TABLE prova(x);\n",
       },
     ]);
   });

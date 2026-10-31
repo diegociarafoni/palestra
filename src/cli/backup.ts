@@ -83,6 +83,8 @@ export async function main(
     console.error(`Variabili d'ambiente mancanti: ${missing.join(", ")}`);
     return 78;
   }
+  // Un solo istante per il nome del file e per la firma dell'upload.
+  const instant = deps.now?.() ?? new Date();
   const {
     exportDb = exportWithWrangler,
     upload = (key: string, body: Uint8Array) =>
@@ -93,10 +95,10 @@ export async function main(
         bucket: BUCKET,
         key,
         body,
+        now: instant,
       }),
-    now = () => new Date(),
   } = deps;
-  const key = `palestra-${romeDate(now().toISOString())}.sql`;
+  const key = `palestra-${romeDate(instant.toISOString())}.sql`;
   const dir = await mkdtemp(join(tmpdir(), "palestra-backup-"));
   try {
     const file = join(dir, key);
