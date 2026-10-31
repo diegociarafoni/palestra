@@ -1,9 +1,10 @@
 -- Schema iniziale del database D1 "palestra": colonne e autori in scheda/SCHEMA.md § 0.
--- Date `YYYY-MM-DD`, istanti ISO 8601 e JSON sono TEXT.
+-- Date `YYYY-MM-DD`, istanti ISO 8601 e JSON sono TEXT. Le chiavi primarie TEXT
+-- hanno NOT NULL esplicito: in SQLite solo INTEGER PRIMARY KEY lo implica.
 
 -- Sedute Mywellness normalizzate (scrive solo la sync). `date` è la data in Europe/Rome.
 CREATE TABLE sessions (
-  session_id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL PRIMARY KEY,
   date TEXT NOT NULL,
   started_at TEXT NOT NULL,
   json TEXT NOT NULL
@@ -27,13 +28,13 @@ CREATE INDEX measures_date ON measures (date);
 
 -- Una riga per settimana ISO (`YYYY-Www`).
 CREATE TABLE recovery (
-  week TEXT PRIMARY KEY,
+  week TEXT NOT NULL PRIMARY KEY,
   json TEXT NOT NULL
 );
 
 -- Slot programmati: id = "<week>-<slot>", window_days = array JSON di date.
 CREATE TABLE planned_sessions (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL PRIMARY KEY,
   week TEXT NOT NULL,
   slot INTEGER NOT NULL,
   window_days TEXT NOT NULL,
@@ -62,13 +63,13 @@ CREATE TABLE feedback (
 );
 
 CREATE TABLE profile (
-  key TEXT PRIMARY KEY,
+  key TEXT NOT NULL PRIMARY KEY,
   json TEXT NOT NULL
 );
 
 -- Una riga per versione (`AAAA-MM`): `json` e `md` cambiano sempre insieme.
 CREATE TABLE scheda (
-  version TEXT PRIMARY KEY,
+  version TEXT NOT NULL PRIMARY KEY,
   valid_from TEXT NOT NULL,
   valid_to TEXT,
   json TEXT NOT NULL,
