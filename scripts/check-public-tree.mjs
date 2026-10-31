@@ -5,7 +5,7 @@
 // distinzione tra maiuscole e minuscole) oppure ~/.config/palestra/identificativi.txt.
 // Stampa solo percorso e numero di riga, mai il testo trovato.
 // Exit code: 0 nessun problema · 1 problemi trovati · 64 argomenti errati · 78 pattern mancanti.
-import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, relative, sep } from "node:path";
 
@@ -59,7 +59,9 @@ if (!root || process.argv.length > 3 || !existsSync(root)) {
 }
 const patterns = loadPatterns();
 if (!patterns || patterns.length === 0) {
-  console.error("Nessun pattern: impostare PII_PATTERNS o ~/.config/palestra/identificativi.txt");
+  console.error(
+    "Nessun pattern: impostare PII_PATTERNS o ~/.config/palestra/identificativi.txt",
+  );
   process.exit(78);
 }
 

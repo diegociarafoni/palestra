@@ -230,3 +230,9 @@ scheda/scheda.*
 *.sqlite
 probe_out/
 fixtures_raw/
+
+# TypeScript / Cloudflare
+node_modules/
+site/
+.wrangler/
+wrangler.toml

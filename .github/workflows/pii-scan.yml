@@ -1,0 +1,24 @@
+name: pii-scan
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pii-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Scan tracked tree
+        env:
+          PII_PATTERNS: ${{ secrets.PII_PATTERNS }}
+        run: node scripts/check-public-tree.mjs .
