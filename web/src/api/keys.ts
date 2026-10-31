@@ -2,4 +2,5 @@
 export const queryKeys = {
   measures: ["measures"],
   scheda: ["scheda"],
+  report: (month: string) => ["reports", month],
 };

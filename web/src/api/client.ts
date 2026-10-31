@@ -3,6 +3,7 @@ import type { z } from "zod";
 import type { AppType } from "../../../src/api/app";
 import {
   MeasuresResponseSchema,
+  ReportsResponseSchema,
   SchedaResponseSchema,
 } from "../../../src/domain/dashboard";
 
@@ -14,6 +15,7 @@ type ApiResponse = { status: number; json: () => Promise<unknown> };
 
 /**
  * Legge una risposta: 2xx → dati validati; 404 → `null` (la pagina mostra "Nessun dato");
+ * 401/403 → sessione di Access scaduta: si ricarica la pagina, che passa di nuovo da Access;
  * ogni altro stato → errore (la pagina offre "Riprova").
  */
 async function read<T>(
@@ -21,6 +23,11 @@ async function read<T>(
   schema: z.ZodType<T>,
 ): Promise<T | null> {
   const response = await request;
+  if (response.status === 401 || response.status === 403) {
+    window.location.reload();
+    // La richiesta resta in corso fino alla ricarica: nessun errore tecnico da mostrare.
+    return new Promise<never>(() => {});
+  }
   if (response.status === 404) return null;
   if (response.status < 200 || response.status > 299) {
     throw new Error(`API: risposta ${response.status}`);
@@ -37,4 +44,12 @@ export async function getMeasures() {
 /** La scheda attiva oggi, con il Markdown. */
 export function getScheda() {
   return read(api.scheda.$get(), SchedaResponseSchema);
+}
+
+/** Report e revisione del mese (`AAAA-MM`). */
+export function getReport(month: string) {
+  return read(
+    api.reports[":month"].$get({ param: { month } }),
+    ReportsResponseSchema,
+  );
 }

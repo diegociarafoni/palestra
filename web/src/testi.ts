@@ -18,6 +18,10 @@ export const testi = {
     error: "Impossibile caricare i dati.",
     retry: "Riprova",
   },
+  page: {
+    failed:
+      "Questa pagina non si è caricata. Ricarica la pagina per riprovare.",
+  },
   missing: "—",
   yes: "Sì",
   no: "No",
@@ -42,5 +46,14 @@ export const testi = {
     title: "Scheda",
     version: (version: string) => `Versione ${version}`,
     validity: (from: string, to: string) => `Valida dal ${from} al ${to}`,
+  },
+  month: {
+    previous: "Mese precedente",
+    next: "Mese successivo",
+  },
+  report: {
+    title: "Report mensile",
+    report: "Report",
+    revisione: "Revisione",
   },
 };
