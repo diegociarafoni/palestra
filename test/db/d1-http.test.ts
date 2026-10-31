@@ -84,12 +84,17 @@ describe("d1-http", () => {
   });
 
   it("d1-http: retries 503 then succeeds", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout"] });
-    const requests: { auth: string | null; body: unknown }[] = [];
+    vi.useFakeTimers({ toFake: ["setTimeout", "Date"], now: 0 });
+    const requests: {
+      auth: string | null;
+      type: string | null;
+      body: unknown;
+    }[] = [];
     server.use(
       http.post(QUERY_URL, async ({ request }) => {
         requests.push({
           auth: request.headers.get("authorization"),
+          type: request.headers.get("content-type"),
           body: await request.json(),
         });
         return requests.length === 1
@@ -106,12 +111,14 @@ describe("d1-http", () => {
 
     const sent = {
       auth: "Bearer test-token",
+      type: "application/json",
       body: {
         sql: "SELECT ?1, ?2, ?3, ?4, ?5",
         params: ["sess-001", 2, 1, 0, null],
       },
     };
     expect(requests).toEqual([sent, sent]);
+    expect(Date.now()).toBe(500); // attesa prima del secondo tentativo
     expect(result).toEqual({
       success: true,
       results: [{ id: "sess-001" }],
@@ -128,7 +135,7 @@ describe("d1-http", () => {
   });
 
   it("d1-http: 429 on every attempt raises TransientError after 3 calls", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    vi.useFakeTimers({ toFake: ["setTimeout", "Date"], now: 0 });
     const calls = respondWith(() => new HttpResponse(null, { status: 429 }));
     const pending = testDb()
       .prepare("SELECT 1")
@@ -137,6 +144,7 @@ describe("d1-http", () => {
     await vi.runAllTimersAsync();
     expect(await pending).toBeInstanceOf(TransientError);
     expect(calls.count).toBe(3);
+    expect(Date.now()).toBe(1500); // attese di 500 e 1000 ms
   });
 
   it("d1-http: network failure raises TransientError with cause", async () => {

@@ -81,6 +81,10 @@ describe("store sessions", () => {
     expect(await knownSessionIds(env.DB, "2026-10-16")).toEqual(
       new Set(["sess-002"]),
     );
+    // Estremo incluso.
+    expect(await knownSessionIds(env.DB, "2026-10-29")).toEqual(
+      new Set(["sess-002"]),
+    );
   });
 
   it("store: sessions by month use rome date", async () => {

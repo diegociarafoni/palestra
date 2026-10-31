@@ -135,7 +135,7 @@ export function createD1HttpDb(opts: {
       if (response.status === 401 || response.status === 403) {
         throw new AuthError(`D1: accesso negato (HTTP ${response.status})`);
       }
-      // Il retry vale anche per le scritture: la sync scrive solo upsert idempotenti.
+      // Retry anche sulle scritture: i job via HTTP (sync, report) fanno solo upsert idempotenti.
       if (response.status === 429 || response.status >= 500) {
         const delay = RETRY_DELAYS_MS[attempt];
         if (delay === undefined) {

@@ -36,6 +36,9 @@ describe("store scheda", () => {
     expect((await getActiveScheda(env.DB, "2026-12-02"))?.version).toBe(
       "2026-12",
     );
+    expect((await getActiveScheda(env.DB, "2026-11-03"))?.version).toBe(
+      "2026-11",
+    );
     expect(await getActiveScheda(env.DB, "2026-11-02")).toBeNull();
     expect(await getActiveScheda(env.DB, "2027-01-01")).toBeNull();
 
