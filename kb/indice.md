@@ -92,7 +92,7 @@ Inventario per zona e verifiche aperte: [docs/attrezzi-via-mantova.md](../docs/a
 ## Decisioni
 - 2026-10-30 · [La scheda vive nella Technogym App, non in un'app propria](decisioni/2026-10-30-scheda-nella-technogym-app.md)
 - 2026-10-30 · [Infrastruttura: repository GitHub + Actions + Progetto Claude](decisioni/2026-10-30-github-actions-e-progetto-claude.md)
-- 2026-10-30 · [Le credenziali Mywellness vivono solo nei GitHub Secrets](decisioni/2026-10-30-credenziali-solo-in-github-secrets.md)
+- 2026-10-30 · [Le credenziali Mywellness vivono solo nei GitHub Secrets](decisioni/2026-10-30-credenziali-solo-in-github-secrets.md) (superata)
 - 2026-10-30 · [Revisione del codice da agente esterno, in sola lettura, a contesto fresco](decisioni/2026-10-30-revisore-indipendente.md)
 - 2026-10-30 · [Dashboard su Cloudflare Pages protetta da Cloudflare Access](decisioni/2026-10-30-dashboard-cloudflare-access.md)
 - 2026-10-30 · [Il report mensile segue la struttura dei report di fine ciclo dei personal trainer](decisioni/2026-10-30-report-sul-modello-pt.md)
@@ -106,6 +106,7 @@ Inventario per zona e verifiche aperte: [docs/attrezzi-via-mantova.md](../docs/a
 - 2026-10-31 · [Il backup mensile di D1 va su R2 con chiavi S3 limitate al bucket, senza mai mostrare l'output di wrangler](decisioni/2026-10-31-backup-d1-su-r2.md)
 - 2026-10-31 · [La prova di ripristino del backup gira come workflow manuale che stampa solo i conteggi e cancella il database di prova](decisioni/2026-10-31-prova-ripristino-in-workflow.md) (superata)
 - 2026-10-31 · [La prova di ripristino confronta le righe ripristinate con le INSERT del dump; palestra resta solo informativo](decisioni/2026-10-31-prova-ripristino-confronto-col-dump.md)
+- 2026-10-31 · [Il probe di Mywellness gira solo sul computer dell'utente; la sync resta con le credenziali nei GitHub Secrets](decisioni/2026-10-31-probe-mywellness-in-locale.md) (sostituisce quella del 2026-10-30)
 - 2026-11-01 · [Il report mensile gira in un workflow proprio, il 1° del mese dopo la sync](decisioni/2026-11-01-report-mensile-in-workflow-separato.md) (superata)
 - 2026-11-01 · [Con la sessione di Access scaduta la dashboard ricarica la pagina al massimo una volta al minuto](decisioni/2026-11-01-sessione-access-scaduta.md)
 - 2026-11-01 · [Nel frontend zod gira senza JIT, perché la CSP della dashboard non ammette 'unsafe-eval'](decisioni/2026-11-01-zod-senza-jit-nel-frontend.md)
