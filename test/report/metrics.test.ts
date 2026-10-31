@@ -58,22 +58,22 @@ describe("metrics", () => {
     ]);
 
     // Fixture: W45 con la seduta extra di solo cardio (conta tra le sedute, non nelle serie).
-    // W45 = 2040 + 990 + 1160 (sess-r01) + 2160 + 1080 (sess-r03) = 7430 kg in 15 serie;
-    // W46 = 2015 + 1050 + 1200 (sess-r04) = 4265 kg in 9 serie.
+    // W45 = 2040 + 990 + 1160 (sess-r01, 9 serie) + 2880 + 1440 (sess-r03, 8 serie) = 8510 kg;
+    // W46 = 2015 + 1050 + 1600 (sess-r04) = 4665 kg in 10 serie.
     expect(weeklyVolume(sessions)).toEqual([
       {
         week: "2026-W45",
         sessions: 3,
-        sets: 15,
-        tonnage_kg: 7430,
-        kg_per_set: expect.closeTo(495.333, 2),
+        sets: 17,
+        tonnage_kg: 8510,
+        kg_per_set: expect.closeTo(500.588, 2),
       },
       {
         week: "2026-W46",
         sessions: 1,
-        sets: 9,
-        tonnage_kg: 4265,
-        kg_per_set: expect.closeTo(473.889, 2),
+        sets: 10,
+        tonnage_kg: 4665,
+        kg_per_set: 466.5,
       },
     ]);
   });

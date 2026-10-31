@@ -2,12 +2,19 @@ import { isoWeek, romeDate } from "../domain/dates";
 import type {
   Adherence,
   FeedbackSummary,
+  MeasuresTrend,
   Ratios,
   Status,
   WeeklyVolume,
 } from "../domain/metrics";
 import type { PlannedSlot } from "../domain/planning";
-import type { Exercise, Feedback, Scheda, Session } from "../domain/types";
+import type {
+  Exercise,
+  Feedback,
+  Measure,
+  Scheda,
+  Session,
+} from "../domain/types";
 import { registeredSets } from "./progression";
 import { type Execution, strengthExercises } from "./strength";
 
@@ -188,7 +195,8 @@ export type CardioRow = {
   moves_avg: number | null;
 };
 
-const present = (values: (number | null | undefined)[]): number[] =>
+/** Valori presenti (né null né undefined), nell'ordine. */
+export const present = (values: (number | null | undefined)[]): number[] =>
   values.filter((v): v is number => v !== null && v !== undefined);
 
 // Somma dei valori presenti; null se non ce n'è nessuno.
@@ -225,4 +233,19 @@ export function cardioSummary(sessions: Session[]): CardioRow[] {
       moves_avg: mean(list.map((e) => e.moves)),
     };
   });
+}
+
+/** Misure in protocollo, in ordine di data: le sole che entrano nei trend. */
+export function measuresTrend(measures: Measure[]): MeasuresTrend {
+  return measures
+    .filter((m) => m.in_protocol)
+    .toSorted((a, b) => a.date.localeCompare(b.date))
+    .map((m) => ({
+      date: m.date,
+      weight_kg: m.weight_kg,
+      waist_cm: m.waist_cm,
+      skeletal_muscle_kg: m.skeletal_muscle_kg,
+      fat_mass_kg: m.fat_mass_kg,
+      body_fat_pct: m.body_fat_pct,
+    }));
 }

@@ -76,3 +76,74 @@ export const FeedbackSummarySchema = z.object({
   joint_pain_days: z.int(),
 });
 export type FeedbackSummary = z.infer<typeof FeedbackSummarySchema>;
+
+export const VolumeByMuscleSchema = z.object({
+  // settimane del mese = giorni / 7; serie a settimana = totale / weeks
+  weeks: z.number(),
+  // totali del mese, lavoro indiretto al 50 %
+  muscles: z.record(z.string(), z.number()),
+  patterns: z.record(z.string(), z.number()),
+});
+export type VolumeByMuscle = z.infer<typeof VolumeByMuscleSchema>;
+
+// Solo misure in protocollo, in ordine di data.
+export const MeasuresTrendSchema = z.array(
+  z.object({
+    date: z.iso.date(),
+    weight_kg: z.number().nullable(),
+    waist_cm: z.number().nullable(),
+    skeletal_muscle_kg: z.number().nullable(),
+    fat_mass_kg: z.number().nullable(),
+    body_fat_pct: z.number().nullable(),
+  }),
+);
+export type MeasuresTrend = z.infer<typeof MeasuresTrendSchema>;
+
+const nullableNumber = z.number().nullable();
+const nullableStatus = StatusSchema.nullable();
+
+// Indicatori della sintesi del mese (reports/TEMPLATE.md § 1).
+export const KpiSchema = z.object({
+  sessions: z.int(),
+  adherence_pct: nullableNumber,
+  adherence_status: nullableStatus,
+  tonnage_first_week_kg: nullableNumber,
+  tonnage_last_week_kg: nullableNumber,
+  tonnage_status: nullableStatus,
+  e1rm_mean_delta_pct: nullableNumber,
+  e1rm_exercises: z.int(),
+  e1rm_status: nullableStatus,
+  sets: z.int(),
+  sets_per_week: z.number(),
+  weight_first_kg: nullableNumber,
+  weight_last_kg: nullableNumber,
+  waist_first_cm: nullableNumber,
+  waist_last_cm: nullableNumber,
+  skeletal_muscle_last_kg: nullableNumber,
+  fat_mass_last_kg: nullableNumber,
+  moves_avg: nullableNumber,
+  sleep_h_avg: nullableNumber,
+  steps_avg: nullableNumber,
+  hrv_ms_avg: nullableNumber,
+  rhr_bpm_avg: nullableNumber,
+  recovery_status: nullableStatus,
+  hamstring_quad: nullableNumber,
+  hamstring_quad_status: nullableStatus,
+  push_pull: nullableNumber,
+  push_pull_status: nullableStatus,
+});
+export type Kpi = z.infer<typeof KpiSchema>;
+
+/** Le 9 chiavi della tabella `metrics` per un mese: la dashboard (Task 10) le importa da qui. */
+export const MetricsSchema = z.object({
+  kpi: KpiSchema,
+  weekly_volume: WeeklyVolumeSchema,
+  strength_table: StrengthTableSchema,
+  e1rm_series: E1rmSeriesSchema,
+  volume_by_muscle: VolumeByMuscleSchema,
+  ratios: RatiosSchema,
+  measures_trend: MeasuresTrendSchema,
+  feedback_summary: FeedbackSummarySchema,
+  adherence: AdherenceSchema,
+});
+export type Metrics = z.infer<typeof MetricsSchema>;
