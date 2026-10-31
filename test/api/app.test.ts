@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { hc } from "hono/client";
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { type AppType, createApp } from "../../src/api/app";
 import {
   MeasuresResponseSchema,
@@ -22,6 +22,10 @@ const bindings = { ...TEST_ENV, DB: env.DB };
 const withToken = { "Cf-Access-Jwt-Assertion": token };
 
 describe("api", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("api: rejects request without access", async () => {
     const res = await app.request("/api/measures", {}, bindings);
     expect(res.status).toBe(401);
@@ -192,5 +196,28 @@ describe("api", () => {
     expect(body.report).toBe(REPORT_MD);
     expectTypeOf(client.api.measures.$get).toBeFunction();
     expectTypeOf(client.api.scheda.$get).toBeFunction();
+  });
+
+  it("api: scheda default today is the Rome date", async () => {
+    await seedScheda(env.DB, schedaFixture, SCHEDA_MD);
+    // 23:30 UTC del 30/11 sono già le 00:30 del 1/12 a Roma: la scheda (valida fino al 30/11) è scaduta.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-30T23:30:00Z"));
+    const realClock = createApp({ jwks: signer.jwks });
+    const res = await realClock.request(
+      "/api/scheda",
+      { headers: { "Cf-Access-Jwt-Assertion": await signer.sign() } },
+      bindings,
+    );
+    expect(res.status).toBe(404);
+
+    // Mezz'ora prima (22:30 UTC, 23:30 a Roma) è ancora il 30/11: la scheda è attiva.
+    vi.setSystemTime(new Date("2026-11-30T22:30:00Z"));
+    const before = await realClock.request(
+      "/api/scheda",
+      { headers: { "Cf-Access-Jwt-Assertion": await signer.sign() } },
+      bindings,
+    );
+    expect(before.status).toBe(200);
   });
 });
