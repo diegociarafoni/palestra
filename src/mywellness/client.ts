@@ -17,6 +17,7 @@ const CURRENT_USER_PATTERN =
 const INPUT_TAG_PATTERN = /<input\b[^>]*>/gi;
 const SESSION_INPUT_PATTERN = /\sname\s*=\s*["']hdSessionIdCR["']/i;
 const VALUE_PATTERN = /\svalue\s*=\s*["']([^"']*)["']/i;
+const LOGIN_FORM_PATTERN = /\sname\s*=\s*["']UserBinder\.Password["']/i;
 
 // Il payload contiene anche dati personali: zod tiene solo questi campi.
 const CurrentUserSchema = z.object({
@@ -179,7 +180,7 @@ export class MywellnessClient {
         fromDate: formatQueryDay(from),
         toDate: formatQueryDay(to),
       });
-      const html = await readText(await this.#request(url));
+      const html = await this.#readSitePage(url);
       const values: string[] = [];
       for (const [tag] of html.matchAll(INPUT_TAG_PATTERN)) {
         if (!SESSION_INPUT_PATTERN.test(tag)) continue;
@@ -213,7 +214,7 @@ export class MywellnessClient {
       performedPhysicalActivityId: activityId,
       day,
     });
-    return readText(await this.#request(url));
+    return this.#readSitePage(url);
   }
 
   /** Serie temporale JSON di un esercizio cardio (servizi). */
@@ -230,6 +231,15 @@ export class MywellnessClient {
       throw new SyncError("Mywellness: login non eseguito");
     }
     return this.#user;
+  }
+
+  /** Pagina HTML del sito; il form di login al posto dei dati è una sessione scaduta. */
+  async #readSitePage(url: URL): Promise<string> {
+    const html = await readText(await this.#request(url));
+    if (LOGIN_FORM_PATTERN.test(html)) {
+      throw new AuthError("Login Mywellness fallito");
+    }
+    return html;
   }
 
   #siteUrl(path: string, params: Record<string, string> = {}): URL {

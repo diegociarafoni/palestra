@@ -1,7 +1,12 @@
 import { inspect } from "node:util";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
-import { AuthError } from "../../src/errors";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  AuthError,
+  ParseError,
+  SyncError,
+  TransientError,
+} from "../../src/errors";
 import { MywellnessClient } from "../../src/mywellness/client";
 import { fixture, setupMswServer } from "../msw";
 
@@ -13,6 +18,9 @@ const PASSWORD = "password-di-prova";
 const USER_ID = "11111111-2222-4333-8444-555555555555";
 
 const server = setupMswServer();
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 type ClientOptions = ConstructorParameters<typeof MywellnessClient>[0];
 
@@ -196,5 +204,172 @@ describe("client", () => {
 
     expect(error).toBeInstanceOf(AuthError);
     expect(posts).toBe(1);
+  });
+
+  it("client: list after expired session raises AuthError", async () => {
+    useLogin();
+    // Sessione scaduta: il sito risponde 200 con il form di login.
+    server.use(
+      http.get(`${SITE}/cloud/Training/LastPerformedWorkoutSession`, () =>
+        HttpResponse.html(fixture("login_form.html")),
+      ),
+    );
+    const client = newClient({ today: () => "2026-11-20" });
+    await client.login();
+
+    const error = await client.listSessionIds().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AuthError);
+    expect((error as Error).message).toBe("Login Mywellness fallito");
+  });
+
+  it("client: getSession invalid json raises ParseError", async () => {
+    useLogin();
+    server.use(
+      http.get(
+        `${SERVICES}/Training/User/${USER_ID}/GetPerformedWorkoutSessionByIdCr`,
+        () => HttpResponse.text("<html>pagina di errore</html>"),
+      ),
+    );
+    const client = newClient();
+    await client.login();
+
+    const error = await client.getSession("900000003").catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ParseError);
+    // Niente corpo della risposta nell'errore, nemmeno nella cause.
+    expect(inspect(error)).not.toContain("pagina di errore");
+  });
+
+  it("client: strength detail 404 is not retried", async () => {
+    useLogin();
+    let calls = 0;
+    server.use(
+      http.get(`${SITE}/cloud/Training/PerformedExerciseDetailById/`, () => {
+        calls++;
+        return new HttpResponse(null, { status: 404 });
+      }),
+    );
+    const client = newClient();
+    await client.login();
+
+    const error = await client
+      .getStrengthDetailHtml(
+        "aaaaaaaa-0000-4000-8000-000000000001",
+        "2026-11-26",
+      )
+      .catch((e: unknown) => e);
+
+    // SyncError fino al merge del Task 6, poi UpstreamError.
+    expect(error).toBeInstanceOf(SyncError);
+    for (const subclass of [AuthError, ParseError, TransientError]) {
+      expect(error).not.toBeInstanceOf(subclass);
+    }
+    expect((error as Error).message).toBe("Mywellness: HTTP 404");
+    expect(calls).toBe(1);
+  });
+
+  it("client: cardio timeseries 429 gives TransientError after 2 retries", async () => {
+    useLogin();
+    let calls = 0;
+    server.use(
+      http.get(`${SERVICES}/Training/CardioLog/:analyticsId/Details`, () => {
+        calls++;
+        // Il primo tentativo fallisce in rete: anche quello si ritenta.
+        return calls === 1
+          ? HttpResponse.error()
+          : new HttpResponse(null, { status: 429 });
+      }),
+    );
+    const sleeps: number[] = [];
+    const client = newClient({
+      sleep: async (ms) => {
+        sleeps.push(ms);
+      },
+    });
+    await client.login();
+
+    const error = await client
+      .getCardioTimeseries(
+        "analytics-0001",
+        "ffffffff-0000-4000-8000-000000000002",
+      )
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(TransientError);
+    expect((error as Error).message).toBe(
+      "Mywellness: HTTP 429 dopo 3 tentativi",
+    );
+    expect(calls).toBe(3);
+    expect(sleeps).toEqual([2000, 4000]);
+  });
+
+  it("client: strength detail and cardio timeseries succeed", async () => {
+    useLogin();
+    const queries: Record<string, string>[] = [];
+    const paths: string[] = [];
+    server.use(
+      http.get(
+        `${SITE}/cloud/Training/PerformedExerciseDetailById/`,
+        ({ request }) => {
+          queries.push(Object.fromEntries(new URL(request.url).searchParams));
+          return HttpResponse.html("<table><tr><th>Serie</th></tr></table>");
+        },
+      ),
+      http.get(
+        `${SERVICES}/Training/CardioLog/:analyticsId/Details`,
+        ({ request }) => {
+          const url = new URL(request.url);
+          paths.push(url.pathname);
+          queries.push(Object.fromEntries(url.searchParams));
+          return HttpResponse.json({ data: { analitics: { samples: [] } } });
+        },
+      ),
+    );
+    const client = newClient();
+    await client.login();
+
+    const html = await client.getStrengthDetailHtml(
+      "aaaaaaaa-0000-4000-8000-000000000001",
+      "2026-11-26",
+    );
+    const series = await client.getCardioTimeseries(
+      "analytics-0001",
+      "ffffffff-0000-4000-8000-000000000002",
+    );
+
+    expect(html).toBe("<table><tr><th>Serie</th></tr></table>");
+    expect(series).toEqual({ data: { analitics: { samples: [] } } });
+    expect(paths).toEqual(["/Training/CardioLog/analytics-0001/Details"]);
+    expect(queries).toEqual([
+      {
+        performedPhysicalActivityId: "aaaaaaaa-0000-4000-8000-000000000001",
+        day: "2026-11-26",
+      },
+      {
+        facilityId: "ffffffff-0000-4000-8000-000000000002",
+        token: "synthetic-token-0001",
+        AppId: "ec1d38d7-d359-48d0-a60c-d8c0b8fb9df9",
+        _c: "it-IT",
+      },
+    ]);
+  });
+
+  it("client: waits min interval between requests", async () => {
+    // Orologio fermo: l'attesa è l'intervallo intero, senza tempo trascorso.
+    vi.useFakeTimers({ toFake: ["Date"], now: 0 });
+    useLogin();
+    const sleeps: number[] = [];
+    const client = newClient({
+      minIntervalMs: 1000,
+      sleep: async (ms) => {
+        sleeps.push(ms);
+      },
+    });
+
+    await client.login();
+
+    // Quattro richieste del login, un'attesa prima di ognuna dopo la prima.
+    expect(sleeps).toEqual([1000, 1000, 1000]);
   });
 });
