@@ -197,7 +197,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 
 ### Task 4b: Sedute programmate (logica pura)
 
-**Accettazione:** `npx vitest run test/domain/planning.test.ts` → `6 passed`.
+**Accettazione:** `npx vitest run test/domain/planning.test.ts` → `8 passed`.
 
 **Files:**
 - Create: `src/domain/planning.ts`, `test/domain/planning.test.ts`
@@ -210,15 +210,17 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
   - `matchSession(date: string, slots: PlannedSlot[], t: WeekTemplate): { kind: "slot"; id: string; status: "fatta" | "spostata" } | { kind: "extra" }`.
   - `overdue(slots: PlannedSlot[], today: string): string[]` — id degli slot `programmata` la cui finestra è finita prima di `today`.
 
-- [ ] **Step 1: Test** (modello di esempio, fittizio: `tpl = { slots: [{ slot: 1, days: ["tue","wed"], scheda_day: "A" }, { slot: 2, days: ["thu"], scheda_day: "B" }], unavailable: ["mon","fri"] }`):
+- [x] **Step 1: Test** (modello di esempio, fittizio: `tpl = { slots: [{ slot: 1, days: ["tue","wed"], scheda_day: "A" }, { slot: 2, days: ["thu"], scheda_day: "B" }], unavailable: ["mon","fri"] }`):
   - `planning: week slots` — `weekSlots("2026-W45", tpl)` → slot 1 con finestra `["2026-11-03","2026-11-04"]`, slot 2 `["2026-11-05"]`.
   - `planning: tuesday session fills slot 1` → `{ kind: "slot", id: "2026-W45-1", status: "fatta" }`.
   - `planning: saturday after missed slot 1 is spostata` — slot 1 `programmata`, seduta `2026-11-07` → `status "spostata"`.
-  - `planning: saturday with slot 1 done is extra`.
+  - `planning: saturday with every slot done is extra` — slot 1 e 2 `fatta`, seduta `2026-11-07` → `{ kind: "extra" }`.
   - `planning: midnight session is extra on friday` — `matchSession(romeDate("2026-11-05T23:30:00Z"), …)` (= `2026-11-06`) → `{ kind: "extra" }`.
   - `planning: overdue after window` — `overdue(slots, "2026-11-05")` → `["2026-W45-1"]`; con `"2026-11-04"` → `[]`.
-- [ ] **Step 2:** FAIL → implementare → PASS.
-- [ ] **Step 3: Commit** `feat(domain): planned sessions logic`
+  - `planning: done slot takes no second session` — slot 1 `fatta`, seduta `2026-11-04` → `{ kind: "extra" }`; slot 1 `spostata`, seduta `2026-11-08` → `{ kind: "extra" }`.
+  - `planning: saturday after missed slot 2 is spostata` — slot 1 `fatta`, slot 2 `da_confermare`, seduta `2026-11-07` → `{ kind: "slot", id: "2026-W45-2", status: "spostata" }`.
+- [x] **Step 2:** FAIL → implementare → PASS.
+- [x] **Step 3: Commit** `feat(domain): planned sessions logic`
 
 ---
 
