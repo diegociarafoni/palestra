@@ -187,9 +187,9 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 
 **Interfaces:**
 - Consumes: `Session`, `StrengthSet` (Task 1b), risposte grezze del client (Task 2).
-- Produces: `normalizeSession(raw: unknown, ctx: { strengthDetails: Record<string, string>; timeseries: Record<string, unknown> }): Session`; `parseStrengthDetail(html: string): StrengthSet[]` (`ParseError` con l'URL o l'id se la tabella serie manca); `romeDate(iso: string): string` (`YYYY-MM-DD` in `Europe/Rome`, con `Intl.DateTimeFormat`).
+- Produces: `normalizeSession(raw: unknown, ctx: { strengthDetails: Record<string, string>; timeseries: Record<string, unknown> }): Session`; `parseStrengthDetail(html: string): StrengthSet[]` (`ParseError` con l'URL o l'id se la tabella serie manca). `romeDate` è prodotto dal Task 1b.
 
-- [ ] **Step 1: Test:** `normalize: cardio only` (`moves` e `distance_m` uguali ai valori letterali della fixture del Task 0, 2 esercizi, il primo `kind "cardio"`, `sets` vuoto); `normalize: strength sets` (`{ n: 1, reps_target: 12, reps_done: 12, load_target_kg: 60, load_done_kg: 60 }`); `normalize: broken html raises ParseError`; `normalize: rome date` (`romeDate("2026-10-29T23:30:00Z") === "2026-10-30"`); `normalize: schema keys` (chiavi di primo livello esattamente `session_id, source, started_at, ended_at, name, program, moves, calories_kcal, duration_s, exercises`).
+- [ ] **Step 1: Test:** `normalize: cardio only` (`moves` e `distance_m` uguali ai valori letterali della fixture del Task 0, 2 esercizi, il primo `kind "cardio"`, `sets` vuoto); `normalize: strength sets` (`{ n: 1, reps_target: 12, reps_done: 12, load_target_kg: 60, load_done_kg: 60 }`); `normalize: broken html raises ParseError`; `normalize: rome date` (`romeDate("2026-10-29T23:30:00Z") === "2026-10-30"`; `romeDate` esiste dal Task 1b, quindi questo test resta come regressione e passa al primo giro); `normalize: schema keys` (chiavi di primo livello esattamente `session_id, source, started_at, ended_at, name, program, moves, calories_kcal, duration_s, exercises`).
 - [ ] **Step 2:** FAIL → implementare con `node-html-parser` e validazione `zod` della risposta grezza → PASS.
 - [ ] **Step 3: Commit** `feat(sync): normalize mywellness sessions`
 
@@ -230,7 +230,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 - Create: `src/sync/sync.ts`, `src/cli/sync.ts`, `src/store/planning.ts`, `test/sync/sync.test.ts`, `test/cli/sync.test.ts`
 
 **Interfaces:**
-- Consumes: `MywellnessClient` (2), `normalizeSession`, `romeDate` (3), `Db`, `knownSessionIds`, `upsertSession`, `getProfile` (1b), `weekSlots`, `matchSession`, `overdue` (4b); store degli slot: `ensureWeekSlots(db, week, tpl)`, `updateSlot(db, id, patch)` da aggiungere in `src/store/planning.ts`.
+- Consumes: `MywellnessClient` (2), `normalizeSession` (3), `romeDate` (1b), `Db`, `knownSessionIds`, `upsertSession`, `getProfile` (1b), `weekSlots`, `matchSession`, `overdue` (4b); store degli slot: `ensureWeekSlots(db, week, tpl)`, `updateSlot(db, id, patch)` da aggiungere in `src/store/planning.ts`.
 - Produces: `sync(client: MywellnessClient, db: Db, opts?: { lookbackDays?: number; today?: string }): Promise<{ newSessions: number; slotsUpdated: number }>` (default `lookbackDays` 14); `main(argv: string[], env: Record<string, string | undefined>): Promise<number>` (`--lookback-days N`).
 
 - [ ] **Step 1: Test:**
