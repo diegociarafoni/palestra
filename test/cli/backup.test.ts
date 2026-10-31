@@ -114,6 +114,18 @@ describe("backup", () => {
     expect(output).not.toContain(ENV.CLOUDFLARE_ACCOUNT_ID);
   });
 
+  it("backup: exit 78 with an empty variable", async () => {
+    // GitHub Actions passa un segreto non definito come stringa vuota.
+    const { deps, exports, uploads } = fakes({ content: SQL });
+    const code = await main([], { ...ENV, R2_SECRET_ACCESS_KEY: "" }, deps);
+    expect(code).toBe(78);
+    expect(exports).toEqual([]);
+    expect(uploads).toEqual([]);
+    expect(stderr.mock.calls).toEqual([
+      ["Variabili d'ambiente mancanti: R2_SECRET_ACCESS_KEY"],
+    ]);
+  });
+
   it("backup: uploads and deletes local file", async () => {
     const stdout = vi.spyOn(console, "log");
     const { deps, exports, uploads } = fakes({ content: SQL });
@@ -126,6 +138,8 @@ describe("backup", () => {
     const [file = ""] = exports;
     expect(basename(file)).toBe("palestra-2026-11-02.sql");
     expect(basename(dirname(file))).toMatch(/^palestra-backup-/);
+    // Mai nella cartella di lavoro (il repository): sempre nella temp di sistema.
+    expect(dirname(dirname(file))).toBe(tmpdir());
     expect(existsSync(file)).toBe(false);
     expect(existsSync(dirname(file))).toBe(false);
     expect(stderr.mock.calls).toEqual([
