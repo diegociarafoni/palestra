@@ -15,6 +15,16 @@ const REQUIRED_ENV = [
 ] as const;
 
 /**
+ * Riga di errore per i log pubblici: il messaggio solo per i nostri errori (senza dati
+ * personali); degli altri solo il nome, perché il messaggio può contenere dati.
+ */
+export function failureMessage(e: unknown): string {
+  return e instanceof SyncError
+    ? `Report non generato: ${e.message}`
+    : `Report non generato: errore inatteso (${e instanceof Error ? e.name : typeof e})`;
+}
+
+/**
  * Genera e salva in D1 il report del mese. Exit code `sysexits` (docs/buone-pratiche.md § 8):
  * 0 ok, 64 argomenti errati, 78 variabili mancanti o credenziali, poi `exitCodeFor`.
  */
@@ -45,12 +55,7 @@ export async function main(
     });
     await runReport(db, month);
   } catch (e) {
-    // Solo i messaggi dei nostri errori (senza dati personali); degli altri solo il nome.
-    console.error(
-      e instanceof SyncError
-        ? `Report non generato: ${e.message}`
-        : `Report non generato: errore inatteso (${e instanceof Error ? e.name : typeof e})`,
-    );
+    console.error(failureMessage(e));
     return exitCodeFor(e);
   }
   console.log("report salvato");

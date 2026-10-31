@@ -10,7 +10,8 @@ import {
   it,
   vi,
 } from "vitest";
-import { main } from "../../src/cli/report";
+import { failureMessage, main } from "../../src/cli/report";
+import { AuthError } from "../../src/errors";
 
 // Identificativi fittizi nel formato reale (esadecimale / UUID).
 const ENV = {
@@ -121,6 +122,23 @@ describe("cli report", () => {
     );
     expect(io2.stdout()).toBe("");
     expect(io2.stderr()).not.toContain(ENV.CF_TOKEN_D1);
+  });
+
+  it("cli report: unexpected errors print only their name", () => {
+    // Nessun errore non nostro arriva da D1 via HTTP: il messaggio è verificato sulla funzione
+    // che main usa nel catch (niente mock di moduli interni).
+    expect(failureMessage(new Error("dato sensibile 2026-11-03"))).toBe(
+      "Report non generato: errore inatteso (Error)",
+    );
+    expect(failureMessage(new TypeError("D1: tipo object nel parametro"))).toBe(
+      "Report non generato: errore inatteso (TypeError)",
+    );
+    expect(failureMessage("dato sensibile")).toBe(
+      "Report non generato: errore inatteso (string)",
+    );
+    expect(failureMessage(new AuthError("D1: accesso negato (HTTP 401)"))).toBe(
+      "Report non generato: D1: accesso negato (HTTP 401)",
+    );
   });
 
   it("cli report: runs only when executed directly", () => {
