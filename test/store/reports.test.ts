@@ -52,4 +52,10 @@ describe("store reports", () => {
       sessions: 8,
     });
   });
+
+  it("store: saving empty metrics is a no-op", async () => {
+    // D1 rifiuta un batch vuoto: con {} non si deve chiamare batch.
+    await expect(saveMetrics(env.DB, "2026-11", {})).resolves.toBeUndefined();
+    expect(await getMetrics(env.DB, "2026-11")).toEqual({});
+  });
 });

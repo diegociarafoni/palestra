@@ -38,8 +38,10 @@ export async function saveMetrics(
   month: string,
   metrics: Record<string, unknown>,
 ): Promise<void> {
+  const entries = Object.entries(metrics);
+  if (entries.length === 0) return; // D1 rifiuta un batch vuoto
   await db.batch(
-    Object.entries(metrics).map(([key, value]) =>
+    entries.map(([key, value]) =>
       db
         .prepare(
           `INSERT INTO metrics (month, key, json) VALUES (?1, ?2, ?3)
