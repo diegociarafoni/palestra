@@ -113,9 +113,9 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 - Create (utente, dal proprio computer): `test/fixtures/mywellness/login_ok.html`, `last_sessions.html`, `session_cardio_only.json`, `session_strength.json`, `strength_detail.html`, `cardio_timeseries.json`, e se esiste la risposta biometrica `biometrics.json`
 - Modify: `docs/mywellness-api.md` § 1–2
 
-- [ ] **Step 1: Test** `anonymize: removes identities and shifts dates`: input con e-mail, `userId`, nome, token, cookie e due timestamp a 3 giorni di distanza → output senza le stringhe originali, timestamp diversi dagli originali ma ancora a 3 giorni di distanza, valori numerici di carico invariati.
-- [ ] **Step 2:** FAIL → implementare `anonymize(input: string, opts: { identities: string[]; dayOffset: number }): string` → PASS.
-- [ ] **Step 3:** `scripts/probe-mywellness.ts` (usa solo `fetch`, credenziali da env): login, elenco sedute, una seduta, dettaglio forza, serie cardio, ricerca dei dati biometrici; scrive le risposte grezze in `probe_out/` (ignorato da git); poi `scripts/anonymize-fixtures.ts probe_out test/fixtures/mywellness` con offset di giorni casuale.
+- [x] **Step 1: Test** `anonymize: removes identities and shifts dates`: input con e-mail, `userId`, nome, token, cookie e due timestamp a 3 giorni di distanza → output senza le stringhe originali, timestamp diversi dagli originali ma ancora a 3 giorni di distanza, valori numerici di carico invariati.
+- [x] **Step 2:** FAIL → implementare `anonymize(input: string, opts: { identities: string[]; dayOffset: number }): string` → PASS.
+- [x] **Step 3:** `scripts/probe-mywellness.ts` (usa solo `fetch`, credenziali da env): login, elenco sedute, una seduta, dettaglio forza, serie cardio, ricerca dei dati biometrici; scrive le risposte grezze in `probe_out/` (ignorato da git); poi `scripts/anonymize-fixtures.ts probe_out test/fixtures/mywellness` con offset di giorni casuale.
 - [ ] **Step 4 (utente, sul proprio computer):** `MYWELLNESS_EMAIL=… MYWELLNESS_PASSWORD=… npx tsx scripts/probe-mywellness.ts`, poi l'anonimizzazione; rileggere le fixture; cancellare `probe_out/`; aprire la PR con le fixture.
 - [ ] **Step 5:** aggiornare `docs/mywellness-api.md`; commit `docs: verify mywellness endpoints with anonymized fixtures`.
 
