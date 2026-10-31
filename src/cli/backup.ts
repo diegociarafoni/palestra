@@ -22,11 +22,21 @@ const REQUIRED_ENV = [
 ] as const;
 
 /** Esporta il database remoto `palestra` nel file indicato; restituisce l'exit code di wrangler. */
+function wranglerEnv(): NodeJS.ProcessEnv {
+  const { R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, ...env } = process.env;
+  return {
+    ...env,
+    WRANGLER_WRITE_LOGS: "false",
+    WRANGLER_SEND_METRICS: "false",
+  };
+}
+
 function exportWithWrangler(output: string): Promise<number> {
   return new Promise((resolve) => {
     // stdio "ignore", mai "inherit": wrangler stampa un link firmato (valido un'ora)
     // all'export completo del database, e i log delle Actions sono pubblici.
     // WRANGLER_WRITE_LOGS=false: lo stesso link finirebbe anche nel log su disco di wrangler.
+    // Le chiavi R2 servono solo all'upload: wrangler non le riceve. Niente telemetria.
     // `--no`: mai scaricare un wrangler non fissato se manca quello locale (l'ambiente
     // contiene i segreti); `--` perché npm non legga come propri i flag di wrangler.
     const child = spawn(
@@ -45,7 +55,7 @@ function exportWithWrangler(output: string): Promise<number> {
       ],
       {
         stdio: "ignore",
-        env: { ...process.env, WRANGLER_WRITE_LOGS: "false" },
+        env: wranglerEnv(),
       },
     );
     // npx non avviabile (es. assente dal PATH): export fallito, 127 come nella shell.
