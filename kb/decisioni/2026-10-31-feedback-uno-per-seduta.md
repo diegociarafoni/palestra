@@ -21,5 +21,9 @@ Ogni seduta, programmata o extra, ha al massimo un feedback, modificabile in qua
 - Un feedback per giorno (`UNIQUE(date)`, la prima versione del piano e del codice): il feedback della seconda seduta di uno stesso giorno sovrascriverebbe quello della prima.
 - Chiave su `session_id` o su `planned_id`: prima della sync nessuno dei due esiste per una seduta extra, e `session_id` non esiste per nessuna seduta.
 
+## Limiti noti
+- Dalla dashboard la seconda seduta del giorno si salva con il pulsante "Un'altra seduta oggi" (piano, Task 12), che usa il `seq` successivo.
+- Un collegamento (`planned_id` o `session_id`) salvato per errore non si toglie con un nuovo salvataggio, perché un valore vuoto mantiene quello esistente, e impedisce di collegare la seduta giusta: va corretto con un `UPDATE` tramite connettore, con la riga `audit`, o con un comando "scollega" da prevedere quando servirà.
+
 ## Riferimenti
 Specifica `docs/superpowers/specs/2026-10-31-repo-pubblico-e-database-design.md` § 5, riga 78 (voce "Feedback"), piano `docs/superpowers/plans/2026-10-31-palestra-typescript-d1.md` (Task 1b e Task 12), `scheda/SCHEMA.md` § 0, `migrations/0001_init.sql`.
