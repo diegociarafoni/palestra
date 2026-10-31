@@ -128,7 +128,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 **Accettazione:** `npm test` verde con i test di questo task; `npx wrangler d1 migrations apply palestra --remote` (con `wrangler.toml` generato da `scripts/render-wrangler.mjs`) applica le migrazioni al database reale; i dati personali del repository privato (misure, profilo, obiettivi, modello settimanale) inseriti in D1 da Claude tramite connettore, ciascuno con riga `audit`.
 
 **Files:**
-- Create: `migrations/0001_init.sql`, `src/db/d1-http.ts`, `src/db/types.ts`, `src/store/sessions.ts`, `src/store/planning.ts`, `src/store/manual.ts` (misure, recupero, feedback, profilo), `src/store/scheda.ts`, `src/store/reports.ts`, `src/store/audit.ts`, `test/store/*.test.ts`, `test/db/d1-http.test.ts`, `wrangler.template.toml`, `scripts/render-wrangler.mjs`
+- Create: `migrations/0001_init.sql`, `src/db/d1-http.ts`, `src/db/types.ts`, `src/store/sessions.ts`, `src/store/manual.ts` (misure, recupero, feedback, profilo), `src/store/scheda.ts`, `src/store/reports.ts`, `src/store/audit.ts`, `test/store/*.test.ts`, `test/db/d1-http.test.ts`, `wrangler.template.toml`, `scripts/render-wrangler.mjs`; in anticipo, perché servono a questo task: `src/errors.ts` (`SyncError`, `AuthError`, `ParseError`, `TransientError`) e `src/domain/dates.ts` (`romeDate`, con `test/domain/dates.test.ts`); `src/store/planning.ts` passa al Task 4
 - Modify: `scheda/SCHEMA.md` (nuova § 0 "Tabelle D1" con le colonne; le sezioni JSON restano come formato delle colonne JSON), `vitest.config.ts` (pool Workers con D1 locale e migrazioni)
 
 **Interfaces:**
@@ -163,7 +163,8 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 **Accettazione:** `npx vitest run test/mywellness/client.test.ts` → `5 passed`; nessuna richiesta non intercettata da MSW (`onUnhandledRequest: "error"`).
 
 **Files:**
-- Create: `src/mywellness/client.ts`, `src/errors.ts`, `test/mywellness/client.test.ts`, `test/msw.ts` (server MSW e lettura fixture)
+- Create: `src/mywellness/client.ts`, `test/mywellness/client.test.ts`, `test/msw.ts` (server MSW e lettura fixture)
+- Modify: `src/errors.ts` (creato nel Task 1b: aggiungere `UpstreamError` ed `exitCodeFor`)
 
 **Interfaces:**
 - Consumes: fixture del Task 0; endpoint di `docs/mywellness-api.md` § 2.
@@ -182,7 +183,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 **Accettazione:** `npx vitest run test/mywellness/normalize.test.ts` → `5 passed`; il JSON prodotto dalla fixture di forza è allegato alla PR e rispetta `scheda/SCHEMA.md` § 2.
 
 **Files:**
-- Create: `src/mywellness/normalize.ts`, `src/domain/dates.ts`, `test/mywellness/normalize.test.ts`, `test/fixtures/mywellness/strength_detail_broken.html`
+- Create: `src/mywellness/normalize.ts`, `test/mywellness/normalize.test.ts`, `test/fixtures/mywellness/strength_detail_broken.html` (`romeDate` esiste già in `src/domain/dates.ts`, dal Task 1b)
 
 **Interfaces:**
 - Consumes: `Session`, `StrengthSet` (Task 1b), risposte grezze del client (Task 2).
@@ -226,7 +227,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 **Accettazione:** `npm test` verde, compresi i test di questo task; l'output di `npm run sync` contiene solo righe del tipo `sedute nuove: N`, `slot aggiornati: N`.
 
 **Files:**
-- Create: `src/sync/sync.ts`, `src/cli/sync.ts`, `test/sync/sync.test.ts`, `test/cli/sync.test.ts`
+- Create: `src/sync/sync.ts`, `src/cli/sync.ts`, `src/store/planning.ts`, `test/sync/sync.test.ts`, `test/cli/sync.test.ts`
 
 **Interfaces:**
 - Consumes: `MywellnessClient` (2), `normalizeSession`, `romeDate` (3), `Db`, `knownSessionIds`, `upsertSession`, `getProfile` (1b), `weekSlots`, `matchSession`, `overdue` (4b); store degli slot: `ensureWeekSlots(db, week, tpl)`, `updateSlot(db, id, patch)` da aggiungere in `src/store/planning.ts`.
