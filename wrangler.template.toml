@@ -2,7 +2,7 @@
 # (in .gitignore) sostituendo il segnaposto con la variabile d'ambiente D1_DATABASE_ID.
 # Nessun identificativo reale in questo file.
 name = "palestra"
-compatibility_date = "2026-08-15"
+compatibility_date = "2026-10-23"
 
 [[d1_databases]]
 binding = "DB"

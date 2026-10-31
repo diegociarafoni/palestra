@@ -1,4 +1,4 @@
-/// <reference types="@cloudflare/vitest-pool-workers/types" />
+/// <reference types="@cloudflare/vitest-plugin/types" />
 
 // Binding del progetto "workers" di Vitest (vitest.config.ts).
 declare namespace Cloudflare {
