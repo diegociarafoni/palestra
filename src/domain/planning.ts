@@ -68,8 +68,9 @@ const isOpen = (s: PlannedSlot): boolean =>
 
 /**
  * Abbina la seduta del giorno `date` (`YYYY-MM-DD`, Europe/Rome) a uno slot. `slots` sono gli
- * slot della settimana ISO di `date`, con il loro stato attuale, in ordine di slot (come li
- * restituisce `weekSlots`). Il primo slot non fatto la cui finestra contiene `date` diventa
+ * slot della settimana ISO di `date`, con il loro stato attuale: le sedute si abbinano una alla
+ * volta in ordine cronologico, e `slots` riflette l'esito dell'abbinamento precedente.
+ * Il primo slot non fatto (in ordine di numero) la cui finestra contiene `date` diventa
  * `fatta`; altrimenti, di sabato o domenica, il primo slot non fatto diventa `spostata`
  * (recupero); altrimenti la seduta è `extra`.
  * Le finestre stanno nei giorni feriali (il fine settimana non si propone mai): di sabato o
@@ -83,11 +84,12 @@ export function matchSession(
 ):
   | { kind: "slot"; id: string; status: "fatta" | "spostata" }
   | { kind: "extra" } {
-  const inWindow = slots.find((s) => isOpen(s) && s.window.includes(date));
+  const ordered = slots.toSorted((a, b) => a.slot - b.slot);
+  const inWindow = ordered.find((s) => isOpen(s) && s.window.includes(date));
   if (inWindow) return { kind: "slot", id: inWindow.id, status: "fatta" };
   const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
   if (weekday === 6 || weekday === 0) {
-    const missed = slots.find(isOpen);
+    const missed = ordered.find(isOpen);
     if (missed) return { kind: "slot", id: missed.id, status: "spostata" };
   }
   return { kind: "extra" };

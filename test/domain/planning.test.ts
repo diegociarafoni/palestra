@@ -57,6 +57,16 @@ describe("planning", () => {
       ["2025-12-30", "2025-12-31"],
       ["2026-01-01"],
     ]);
+    expect(weekSlots("2027-W01", tpl).map((s) => s.window)).toEqual([
+      ["2027-01-05", "2027-01-06"],
+      ["2027-01-07"],
+    ]);
+    expect(
+      weekSlots("2026-W45", {
+        slots: [{ slot: 1, days: ["wed", "tue"], scheda_day: "A" }],
+        unavailable: [],
+      })[0]?.window,
+    ).toEqual(["2026-11-03", "2026-11-04"]);
   });
 
   it("planning: tuesday session fills slot 1", () => {
@@ -67,6 +77,14 @@ describe("planning", () => {
     expect(
       matchSession("2026-11-03", w45("da_confermare", "programmata"), tpl),
     ).toEqual(filled);
+    expect(
+      matchSession("2026-11-04", w45("saltata", "programmata"), tpl),
+    ).toEqual(filled);
+    const overlapping = [
+      slot1,
+      { ...slot2, window: ["2026-11-04", "2026-11-05"] },
+    ];
+    expect(matchSession("2026-11-04", overlapping, tpl)).toEqual(filled);
   });
 
   it("planning: saturday after missed slot 1 is spostata", () => {
@@ -86,6 +104,8 @@ describe("planning", () => {
     expect(
       matchSession("2026-11-07", w45("da_confermare", "da_confermare"), tpl),
     ).toEqual(moved);
+    const reversed = w45("da_confermare", "da_confermare").reverse();
+    expect(matchSession("2026-11-07", reversed, tpl)).toEqual(moved);
   });
 
   it("planning: saturday with every slot done is extra", () => {
@@ -98,7 +118,7 @@ describe("planning", () => {
     expect(
       matchSession(
         romeDate("2026-11-05T23:30:00Z"),
-        w45("da_confermare", "fatta"),
+        w45("da_confermare", "programmata"),
         tpl,
       ),
     ).toEqual({ kind: "extra" });
@@ -109,6 +129,10 @@ describe("planning", () => {
     expect(overdue(open, "2026-11-05")).toEqual(["2026-W45-1"]);
     expect(overdue(open, "2026-11-04")).toEqual([]);
     expect(overdue(w45("da_confermare", "programmata"), "2026-11-06")).toEqual([
+      "2026-W45-2",
+    ]);
+    expect(overdue(w45("fatta", "saltata"), "2026-11-06")).toEqual([]);
+    expect(overdue(w45("spostata", "programmata"), "2026-11-06")).toEqual([
       "2026-W45-2",
     ]);
   });
