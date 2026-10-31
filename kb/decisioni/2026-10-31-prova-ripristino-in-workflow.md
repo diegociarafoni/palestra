@@ -25,6 +25,7 @@ aggiornato: 2026-10-31
 
 ## Note tecniche
 - `wrangler d1 execute <db> --remote --json --command "<sql>"` scrive su stdout solo `JSON.stringify` della risposta: un array con un elemento per istruzione, `{ results, success, meta }`. Con `--json` non c'è banner né domanda di conferma.
+- D1 rifiuta le SELECT composte con più di 5 termini (`7500 too many terms in compound SELECT`, verificato il 31/10; issue #36): il conteggio usa una sola SELECT non composta, con una sottoquery scalare `(SELECT count(*) FROM "<tabella>")` per colonna.
 - `wrangler d1 create` scrive la configurazione del binding solo in un file di configurazione JSON; senza file o con `wrangler.toml` si limita a stamparla.
 - Un run annullato o in timeout riceve SIGINT/SIGTERM e il `finally` di Node non gira: per questo un passo finale `if: cancelled() || failure()` cancella `palestra-restore-test`, e il passo della prova ha un timeout più corto di quello del job, così la pulizia ha tempo. Se fallisce anche la pulizia, il run successivo si ferma alla creazione e il database va cancellato a mano.
 
