@@ -14,6 +14,10 @@ import { ParseError } from "../errors";
 import { auditStatement } from "./audit";
 import { parseJsonColumn, parseStored } from "./json";
 
+// La colonna usata per filtrare e ordinare deve coincidere con il campo del json.
+const incoherent = (table: string, key: string): ParseError =>
+  new ParseError(`D1: json e colonne non coerenti in ${table} (${key})`);
+
 // Riga di `feedback` letta da D1: joint_pain è 0/1.
 const FeedbackRowSchema = FeedbackSchema.extend({
   joint_pain: z.union([z.literal(0), z.literal(1)]).transform((v) => v === 1),
@@ -100,15 +104,18 @@ export async function listMeasures(
 ): Promise<Measure[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, json FROM measures
+      `SELECT id, date, json FROM measures
        WHERE (?1 IS NULL OR date >= ?1) AND (?2 IS NULL OR date <= ?2)
        ORDER BY date, id`,
     )
     .bind(from ?? null, to ?? null)
-    .all<{ id: number; json: string }>();
-  return results.map((r) =>
-    parseJsonColumn(MeasureSchema, r.json, "measures", String(r.id)),
-  );
+    .all<{ id: number; date: string; json: string }>();
+  return results.map((r) => {
+    const key = String(r.id);
+    const measure = parseJsonColumn(MeasureSchema, r.json, "measures", key);
+    if (measure.date !== r.date) throw incoherent("measures", key);
+    return measure;
+  });
 }
 
 /** Recupero tra le settimane ISO `from` e `to` incluse (`YYYY-Www`, estremi facoltativi). */
@@ -119,16 +126,19 @@ export async function listRecovery(
 ): Promise<Recovery[]> {
   const { results } = await db
     .prepare(
-      `SELECT rowid, json FROM recovery
+      `SELECT rowid, week, json FROM recovery
        WHERE (?1 IS NULL OR week >= ?1) AND (?2 IS NULL OR week <= ?2)
        ORDER BY week`,
     )
     .bind(from ?? null, to ?? null)
-    .all<{ rowid: number; json: string }>();
+    .all<{ rowid: number; week: string; json: string }>();
   // Il rowid, non la settimana: le chiavi personali non vanno nei messaggi.
-  return results.map((r) =>
-    parseJsonColumn(RecoverySchema, r.json, "recovery", `rowid ${r.rowid}`),
-  );
+  return results.map((r) => {
+    const key = `rowid ${r.rowid}`;
+    const recovery = parseJsonColumn(RecoverySchema, r.json, "recovery", key);
+    if (recovery.week !== r.week) throw incoherent("recovery", key);
+    return recovery;
+  });
 }
 
 /** Valore della chiave di profilo letto con `schema`; null se la chiave manca. */

@@ -318,4 +318,36 @@ describe("store error messages", () => {
     expect((error as Error).message).toContain("recovery (rowid 1)");
     expect((error as Error).message).not.toContain("W45");
   });
+
+  it("store: measure json date must match its column", async () => {
+    await env.DB.prepare(
+      "INSERT INTO measures (id, date, json) VALUES (?1, ?2, ?3)",
+    )
+      .bind(1, "2026-11-10", JSON.stringify(measure("2026-11-11", 1)))
+      .run();
+    const error = await listMeasures(env.DB).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ParseError);
+    expect((error as Error).message).toContain("measures (1)");
+    expect((error as Error).message).not.toContain("2026-11");
+  });
+
+  it("store: recovery json week must match its column", async () => {
+    await env.DB.prepare("INSERT INTO recovery (week, json) VALUES (?1, ?2)")
+      .bind(
+        "2026-W45",
+        JSON.stringify({
+          week: "2026-W46",
+          sleep_h: null,
+          steps_avg: null,
+          hrv_ms: null,
+          rhr_bpm: null,
+          source: "manuale",
+        }),
+      )
+      .run();
+    const error = await listRecovery(env.DB).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ParseError);
+    expect((error as Error).message).toContain("recovery (rowid 1)");
+    expect((error as Error).message).not.toContain("2026-W4");
+  });
 });
