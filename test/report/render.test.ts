@@ -27,6 +27,47 @@ const input: ReportInput = {
   feedback,
 };
 
+// Esercizio di forza con un carico per tutte le serie (null = carico non registrato).
+function lift(
+  order: number,
+  name: string,
+  reps: number[],
+  load: number | null,
+): Exercise {
+  return {
+    order,
+    name,
+    equipment: `Selection ${name}`,
+    kind: "strength",
+    sets: reps.map((r, i) => ({
+      n: i + 1,
+      reps_target: 12,
+      reps_done: r,
+      load_target_kg: load,
+      load_done_kg: load,
+    })),
+  };
+}
+
+function at(
+  session_id: string,
+  started_at: string,
+  exercises: Exercise[],
+): Session {
+  return {
+    session_id,
+    source: "mywellness-api",
+    started_at,
+    ended_at: null,
+    name: "Seduta libera",
+    program: null,
+    moves: null,
+    calories_kcal: null,
+    duration_s: null,
+    exercises,
+  };
+}
+
 // Testo della sezione `## n.` fino alla successiva (titolo compreso).
 function section(md: string, n: number): string {
   const start = md.indexOf(`\n## ${n}. `);
@@ -122,41 +163,14 @@ describe("report", () => {
   });
 
   it("report: statuses on displayed values", () => {
-    // Esercizio di forza con `count` serie da 10 ripetizioni allo stesso carico.
-    const ex = (
-      order: number,
-      name: string,
-      count: number,
-      load: number,
-    ): Exercise => ({
-      order,
-      name,
-      equipment: `Selection ${name}`,
-      kind: "strength",
-      sets: Array.from({ length: count }, (_, i) => ({
-        n: i + 1,
-        reps_target: 10,
-        reps_done: 10,
-        load_target_kg: load,
-        load_done_kg: load,
-      })),
-    });
-    const at = (
-      session_id: string,
-      started_at: string,
-      exercises: Exercise[],
-    ): Session => ({
-      session_id,
-      source: "mywellness-api",
-      started_at,
-      ended_at: null,
-      name: "Seduta libera",
-      program: null,
-      moves: null,
-      calories_kcal: null,
-      duration_s: null,
-      exercises,
-    });
+    // Esercizio con `count` serie da 10 ripetizioni allo stesso carico.
+    const ex = (order: number, name: string, count: number, load: number) =>
+      lift(
+        order,
+        name,
+        Array.from({ length: count }, () => 10),
+        load,
+      );
     const slot = (n: number, status: PlannedSlot["status"]): PlannedSlot => ({
       id: `2026-W45-${n}`,
       week: "2026-W45",
@@ -294,6 +308,56 @@ describe("report", () => {
         "",
         "Rapporti: femorali/quadricipiti 0,5 (obiettivo ≥ 0,6) · spinta/tirata 2,5 (obiettivo ≤ 1,0) · spinta verticale 0 serie nel mese.",
       ].join("\n"),
+    );
+  });
+
+  it("report: strength proposals", () => {
+    // Leg Press 3 × 12 a 60 kg → aumenta; Chest Press 8, 9, 10 a 60 kg → riduci; Lat Machine e
+    // Leg Curl eseguiti senza carico registrato: nessuna serie completa, step senza kg.
+    const md = renderReport({
+      ...input,
+      sessions: [
+        at("sess-t01", "2026-11-03T18:00:00+01:00", [
+          lift(1, "Leg Press", [12, 12, 12], 60),
+          lift(2, "Chest Press", [8, 9, 10], 60),
+          lift(3, "Lat Machine", [8, 8, 8], null),
+          lift(4, "Leg Curl", [12, 12, 12], null),
+        ]),
+      ],
+    });
+    expect(section(md, 3)).toContain(
+      "| Lat Machine | — | — | — | — | 1 | — | riduci di uno step → × 10 |",
+    );
+    expect(section(md, 3)).toContain(
+      "| Leg Curl | — | — | — | — | 1 | — | aumenta di uno step → × 10 |",
+    );
+    expect(section(md, 3)).toContain(
+      "| Leg Press | 60 × 12, 2026-11-03 | 60 × 12, 2026-11-03 | 84 → 84 | — | 1 | da rivedere | aumenta → 65 kg × 10 |",
+    );
+    expect(section(md, 3)).toContain(
+      "| Chest Press | 60 × 10, 2026-11-03 | 60 × 10, 2026-11-03 | 80 → 80 | — | 1 | da rivedere | riduci → 55 kg × 10 |",
+    );
+    // Esercizio a tracciamento manuale mai registrato: segnato come non tracciato.
+    const manual = {
+      ...scheda,
+      days: scheda.days.map((d) => ({
+        ...d,
+        blocks: d.blocks.map((b) =>
+          b.type !== "strength"
+            ? b
+            : {
+                ...b,
+                exercises: b.exercises.map((e) =>
+                  e.slug === "leg-curl"
+                    ? { ...e, tracking: "manual" as const }
+                    : e,
+                ),
+              },
+        ),
+      })),
+    };
+    expect(section(renderReport({ ...input, scheda: manual }), 3)).toContain(
+      "| Leg Curl | Nessuna esecuzione (tracciamento manuale) | — | — | — | — | — | tara → × 12 |",
     );
   });
 

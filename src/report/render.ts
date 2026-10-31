@@ -35,6 +35,7 @@ import {
   type Execution,
   e1rmSeries,
   matchExercises,
+  strengthExercises,
   strengthTable,
 } from "./strength";
 
@@ -463,14 +464,23 @@ const ACTIONS: Record<StrengthTable[number]["next"]["action"], string> = {
   calibrate: "tara",
 };
 
-function strengthRow(r: StrengthTable[number]): string[] {
+function strengthRow(r: StrengthTable[number], manual: boolean): string[] {
+  const { load_kg, reps_target, action } = r.next;
+  // Senza carico noto lo step non ha un valore in kg: si dice che è uno step.
+  const step =
+    load_kg === null && (action === "increase" || action === "decrease")
+      ? " di uno step"
+      : "";
   const target =
-    r.next.load_kg === null
-      ? `× ${r.next.reps_target}`
-      : `${num(r.next.load_kg)} kg × ${r.next.reps_target}`;
-  const proposal = `${ACTIONS[r.next.action]} → ${target}`;
+    load_kg === null
+      ? `× ${reps_target}`
+      : `${num(load_kg)} kg × ${reps_target}`;
+  const proposal = `${ACTIONS[action]}${step} → ${target}`;
   if (r.sessions === 0) {
-    return [r.name, "Nessuna esecuzione", "—", "—", "—", "—", "—", proposal];
+    const none = manual
+      ? "Nessuna esecuzione (tracciamento manuale)"
+      : "Nessuna esecuzione";
+    return [r.name, none, "—", "—", "—", "—", "—", proposal];
   }
   const ref = (s: typeof r.first) =>
     s === null ? "—" : `${num(s.load_kg)} × ${s.reps}, ${s.date}`;
@@ -488,8 +498,13 @@ function strengthRow(r: StrengthTable[number]): string[] {
   ];
 }
 
-function strength(a: Analysis): string[] {
-  if (a.strength.length === 0) return [NO_DATA];
+function strength(input: ReportInput, a: Analysis): string[] {
+  if (input.scheda === null || a.strength.length === 0) return [NO_DATA];
+  const manual = new Set(
+    strengthExercises(input.scheda)
+      .filter((e) => e.tracking === "manual")
+      .map((e) => e.slug),
+  );
   return [
     "Serie migliore della prima e dell'ultima seduta; e1RM con la formula di Epley (carico × (1 + rip/30)), indicatore di tendenza, non massimale testato.",
     table(
@@ -503,7 +518,7 @@ function strength(a: Analysis): string[] {
         "Affidabilità",
         "Proposta prossima seduta",
       ],
-      a.strength.map(strengthRow),
+      a.strength.map((r) => strengthRow(r, manual.has(r.slug))),
     ),
     "Affidabilità ∈ confermato (stesso setup, progressione pulita) / da rivedere (poche sedute o setup cambiato) / bloccato di proposito (tecnica da sistemare). Proposta ∈ aumenta / mantieni / riduci / tara.",
   ];
@@ -682,7 +697,7 @@ export function renderReport(input: ReportInput): string {
   const bodies: string[][] = [
     summary(input, a),
     volume(input, a),
-    strength(a),
+    strength(input, a),
     distribution(a),
     cardio(input),
     composition(input),
