@@ -191,7 +191,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 
 - [x] **Step 1: Test:** `normalize: cardio only` (`moves` e `distance_m` uguali ai valori letterali della fixture del Task 0, 2 esercizi, il primo `kind "cardio"`, `sets` vuoto); `normalize: strength sets` (`{ n: 1, reps_target: 12, reps_done: 12, load_target_kg: 60, load_done_kg: 60 }`); `normalize: broken html raises ParseError`; `normalize: rome date` (`romeDate("2026-10-29T23:30:00Z") === "2026-10-30"`; `romeDate` esiste dal Task 1b, quindi questo test resta come regressione e passa al primo giro); `normalize: schema keys` (chiavi di primo livello esattamente `session_id, source, started_at, ended_at, name, program, moves, calories_kcal, duration_s, exercises`).
 - [x] **Step 2:** FAIL → implementare con `node-html-parser` e validazione `zod` della risposta grezza → PASS.
-- [ ] **Step 3: Commit** `feat(sync): normalize mywellness sessions`
+- [x] **Step 3: Commit** `feat(sync): normalize mywellness sessions`
 
 ---
 
