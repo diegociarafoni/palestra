@@ -11,12 +11,12 @@ Ogni valore è confrontato con l'inizio del mese (o del ciclo). Lo stato è asse
 | Indicatore | Valore | Confronto | Stato |
 | --- | --- | --- | --- |
 | Aderenza | {svolte}/{previste} sedute | — | ✓ / ● / ! |
-| Tonnellaggio settimanale | {kg} kg | da {kg0} · {delta %} | |
+| Tonnellaggio settimanale | {kg} kg | da {kg0} · {delta %} · kg per serie {kg0/serie} → {kg/serie} | |
 | e1RM medio (esercizi tracciati) | {delta %} | media su {n} esercizi | |
 | Serie registrate | {n} | ~{n/sett} a settimana | |
 | Peso | {kg} | da {kg0} · {delta} | |
 | Circonferenza vita | {cm} | da {cm0} · {delta} | |
-| Massa grassa / muscolo (se InBody) | {kg} / {kg} | | |
+| Massa grassa / muscolo (se InBody) | {kg} / {kg} | da {kg0} / {kg0} · {delta} / {delta} | |
 | MOVEs medi per seduta | {n} | | |
 | Sonno · passi (se orologio) | {h} · {n} | | |
 | HRV · FC a riposo (se orologio) | {ms} · {bpm} | | |
@@ -55,7 +55,7 @@ Serie per distretto (lavoro indiretto al 50 %) e per schema di movimento, nel me
 | Schema di movimento | Serie/settimana |
 | --- | --- |
 
-Rapporti: femorali/quadricipiti {0.xx} (obiettivo ≥ 0,6) · spinta/tirata {0.xx} (obiettivo ≤ 1,0) · spinta verticale {n} serie.
+Rapporti: femorali/quadricipiti {0.xx} (obiettivo ≥ 0,6) · spinta/tirata {0.xx} (obiettivo ≤ 1,0) · spinta verticale {n} serie nel mese.
 
 ## 5. Cardio
 
