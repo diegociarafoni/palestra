@@ -391,7 +391,7 @@ Ordine obbligatorio: Step 1–2 prima del primo deploy.
 
 - [x] **Step 1: Test:** `backup: exit 78 without r2 keys`; `backup: uploads and deletes local file` (esecuzione di `wrangler` e upload iniettati come funzioni finte).
 - [x] **Step 2:** FAIL → implementare → PASS.
-- [ ] **Step 3: `backup.yml`:** `schedule` il 2 di ogni mese e `workflow_dispatch`; `permissions: contents: read`; env `CF_TOKEN_D1` (come `CLOUDFLARE_API_TOKEN`), `CLOUDFLARE_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`; nessun artifact.
+- [x] **Step 3: `backup.yml`:** `schedule` il 2 di ogni mese e `workflow_dispatch`; `permissions: contents: read`; env `CF_TOKEN_D1` (come `CLOUDFLARE_API_TOKEN`), `CLOUDFLARE_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`; nessun artifact.
 - [ ] **Step 4:** run, prova di ripristino, commit `ci: monthly d1 backup to r2`.
 
 ---
