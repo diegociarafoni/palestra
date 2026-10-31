@@ -85,6 +85,9 @@ describe("planning", () => {
       { ...slot2, window: ["2026-11-04", "2026-11-05"] },
     ];
     expect(matchSession("2026-11-04", overlapping, tpl)).toEqual(filled);
+    expect(matchSession("2026-11-04", [...overlapping].reverse(), tpl)).toEqual(
+      filled,
+    );
   });
 
   it("planning: saturday after missed slot 1 is spostata", () => {
