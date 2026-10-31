@@ -89,6 +89,20 @@ describe("store planning", () => {
       },
     ]);
     expect(await listSlotsByWeek(env.DB, "2026-W47")).toEqual([]);
+
+    // Settimana non conforme a AAAA-Www: la riga è rifiutata.
+    await insertSlot({
+      id: "2026-47-1",
+      week: "2026-47",
+      slot: 1,
+      window_days: '["2026-11-17"]',
+      status: "programmata",
+    });
+    const error = await listSlotsByWeek(env.DB, "2026-47").catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ParseError);
+    expect((error as Error).message).toContain("planned_sessions (rowid");
   });
 
   it("store: slots by month", async () => {
@@ -134,8 +148,51 @@ describe("store planning", () => {
       scheda_day: "B",
       status: "da_confermare",
     });
+    // Inserito dopo W46: l'ordine è per settimana, poi per slot.
+    await insertSlot({
+      id: "2026-W45-2",
+      week: "2026-W45",
+      slot: 2,
+      window_days: '["2026-11-05"]',
+      status: "saltata",
+      reason: "lavoro",
+    });
+    // W49: finestra di un giorno, lunedì 30/11 → novembre.
+    await insertSlot({
+      id: "2026-W49-2",
+      week: "2026-W49",
+      slot: 2,
+      window_days: '["2026-11-30"]',
+      status: "programmata",
+    });
+    // W44: conta il primo giorno della finestra (31/10 → ottobre; 1/11 → novembre).
+    await insertSlot({
+      id: "2026-W44-3",
+      week: "2026-W44",
+      slot: 3,
+      window_days: '["2026-10-31","2026-11-01"]',
+      status: "programmata",
+    });
+    await insertSlot({
+      id: "2026-W44-4",
+      week: "2026-W44",
+      slot: 4,
+      window_days: '["2026-11-01"]',
+      status: "programmata",
+    });
 
     expect(await listSlotsByMonth(env.DB, "2026-11")).toEqual([
+      {
+        id: "2026-W44-4",
+        week: "2026-W44",
+        slot: 4,
+        window: ["2026-11-01"],
+        date: null,
+        scheda_day: "A",
+        status: "programmata",
+        reason: null,
+        session_id: null,
+      },
       {
         id: "2026-W45-1",
         week: "2026-W45",
@@ -146,6 +203,17 @@ describe("store planning", () => {
         status: "spostata",
         reason: null,
         session_id: "sess-p01",
+      },
+      {
+        id: "2026-W45-2",
+        week: "2026-W45",
+        slot: 2,
+        window: ["2026-11-05"],
+        date: null,
+        scheda_day: "A",
+        status: "saltata",
+        reason: "lavoro",
+        session_id: null,
       },
       {
         id: "2026-W46-1",
@@ -166,6 +234,17 @@ describe("store planning", () => {
         date: null,
         scheda_day: "B",
         status: "da_confermare",
+        reason: null,
+        session_id: null,
+      },
+      {
+        id: "2026-W49-2",
+        week: "2026-W49",
+        slot: 2,
+        window: ["2026-11-30"],
+        date: null,
+        scheda_day: "A",
+        status: "programmata",
         reason: null,
         session_id: null,
       },
