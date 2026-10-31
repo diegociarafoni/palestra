@@ -38,3 +38,41 @@ export const E1rmSeriesSchema = z.array(
 
 export type StrengthTable = z.infer<typeof StrengthTableSchema>;
 export type E1rmSeries = z.infer<typeof E1rmSeriesSchema>;
+
+export const WeeklyVolumeSchema = z.array(
+  z.object({
+    week: z.string().regex(/^\d{4}-W\d{2}$/),
+    sessions: z.int(),
+    sets: z.int(),
+    tonnage_kg: z.number(),
+    kg_per_set: z.number(),
+  }),
+);
+export type WeeklyVolume = z.infer<typeof WeeklyVolumeSchema>;
+
+export const RatiosSchema = z.object({
+  hamstring_quad: z.number().nullable(),
+  push_pull: z.number().nullable(),
+  vertical_push_sets: z.number(),
+});
+export type Ratios = z.infer<typeof RatiosSchema>;
+
+export const StatusSchema = z.enum(["ok", "watch", "fix"]);
+export type Status = z.infer<typeof StatusSchema>;
+
+export const AdherenceSchema = z.object({
+  done: z.int(),
+  planned: z.int(),
+  skipped: z.array(z.object({ id: z.string(), reason: z.string().nullable() })),
+});
+export type Adherence = z.infer<typeof AdherenceSchema>;
+
+export const FeedbackSummarySchema = z.object({
+  ottima: z.int(),
+  buona: z.int(),
+  normale: z.int(),
+  faticosa: z.int(),
+  pessima: z.int(),
+  joint_pain_days: z.int(),
+});
+export type FeedbackSummary = z.infer<typeof FeedbackSummarySchema>;
