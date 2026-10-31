@@ -3,6 +3,9 @@ import { AuthError, ParseError, SyncError, TransientError } from "../errors";
 import type { Db } from "./types";
 
 const API_BASE = "https://api.cloudflare.com/client/v4";
+// Gli id finiscono nel percorso dell'URL, il token in un header: caratteri limitati.
+const ID_PATTERN = /^[0-9a-f-]+$/i;
+const TOKEN_PATTERN = /^[\x21-\x7e]+$/;
 const RETRY_DELAYS_MS = [500, 1000];
 
 // Nell'API REST tutti i campi di `meta` sono facoltativi: i mancanti valgono 0/false.
@@ -113,6 +116,13 @@ export function createD1HttpDb(opts: {
   token: string;
   fetch?: typeof fetch;
 }): Db {
+  // Messaggi fissi, senza valore né cause: un token rifiutato da fetch finirebbe nei log.
+  if (!TOKEN_PATTERN.test(opts.token)) {
+    throw new AuthError("D1: token non valido (caratteri non ammessi)");
+  }
+  if (!ID_PATTERN.test(opts.accountId) || !ID_PATTERN.test(opts.databaseId)) {
+    throw new AuthError("D1: account o database id non valido");
+  }
   const url = `${API_BASE}/accounts/${opts.accountId}/d1/database/${opts.databaseId}/query`;
   const execute: Execute = async (query, statements) => {
     const body = JSON.stringify(query);

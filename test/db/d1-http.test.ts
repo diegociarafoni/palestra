@@ -19,8 +19,10 @@ import {
   TransientError,
 } from "../../src/errors";
 
-const QUERY_URL =
-  "https://api.cloudflare.com/client/v4/accounts/acc-test/d1/database/db-test/query";
+// Identificativi fittizi nel formato reale (esadecimale / UUID).
+const ACCOUNT_ID = "00000000000000000000000000000000";
+const DATABASE_ID = "00000000-0000-4000-8000-000000000000";
+const QUERY_URL = `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/d1/database/${DATABASE_ID}/query`;
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -32,8 +34,8 @@ afterAll(() => server.close());
 
 function testDb() {
   return createD1HttpDb({
-    accountId: "acc-test",
-    databaseId: "db-test",
+    accountId: ACCOUNT_ID,
+    databaseId: DATABASE_ID,
     token: "test-token",
   });
 }
@@ -152,8 +154,8 @@ describe("d1-http", () => {
     const failure = new TypeError("fetch failed");
     let calls = 0;
     const db = createD1HttpDb({
-      accountId: "acc-test",
-      databaseId: "db-test",
+      accountId: ACCOUNT_ID,
+      databaseId: DATABASE_ID,
       token: "test-token",
       fetch: async () => {
         calls++;
@@ -333,4 +335,38 @@ describe("d1-http", () => {
     const statement = testDb().prepare("SELECT ?1");
     expect(() => statement.bind(value)).toThrow(TypeError);
   });
+
+  it("d1-http: token with newline raises AuthError before any request", () => {
+    const calls = respondWith(() => HttpResponse.json(okBody([[]])));
+    const token = "secret-part\nsecond-part";
+    let error: unknown;
+    try {
+      createD1HttpDb({
+        accountId: ACCOUNT_ID,
+        databaseId: DATABASE_ID,
+        token,
+      });
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(AuthError);
+    expect((error as Error).cause).toBeUndefined();
+    expect(inspect(error)).not.toContain("secret-part");
+    expect(inspect(error)).not.toContain("second-part");
+    expect(calls.count).toBe(0);
+  });
+
+  it.each([
+    { label: "account id", accountId: "acc/../x", databaseId: DATABASE_ID },
+    { label: "database id", accountId: ACCOUNT_ID, databaseId: "db?x=1" },
+  ])(
+    "d1-http: invalid $label raises AuthError before any request",
+    ({ accountId, databaseId }) => {
+      const calls = respondWith(() => HttpResponse.json(okBody([[]])));
+      expect(() =>
+        createD1HttpDb({ accountId, databaseId, token: "test-token" }),
+      ).toThrow(AuthError);
+      expect(calls.count).toBe(0);
+    },
+  );
 });
