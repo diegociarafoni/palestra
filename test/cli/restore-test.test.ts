@@ -197,8 +197,8 @@ describe("restore-test", () => {
         "--yes",
       ],
       query("palestra-restore-test", TABLES_SQL),
-      query("palestra", TABLES_SQL),
       query("palestra-restore-test", COUNTS_SQL),
+      query("palestra", TABLES_SQL),
       query("palestra", COUNTS_SQL),
       del,
     ]);
@@ -473,7 +473,9 @@ describe("restore-test", () => {
       async () => new TextEncoder().encode(dump),
     );
     expect(await main(["2026-10-31"], ENV, f.deps)).toBe(0);
-    const countQueries = f.calls.slice(4, 6).map((c) => c.at(-1) ?? "");
+    const countQueries = f.calls
+      .map((c) => c.at(-1) ?? "")
+      .filter((sql) => sql.includes("count(*)"));
     expect(countQueries).toHaveLength(2);
     for (const sql of countQueries) expect(sql).not.toContain("UNION");
     expect(io.stdout()).toContain(
@@ -499,22 +501,64 @@ describe("restore-test", () => {
     expect(f.calls.at(-1)).toEqual(del);
   });
 
-  it("restore-test: a table name that is not an identifier stops before counting", async () => {
-    output();
+  it("restore-test: a dump table name that is not an identifier exits 65 before creating", async () => {
+    const io = output();
+    const f = fakes({}, async () =>
+      new TextEncoder().encode(
+        'INSERT INTO "dato personale" ("x") VALUES(1);\n',
+      ),
+    );
+    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(65);
+    expect(io.stderr()).toContain(
+      "Nome di tabella non ammesso nel dump: palestra-2026-10-31.sql",
+    );
+    expect(f.calls).toEqual([]);
+    expect(`${io.stdout()}${io.stderr()}`).not.toContain("dato personale");
+  });
+
+  it("restore-test: a palestra table name that is not an identifier only empties its column", async () => {
+    const io = output();
     const f = fakes({
       tables: {
-        "palestra-restore-test": ["audit"],
+        "palestra-restore-test": ["audit", "feedback", "sessions"],
         palestra: ['audit"; DROP TABLE audit; --'],
       },
     });
-    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(65);
-    expect(f.calls.map((c) => c[1])).toEqual([
-      "create",
-      "execute",
-      "execute",
-      "execute",
-      "delete",
+    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(0);
+    // Il nome non ammesso non entra in nessuna query: niente conteggio su palestra.
+    expect(f.calls.map((c) => `${c[1]} ${c[2]}`)).toEqual([
+      "create palestra-restore-test",
+      "execute palestra-restore-test",
+      "execute palestra-restore-test",
+      "execute palestra-restore-test",
+      "execute palestra",
+      "delete palestra-restore-test",
     ]);
+    expect(io.stderr()).toContain(
+      "Nome di tabella non ammesso in palestra: colonna palestra non disponibile",
+    );
+    expect(io.stdout()).toContain(
+      "sessions                     2           2           —\n",
+    );
+    expect(io.stdout()).toContain(
+      "Esito: conteggi identici al dump in 3 tabelle.",
+    );
+  });
+
+  it("restore-test: unexpected wrangler output from palestra does not decide the outcome", async () => {
+    const io = output();
+    const f = fakes({
+      tables: {
+        "palestra-restore-test": ["audit", "feedback", "sessions"],
+        palestra: "dato-personale",
+      },
+    });
+    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(0);
+    expect(io.stderr()).toContain(
+      "Risposta inattesa di wrangler da palestra: colonna palestra non disponibile",
+    );
+    expect(`${io.stdout()}${io.stderr()}`).not.toContain("dato-personale");
+    expect(f.calls.at(-1)).toEqual(del);
   });
 
   it.each([[["31/10/2026"]], [["2026-10-31", "palestra"]]])(

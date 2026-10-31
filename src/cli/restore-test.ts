@@ -6,8 +6,9 @@
 // Su stdout solo la tabella dei conteggi; mai righe del backup né output di wrangler.
 // Exit code: 0 conteggi identici al dump · 1 conteggi diversi (la prova ha girato, esito negativo)
 // · 64 argomenti · 65 risposta di wrangler non interpretabile o nome di tabella non ammesso
-// · 69 backup vuoto, passo di wrangler non riuscito (anche CF_TOKEN_D1 rifiutato) o errore
-// di R2 · 75 errore transitorio di R2 · 78 variabili mancanti o chiavi R2 rifiutate.
+// (nel dump o in palestra-restore-test) · 69 backup vuoto, passo di wrangler non riuscito
+// (anche CF_TOKEN_D1 rifiutato) o errore di R2 · 75 errore transitorio di R2 · 78 variabili
+// mancanti o chiavi R2 rifiutate. Un errore nella lettura di palestra non cambia l'esito.
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -29,7 +30,7 @@ const REQUIRED_ENV = [
   "R2_SECRET_ACCESS_KEY",
 ] as const;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-// I nomi entrano nella query di conteggio: solo identificatori semplici.
+// I nomi entrano nella query di conteggio e su stdout: solo identificatori semplici.
 const TABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 // Tabelle dell'utente: escluse quelle interne di SQLite (sqlite_*) e di D1 (_cf_*).
 const TABLES_SQL =
@@ -142,13 +143,17 @@ async function counts(
   return new Map(Object.entries(row));
 }
 
-/** Righe attese per tabella: le INSERT del dump, contate in memoria (tabelle interne escluse). */
-function dumpCounts(sql: string): Map<string, number> {
+/**
+ * Righe attese per tabella: le INSERT del dump, contate in memoria (tabelle interne escluse).
+ * `undefined` se un nome non è un identificatore semplice: su stdout vanno solo nomi di tabella.
+ */
+function dumpCounts(sql: string): Map<string, number> | undefined {
   const counts = new Map<string, number>();
   for (const line of sql.split("\n")) {
     if (SCHEMA_TAIL.test(line)) break;
     const name = INSERT_LINE.exec(line)?.[1];
     if (name === undefined || INTERNAL_TABLE.test(name)) continue;
+    if (!TABLE_NAME.test(name)) return undefined;
     counts.set(name, (counts.get(name) ?? 0) + 1);
   }
   return counts;
@@ -242,6 +247,10 @@ export async function main(
   }
   console.error(`Backup scaricato: ${key} (${body.length} byte)`);
   const dump = dumpCounts(new TextDecoder().decode(body));
+  if (!dump) {
+    console.error(`Nome di tabella non ammesso nel dump: ${key}`);
+    return 65;
+  }
 
   const created = await wrangler([
     "d1",
@@ -283,10 +292,19 @@ export async function main(
       await rm(dir, { recursive: true, force: true });
     }
     console.error(`Import in ${TARGET} completato`);
-    const restoredTables = await tables(wrangler, TARGET);
-    const sourceTables = await tables(wrangler, SOURCE);
-    const restored = await counts(wrangler, TARGET, restoredTables);
-    const source = await counts(wrangler, SOURCE, sourceTables);
+    const restored = await counts(
+      wrangler,
+      TARGET,
+      await tables(wrangler, TARGET),
+    );
+    // palestra è solo informativo: se non si legge, la colonna resta vuota e l'esito non cambia.
+    let source = new Map<string, number>();
+    try {
+      source = await counts(wrangler, SOURCE, await tables(wrangler, SOURCE));
+    } catch (error) {
+      if (!(error instanceof StepError)) throw error;
+      console.error(`${error.message}: colonna palestra non disponibile`);
+    }
     const { lines, differences, total } = report(dump, restored, source);
     for (const line of lines) console.log(line);
     if (differences === 0) {
