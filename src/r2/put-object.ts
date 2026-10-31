@@ -2,9 +2,11 @@ import { createHash, createHmac } from "node:crypto";
 import { AuthError, SyncError, TransientError } from "../errors";
 
 // L'account id finisce nell'host, la chiave d'accesso in un header: caratteri limitati.
-const ID_PATTERN = /^[0-9a-f-]+$/i;
+// Account id di Cloudflare: 32 cifre esadecimali minuscole (fetch mette l'host in
+// minuscolo, la firma no).
+const ID_PATTERN = /^[0-9a-f]{32}$/;
 const KEY_ID_PATTERN = /^[\x21-\x7e]+$/;
-const NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
+const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 const sha256Hex = (data: string | Uint8Array): string =>
   createHash("sha256").update(data).digest("hex");
@@ -83,7 +85,8 @@ export async function putObject(opts: {
   if (!KEY_ID_PATTERN.test(opts.accessKeyId)) {
     throw new AuthError("R2: access key id non valido (caratteri non ammessi)");
   }
-  // Nomi già canonici nel percorso firmato: nessuna codifica URI da gestire.
+  // Percorso firmato identico a quello inviato da fetch: nessuna codifica URI né segmenti
+  // "." o ".." da gestire.
   if (!NAME_PATTERN.test(opts.bucket) || !NAME_PATTERN.test(opts.key)) {
     throw new TypeError("R2: nome di bucket o di oggetto non ammesso");
   }

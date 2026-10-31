@@ -150,18 +150,62 @@ describe("r2", () => {
     expect(inspect(error)).not.toContain("NoSuchBucket");
   });
 
+  // `hidden`: testo che non deve comparire nell'errore. L'URL di fetch mette l'host in
+  // minuscolo e risolve i segmenti "." e "..": la firma non corrisponderebbe più.
   it.each([
-    { label: "account id", input: { accountId: "acc/../x" }, type: AuthError },
+    {
+      label: "account id",
+      input: { accountId: "acc/../x" },
+      type: AuthError,
+      hidden: ["acc/../x"],
+    },
+    {
+      label: "uppercase account id",
+      input: { accountId: "0123456789ABCDEF0123456789ABCDEF" },
+      type: AuthError,
+      hidden: ["0123456789ABCDEF"],
+    },
+    {
+      label: "short account id",
+      input: { accountId: "0123456789abcdef" },
+      type: AuthError,
+      hidden: ["0123456789abcdef"],
+    },
     {
       label: "access key id",
       input: { accessKeyId: "secret-part\nsecond-part" },
       type: AuthError,
+      hidden: ["secret-part", "second-part"],
     },
-    { label: "bucket", input: { bucket: "palestra/../x" }, type: TypeError },
-    { label: "key", input: { key: "a b?.sql" }, type: TypeError },
+    {
+      label: "bucket with slash",
+      input: { bucket: "palestra/../x" },
+      type: TypeError,
+      hidden: ["palestra/../x"],
+    },
+    {
+      label: "bucket '.'",
+      input: { bucket: "." },
+      type: TypeError,
+      hidden: [],
+    },
+    {
+      label: "bucket '..'",
+      input: { bucket: ".." },
+      type: TypeError,
+      hidden: [],
+    },
+    {
+      label: "key with space",
+      input: { key: "a b?.sql" },
+      type: TypeError,
+      hidden: ["a b?.sql"],
+    },
+    { label: "key '.'", input: { key: "." }, type: TypeError, hidden: [] },
+    { label: "key '..'", input: { key: ".." }, type: TypeError, hidden: [] },
   ])(
     "r2: invalid $label is rejected before any request",
-    async ({ input, type }) => {
+    async ({ input, type, hidden }) => {
       let calls = 0;
       server.use(
         http.put(/.*/, () => {
@@ -179,9 +223,8 @@ describe("r2", () => {
         ...input,
       }).catch((e: unknown) => e);
       expect(error).toBeInstanceOf(type);
-      // Ogni riga del valore rifiutato, non solo il valore intero.
-      for (const part of Object.values(input).flatMap((v) => v.split("\n"))) {
-        expect(inspect(error)).not.toContain(part);
+      for (const text of hidden) {
+        expect(inspect(error)).not.toContain(text);
       }
       expect(calls).toBe(0);
     },
