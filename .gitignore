@@ -228,6 +228,7 @@ reports/*
 !reports/TEMPLATE.md
 scheda/scheda.*
 *.sqlite
+palestra-*.sql
 probe_out/
 fixtures_raw/
 
