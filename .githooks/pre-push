@@ -1,0 +1,40 @@
+#!/bin/sh
+# Hook pre-push: blocca il push se il contenuto pubblicato contiene dati personali.
+# Attivazione (una volta per clone): git config core.hooksPath .githooks
+# Controlla il contenuto versionato dei commit spinti (git archive), non la cartella
+# di lavoro: i file locali ignorati (data/, .wrangler/, *.sqlite) non contano.
+set -eu
+root=$(git rev-parse --show-toplevel)
+zero=0000000000000000000000000000000000000000
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT INT TERM
+
+check_commit() { # $1 = commit da pubblicare
+  rm -rf "$tmp/tree" && mkdir "$tmp/tree"
+  git archive "$1" | tar -x -C "$tmp/tree"
+  node "$root/scripts/check-public-tree.mjs" "$tmp/tree"
+}
+
+leaks() { # $1 = opzioni di git log per gitleaks
+  if command -v gitleaks >/dev/null 2>&1; then
+    gitleaks git --no-banner --redact --log-opts="$1" "$root"
+  fi
+}
+
+pushed=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue # cancellazione di un ramo remoto
+  pushed=1
+  check_commit "$local_sha"
+  if [ "$remote_sha" = "$zero" ]; then
+    leaks "$local_sha"                   # ramo nuovo: tutta la storia spinta
+  else
+    leaks "$remote_sha..$local_sha"
+  fi
+done
+
+if [ "$pushed" -eq 0 ]; then # esecuzione manuale senza stdin: controlla HEAD
+  check_commit HEAD
+  leaks HEAD
+fi
+command -v gitleaks >/dev/null 2>&1 || echo "gitleaks non installato: controllo dei segreti saltato" >&2
