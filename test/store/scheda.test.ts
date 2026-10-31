@@ -40,26 +40,24 @@ describe("store scheda", () => {
     expect(await getActiveScheda(env.DB, "2026-11-02")).toBeNull();
     expect(await getActiveScheda(env.DB, "2027-01-01")).toBeNull();
 
-    // L'esempio è valido per lo schema; `indirect_muscles` assente vale [].
-    const [warmup, strength, cardio] = example.days[0]?.blocks ?? [];
-    expect(await getActiveScheda(env.DB, "2026-11-30")).toEqual({
-      ...example,
-      days: [
-        {
-          id: "A",
-          name: "Giorno A",
-          blocks: [
-            warmup,
-            {
-              type: "strength",
-              exercises: [{ ...strength?.exercises[0], indirect_muscles: [] }],
-            },
-            cardio,
-          ],
-        },
-      ],
-    });
+    // L'esempio di SCHEMA § 1 è valido per lo schema e torna identico.
+    expect(await getActiveScheda(env.DB, "2026-11-30")).toEqual(example);
   });
+
+  it.each(["indirect_muscles", "movement_pattern"])(
+    "store: active scheda rejects strength exercise without %s",
+    async (field) => {
+      const scheda = structuredClone(example);
+      const legPress = scheda.days[0]?.blocks[1]?.exercises[0];
+      expect(legPress && Reflect.deleteProperty(legPress, field)).toBe(true);
+      await insertScheda(scheda);
+      const error = await getActiveScheda(env.DB, "2026-11-10").catch(
+        (e: unknown) => e,
+      );
+      expect(error).toBeInstanceOf(ParseError);
+      expect((error as Error).message).toContain("scheda (2026-11)");
+    },
+  );
 
   it("store: active scheda prefers latest start", async () => {
     await insertScheda(december);

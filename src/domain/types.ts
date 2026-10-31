@@ -121,20 +121,19 @@ export const StrengthExerciseSchema = z.object({
   step_kg: z.number(),
   muscle_groups: z.array(z.string()),
   start_load_kg: z.number().nullable(),
-  indirect_muscles: z.array(z.string()).default([]),
-  movement_pattern: z
-    .enum([
-      "spinta-orizzontale",
-      "spinta-verticale",
-      "tirata-orizzontale",
-      "tirata-verticale",
-      "squat",
-      "hinge",
-      "flessione-ginocchio",
-      "core",
-      "altro",
-    ])
-    .optional(),
+  // Obbligatori (SCHEMA § 1): il report ne ricava volume indiretto e schemi di movimento.
+  indirect_muscles: z.array(z.string()),
+  movement_pattern: z.enum([
+    "spinta-orizzontale",
+    "spinta-verticale",
+    "tirata-orizzontale",
+    "tirata-verticale",
+    "squat",
+    "hinge",
+    "flessione-ginocchio",
+    "core",
+    "altro",
+  ]),
   notes: z.string().optional(),
 });
 export type StrengthExercise = z.infer<typeof StrengthExerciseSchema>;

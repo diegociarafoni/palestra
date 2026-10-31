@@ -33,6 +33,8 @@
               "sets": 3,
               "reps_min": 10,
               "reps_max": 12,
+              "indirect_muscles": ["femorali", "polpacci"],
+              "movement_pattern": "squat",
               "rest_s": 90,
               "start_load_kg": null,
               "step_kg": 5,

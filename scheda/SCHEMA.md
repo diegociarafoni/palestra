@@ -48,6 +48,7 @@ Nelle sedute il campo `timeseries_ref` (§ 2) è superato dalla chiave `timeseri
           "exercises": [
             {"slug": "leg-press", "technogym_name": "Leg Press", "equipment": "Selection Leg Press",
              "muscle_groups": ["quadricipiti", "glutei"], "sets": 3, "reps_min": 10, "reps_max": 12,
+             "indirect_muscles": ["femorali", "polpacci"], "movement_pattern": "squat",
              "rest_s": 90, "start_load_kg": null, "step_kg": 5, "tracking": "auto-if-900",
              "notes": "Piedi a larghezza spalle, al centro della pedana; non bloccare le ginocchia"}
           ]
