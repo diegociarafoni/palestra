@@ -38,6 +38,20 @@ function execution(reps: number[], loadKg: number): Execution {
   };
 }
 
+// Esecuzione con carichi diversi per serie: coppie [carico, ripetizioni].
+function ramp(pairs: [number, number][]): Execution {
+  return {
+    ...execution([], 0),
+    sets: pairs.map(([load, reps], i) => ({
+      n: i + 1,
+      reps_target: 12,
+      reps_done: reps,
+      load_target_kg: load,
+      load_done_kg: load,
+    })),
+  };
+}
+
 describe("progression", () => {
   it("progression: increase", () => {
     expect(nextPrescription(legPress, execution([12, 12, 12], 60))).toEqual({
@@ -86,6 +100,88 @@ describe("progression", () => {
       load_kg: 40,
       reps_target: 10,
       action: "hold",
+    });
+  });
+
+  it("progression: working sets at the top load", () => {
+    // Taratura in salita: una sola serie a 60 kg, non "3 serie a max".
+    expect(
+      nextPrescription(
+        legPress,
+        ramp([
+          [40, 12],
+          [50, 12],
+          [60, 12],
+        ]),
+      ),
+    ).toEqual({ load_kg: 60, reps_target: 12, action: "hold" });
+    // Riscaldamento registrato: 2 serie di lavoro su 3 sotto il minimo.
+    expect(
+      nextPrescription(
+        legPress,
+        ramp([
+          [30, 15],
+          [60, 9],
+          [60, 9],
+          [60, 10],
+        ]),
+      ),
+    ).toEqual({ load_kg: 55, reps_target: 10, action: "decrease" });
+    // Serie di avvicinamento (~50 % × 8, ~75 % × 5) e 3 × 12 a 60 kg.
+    expect(
+      nextPrescription(
+        legPress,
+        ramp([
+          [30, 8],
+          [45, 5],
+          [60, 12],
+          [60, 12],
+          [60, 12],
+        ]),
+      ),
+    ).toEqual({ load_kg: 65, reps_target: 10, action: "increase" });
+    // Il carico di riferimento è il più alto, anche se l'ultima serie è più leggera.
+    expect(
+      nextPrescription(
+        legPress,
+        ramp([
+          [60, 12],
+          [60, 12],
+          [55, 12],
+        ]),
+      ),
+    ).toEqual({ load_kg: 60, reps_target: 12, action: "hold" });
+  });
+
+  it("progression: rules beyond three sets", () => {
+    // Solo 2 serie su 3 previste: niente aumento, obiettivo fermo a max.
+    expect(nextPrescription(legPress, execution([12, 12], 60))).toEqual({
+      load_kg: 60,
+      reps_target: 12,
+      action: "hold",
+    });
+    // Una serie a 0 ripetizioni non è registrata.
+    expect(nextPrescription(legPress, execution([12, 12, 12, 0], 60))).toEqual({
+      load_kg: 65,
+      reps_target: 10,
+      action: "increase",
+    });
+    // 2/3 di 4 serie = 3 serie sotto il minimo per ridurre.
+    expect(nextPrescription(legPress, execution([12, 12, 9, 9], 60))).toEqual({
+      load_kg: 60,
+      reps_target: 10,
+      action: "hold",
+    });
+    expect(nextPrescription(legPress, execution([9, 9, 9, 12], 60))).toEqual({
+      load_kg: 55,
+      reps_target: 10,
+      action: "decrease",
+    });
+    // Il carico ridotto non scende sotto 0.
+    expect(nextPrescription(legPress, execution([8, 8, 8], 2.5))).toEqual({
+      load_kg: 0,
+      reps_target: 10,
+      action: "decrease",
     });
   });
 });

@@ -15,18 +15,24 @@ export type Prescription = {
 
 /**
  * Proposta per la prossima seduta con la doppia progressione
- * (docs/linee-guida-allenamento.md § 3), dalle serie registrate dell'ultima esecuzione.
+ * (docs/linee-guida-allenamento.md § 3), dalle serie di lavoro dell'ultima esecuzione.
  */
 export function nextPrescription(
   ex: StrengthExercise,
   last: Execution | null,
 ): Prescription {
   const registered = registeredSets(last);
-  const reps = registered.map((s) => s.reps_done ?? 0);
   const loads = registered.flatMap((s) =>
     s.load_done_kg === null ? [] : [s.load_done_kg],
   );
   const load = loads.length > 0 ? Math.max(...loads) : null;
+  // Serie di lavoro: quelle al carico più alto; le serie di avvicinamento o di taratura a
+  // carichi minori non contano. Senza carichi noti contano tutte le serie registrate.
+  const working =
+    load === null
+      ? registered
+      : registered.filter((s) => s.load_done_kg === load);
+  const reps = working.map((s) => s.reps_done ?? 0);
   if (reps.length === 0) {
     // Nessuno storico: carico da tarare, oppure quello iniziale della scheda.
     return ex.start_load_kg === null
