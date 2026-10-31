@@ -38,4 +38,9 @@ export const testi = {
       "In protocollo",
     ],
   },
+  scheda: {
+    title: "Scheda",
+    version: (version: string) => `Versione ${version}`,
+    validity: (from: string, to: string) => `Valida dal ${from} al ${to}`,
+  },
 };

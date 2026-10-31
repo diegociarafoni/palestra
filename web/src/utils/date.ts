@@ -8,6 +8,12 @@ const shortDate = new Intl.DateTimeFormat("it-IT", {
   month: "short",
   year: "numeric",
 });
+const longDate = new Intl.DateTimeFormat("it-IT", {
+  timeZone: TIME_ZONE,
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
 
 // Mezzogiorno UTC cade nello stesso giorno di calendario a Roma (UTC+1 o UTC+2).
 const middayOf = (date: string): Date => new Date(`${date}T12:00:00Z`);
@@ -15,4 +21,9 @@ const middayOf = (date: string): Date => new Date(`${date}T12:00:00Z`);
 /** `2026-11-03` → "3 nov 2026". */
 export function formatShortDate(date: string): string {
   return shortDate.format(middayOf(date));
+}
+
+/** `2026-11-03` → "3 novembre 2026". */
+export function formatDate(date: string): string {
+  return longDate.format(middayOf(date));
 }
