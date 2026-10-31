@@ -37,7 +37,8 @@ async function exportWithWrangler(output: string): Promise<number> {
 }
 
 // docs/buone-pratiche.md § 8.
-function exitCodeFor(error: SyncError): number {
+// Provvisoria: dopo il merge del Task 6 si importa da src/errors.ts.
+export function exitCodeFor(error: SyncError): number {
   if (error instanceof AuthError) return 78;
   if (error instanceof TransientError) return 75;
   return 69;

@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "sync": "tsx src/cli/sync.ts",
     "report": "tsx src/cli/report.ts",
-    "backup": "tsx src/cli/backup.ts"
+    "backup": "tsx src/cli/backup.ts",
+    "restore-test": "tsx src/cli/restore-test.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.4",
