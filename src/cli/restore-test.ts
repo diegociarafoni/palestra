@@ -39,7 +39,7 @@ const D1Json = z
   .array(z.object({ results: z.array(z.unknown()), success: z.literal(true) }))
   .length(1);
 const TableRow = z.object({ name: z.string() });
-const CountRow = z.object({ t: z.string(), n: z.number().int().nonnegative() });
+const CountsRow = z.record(z.string(), z.number().int().nonnegative());
 
 type Wrangler = (
   args: readonly string[],
@@ -111,17 +111,28 @@ async function counts(
   names: string[],
 ): Promise<Map<string, number>> {
   if (names.length === 0) return new Map();
-  const sql = names
-    .map((t) => `SELECT '${t}' AS t, count(*) AS n FROM "${t}"`)
-    .join(" UNION ALL ");
+  // Una SELECT non composta, una colonna per tabella: D1 rifiuta le SELECT composte
+  // (UNION ALL) con più di 5 termini (#36).
+  const sql = `SELECT ${names
+    .map((t) => `(SELECT count(*) FROM "${t}") AS "${t}"`)
+    .join(", ")}`;
   const rows = await select(
     wrangler,
     db,
     sql,
-    CountRow,
+    CountsRow,
     `conteggio delle righe di ${db}`,
   );
-  return new Map(rows.map((r) => [r.t, r.n]));
+  const row = rows[0];
+  const columns = row ? Object.keys(row).sort() : [];
+  if (
+    rows.length !== 1 ||
+    !row ||
+    columns.join() !== [...names].sort().join()
+  ) {
+    throw new StepError(`Risposta inattesa di wrangler da ${db}`, 65);
+  }
+  return new Map(Object.entries(row));
 }
 
 /** Tabella del confronto per stdout; `differences` = tabelle con conteggi diversi. */

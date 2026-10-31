@@ -24,8 +24,24 @@ const ENV = {
 const SQL = "INSERT INTO measures VALUES('dato-personale');\n";
 const TABLES_SQL =
   "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\' ORDER BY name";
+// Una SELECT non composta: D1 rifiuta le SELECT composte con più di 5 termini (#36).
 const COUNTS_SQL =
-  "SELECT 'audit' AS t, count(*) AS n FROM \"audit\" UNION ALL SELECT 'feedback' AS t, count(*) AS n FROM \"feedback\" UNION ALL SELECT 'sessions' AS t, count(*) AS n FROM \"sessions\"";
+  'SELECT (SELECT count(*) FROM "audit") AS "audit", (SELECT count(*) FROM "feedback") AS "feedback", (SELECT count(*) FROM "sessions") AS "sessions"';
+// Tabelle dello schema reale (migrations/ e D1), 12: più dei 5 termini ammessi da D1.
+const ALL_TABLES = [
+  "audit",
+  "d1_migrations",
+  "feedback",
+  "measures",
+  "metrics",
+  "planned_sessions",
+  "profile",
+  "recovery",
+  "reports",
+  "scheda",
+  "sessions",
+  "timeseries",
+];
 const HEADER = "tabella           ripristino  palestra";
 
 type Db = "palestra-restore-test" | "palestra";
@@ -86,6 +102,8 @@ function fakes(
     }
     const sql = args[args.indexOf("--command") + 1] ?? "";
     if (script.codes.query) return failed(script.codes.query);
+    // Come D1: «too many terms in compound SELECT» oltre 5 termini (4 UNION).
+    if (sql.split(" UNION ").length > 5) return failed(1);
     const name = db as Db;
     if (sql === TABLES_SQL) {
       const tables = script.tables[name];
@@ -99,10 +117,11 @@ function fakes(
     }
     const counts = script.counts[name];
     if (typeof counts === "string") return { code: 0, stdout: counts };
-    const rows = Object.entries(counts)
-      .filter(([t]) => sql.includes(`FROM "${t}"`))
-      .map(([t, n]) => ({ t, n }));
-    return { code: 0, stdout: json(rows) };
+    // Una riga, una colonna per tabella, come la risposta reale di D1.
+    const row = Object.fromEntries(
+      Object.entries(counts).filter(([t]) => sql.includes(`FROM "${t}"`)),
+    );
+    return { code: 0, stdout: json([row]) };
   };
   return {
     deps: {
@@ -332,7 +351,9 @@ describe("restore-test", () => {
     const io = output();
     const f = fakes({
       counts: {
-        "palestra-restore-test": json([{ t: "audit", n: "3" }]),
+        "palestra-restore-test": json([
+          { audit: "3", feedback: 0, sessions: 12 },
+        ]),
         palestra: { audit: 3, feedback: 0, sessions: 12 },
       },
     });
@@ -341,6 +362,36 @@ describe("restore-test", () => {
       "Risposta inattesa di wrangler da palestra-restore-test",
     );
     expect(io.stdout()).toBe("");
+    expect(f.calls.at(-1)).toEqual(del);
+  });
+
+  it("restore-test: counts all twelve real tables without a compound select", async () => {
+    const io = output();
+    const counts = Object.fromEntries(ALL_TABLES.map((t, i) => [t, i]));
+    const f = fakes({
+      tables: { "palestra-restore-test": ALL_TABLES, palestra: ALL_TABLES },
+      counts: { "palestra-restore-test": counts, palestra: counts },
+    });
+    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(0);
+    const countQueries = f.calls.slice(4, 6).map((c) => c.at(-1) ?? "");
+    expect(countQueries).toHaveLength(2);
+    for (const sql of countQueries) expect(sql).not.toContain("UNION");
+    expect(io.stdout()).toContain("timeseries                11        11");
+    expect(io.stdout()).toContain("Esito: conteggi identici in 12 tabelle.");
+  });
+
+  it("restore-test: a count row without one of the tables exits 65", async () => {
+    const io = output();
+    const f = fakes({
+      counts: {
+        "palestra-restore-test": json([{ audit: 3, feedback: 0 }]),
+        palestra: { audit: 3, feedback: 0, sessions: 12 },
+      },
+    });
+    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(65);
+    expect(io.stderr()).toContain(
+      "Risposta inattesa di wrangler da palestra-restore-test",
+    );
     expect(f.calls.at(-1)).toEqual(del);
   });
 
