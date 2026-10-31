@@ -72,6 +72,21 @@ describe("web", () => {
     ).toBeTruthy();
   });
 
+  it("web: table text is 16 px", async () => {
+    // docs/buone-pratiche-mui.md § 8: testo di base almeno 16 px (1rem), anche nelle tabelle.
+    server.use(
+      http.get("/api/measures", () => HttpResponse.json({ measures })),
+    );
+    renderConTema(<Misure />);
+
+    const table = await screen.findByRole("table", { name: "Tutte le misure" });
+    const [header] = within(table).getAllByRole("columnheader");
+    const [cell] = within(table).getAllByRole("cell");
+    if (!header || !cell) throw new Error("celle mancanti");
+    expect(getComputedStyle(header).fontSize).toBe("16px");
+    expect(getComputedStyle(cell).fontSize).toBe("16px");
+  });
+
   it("web: misure empty state", async () => {
     server.use(
       http.get("/api/measures", () => HttpResponse.json({ measures: [] })),

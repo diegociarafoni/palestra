@@ -68,6 +68,15 @@ export const theme = createTheme({
     MuiIconButton: { defaultProps: { size: "large" } },
     // Cinque voci in basso a 360 px: senza la larghezza minima di MUI (80 px) ognuna ha 72 px.
     MuiBottomNavigationAction: { styleOverrides: { root: { minWidth: 0 } } },
+    // Testo di base almeno 16 px anche nelle tabelle (MUI usa body2, 14 px); il peso resta quello di MUI.
+    MuiTableCell: {
+      styleOverrides: {
+        root: ({ theme }) => ({
+          fontSize: theme.typography.body1.fontSize,
+          lineHeight: theme.typography.body1.lineHeight,
+        }),
+      },
+    },
     MuiMenuItem: {
       styleOverrides: {
         // Da `sm` in su MUI riduce l'altezza minima: qui resta 48 px a ogni larghezza.
