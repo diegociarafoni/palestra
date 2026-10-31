@@ -46,7 +46,7 @@ export const SessionSchema = z.object({
 });
 export type Session = z.infer<typeof SessionSchema>;
 
-// Feedback di una seduta (dashboard, Task 12): una riga per data.
+// Feedback di una seduta (dashboard, Task 12): una riga per data e `seq` (ordine nel giorno).
 export const FeedbackClassSchema = z.enum([
   "ottima",
   "buona",
@@ -57,6 +57,7 @@ export const FeedbackClassSchema = z.enum([
 
 export const FeedbackInputSchema = z.object({
   date: z.iso.date(),
+  seq: z.int().min(1).optional(),
   class: FeedbackClassSchema,
   joint_pain: z.boolean(),
   joint_where: z.string().nullish(),
@@ -71,6 +72,7 @@ export const FeedbackSchema = z.object({
   planned_id: z.string().nullable(),
   session_id: z.string().nullable(),
   date: z.iso.date(),
+  seq: z.int(),
   class: FeedbackClassSchema,
   joint_pain: z.boolean(),
   joint_where: z.string().nullable(),

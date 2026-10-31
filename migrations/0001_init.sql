@@ -48,18 +48,21 @@ CREATE TABLE planned_sessions (
 );
 CREATE INDEX planned_sessions_week ON planned_sessions (week);
 
+-- Un feedback per seduta: `seq` = ordine della seduta nel giorno, 1 = la prima.
 -- Nessuna chiave esterna: il feedback può arrivare prima della seduta o dello slot.
 CREATE TABLE feedback (
   id INTEGER PRIMARY KEY,
-  planned_id TEXT,
-  session_id TEXT,
-  date TEXT NOT NULL UNIQUE,
+  planned_id TEXT UNIQUE,
+  session_id TEXT UNIQUE,
+  date TEXT NOT NULL,
+  seq INTEGER NOT NULL DEFAULT 1 CHECK (seq >= 1),
   class TEXT NOT NULL
     CHECK (class IN ('ottima', 'buona', 'normale', 'faticosa', 'pessima')),
   joint_pain INTEGER NOT NULL CHECK (joint_pain IN (0, 1)),
   joint_where TEXT,
   notes TEXT,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  UNIQUE (date, seq)
 );
 
 CREATE TABLE profile (

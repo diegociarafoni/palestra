@@ -24,7 +24,8 @@ const FeedbackRowSchema = FeedbackSchema.extend({
 });
 
 /**
- * Salva il feedback del giorno (uno per data) e la riga `audit` nello stesso batch.
+ * Salva il feedback di una seduta (chiave: data e numero della seduta nel giorno) e la riga
+ * `audit` nello stesso batch; il numero omesso vale 1.
  * planned_id e session_id già presenti restano se il nuovo valore è vuoto.
  */
 export async function upsertFeedback(
@@ -37,17 +38,18 @@ export async function upsertFeedback(
     throw new ParseError("feedback non valido", { cause: parsed.error });
   }
   const input = parsed.data;
+  const seq = input.seq ?? 1;
   const existing = await db
-    .prepare("SELECT id FROM feedback WHERE date = ?1")
-    .bind(input.date)
+    .prepare("SELECT id FROM feedback WHERE date = ?1 AND seq = ?2")
+    .bind(input.date, seq)
     .first();
   const [saved] = await db.batch([
     db
       .prepare(
         `INSERT INTO feedback
-           (planned_id, session_id, date, class, joint_pain, joint_where, notes, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-         ON CONFLICT (date) DO UPDATE SET
+           (planned_id, session_id, date, seq, class, joint_pain, joint_where, notes, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+         ON CONFLICT (date, seq) DO UPDATE SET
            planned_id = COALESCE(excluded.planned_id, feedback.planned_id),
            session_id = COALESCE(excluded.session_id, feedback.session_id),
            class = excluded.class,
@@ -61,6 +63,7 @@ export async function upsertFeedback(
         input.planned_id ?? null,
         input.session_id ?? null,
         input.date,
+        seq,
         input.class,
         input.joint_pain ? 1 : 0,
         input.joint_where ?? null,
@@ -71,7 +74,7 @@ export async function upsertFeedback(
       db,
       actor,
       "feedback",
-      input.date,
+      `${input.date}/${seq}`,
       existing ? "update" : "insert",
     ),
   ]);
@@ -83,11 +86,11 @@ export async function upsertFeedback(
   );
 }
 
-/** Feedback del mese `YYYY-MM`, in ordine di data. */
+/** Feedback del mese `YYYY-MM`, in ordine di data e di seduta nel giorno. */
 export async function listFeedback(db: Db, month: string): Promise<Feedback[]> {
   const { results } = await db
     .prepare(
-      "SELECT * FROM feedback WHERE substr(date, 1, 7) = ?1 ORDER BY date",
+      "SELECT * FROM feedback WHERE substr(date, 1, 7) = ?1 ORDER BY date, seq",
     )
     .bind(month)
     .all<{ id: number }>();

@@ -37,7 +37,7 @@ describe("store feedback", () => {
     expect(await count("audit")).toBe(0);
   });
 
-  it("store: feedback upsert keeps one per day and writes audit", async () => {
+  it("store: feedback upsert keeps one per seduta and writes audit", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-11-03T20:00:00Z"));
     const first = await upsertFeedback(
@@ -70,6 +70,7 @@ describe("store feedback", () => {
       planned_id: "2026-W45-1",
       session_id: "sess-001",
       date: "2026-11-03",
+      seq: 1,
       class: "buona",
       joint_pain: false,
       joint_where: null,
@@ -82,6 +83,7 @@ describe("store feedback", () => {
       planned_id: "2026-W45-1",
       session_id: "sess-002",
       date: "2026-11-03",
+      seq: 1,
       class: "faticosa",
       joint_pain: true,
       joint_where: "spalla",
@@ -108,6 +110,7 @@ describe("store feedback", () => {
       planned_id: "2026-W45-2",
       session_id: "sess-002",
       date: "2026-11-03",
+      seq: 1,
       class: "normale",
       joint_pain: false,
       joint_where: null,
@@ -125,7 +128,7 @@ describe("store feedback", () => {
       at,
       actor: ACTOR,
       table_name: "feedback",
-      row_key: "2026-11-03",
+      row_key: "2026-11-03/1",
       action,
     });
     expect(audit.results).toEqual([
@@ -133,6 +136,83 @@ describe("store feedback", () => {
       auditRow("2026-11-04T08:00:00.000Z", "update"),
       auditRow("2026-11-05T09:00:00.000Z", "update"),
     ]);
+  });
+
+  it("store: feedback keeps two sedute on the same day apart", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-03T20:00:00Z"));
+    // La seconda seduta salvata per prima: l'ordine di lettura viene da seq, non dall'id.
+    await upsertFeedback(
+      env.DB,
+      { date: "2026-11-03", seq: 2, class: "faticosa", joint_pain: false },
+      ACTOR,
+    );
+    await upsertFeedback(
+      env.DB,
+      { date: "2026-11-03", class: "buona", joint_pain: false },
+      ACTOR,
+    );
+
+    const row = (id: number, seq: number, cls: string) => ({
+      id,
+      planned_id: null,
+      session_id: null,
+      date: "2026-11-03",
+      seq,
+      class: cls,
+      joint_pain: false,
+      joint_where: null,
+      notes: null,
+      updated_at: "2026-11-03T20:00:00.000Z",
+    });
+    expect(await listFeedback(env.DB, "2026-11")).toEqual([
+      row(2, 1, "buona"),
+      row(1, 2, "faticosa"),
+    ]);
+    const audit = await env.DB.prepare(
+      "SELECT row_key, action FROM audit ORDER BY id",
+    ).all();
+    expect(audit.results).toEqual([
+      { row_key: "2026-11-03/2", action: "insert" },
+      { row_key: "2026-11-03/1", action: "insert" },
+    ]);
+  });
+
+  it.each(["planned_id", "session_id"] as const)(
+    "store: feedback rejects a %s already linked to another seduta",
+    async (link) => {
+      const value = { planned_id: "2026-W45-1", session_id: "sess-001" }[link];
+      const save = (seq: number) =>
+        upsertFeedback(
+          env.DB,
+          {
+            date: "2026-11-03",
+            seq,
+            class: "buona",
+            joint_pain: false,
+            [link]: value,
+          },
+          ACTOR,
+        );
+      await save(1);
+      await expect(save(2)).rejects.toThrow(
+        `UNIQUE constraint failed: feedback.${link}`,
+      );
+      expect(await count("feedback")).toBe(1);
+      expect(await count("audit")).toBe(1);
+    },
+  );
+
+  it("store: feedback rejects seq 0", async () => {
+    await expect(
+      upsertFeedback(
+        env.DB,
+        { date: "2026-11-03", seq: 0, class: "buona", joint_pain: false },
+        ACTOR,
+      ),
+    ).rejects.toBeInstanceOf(ParseError);
+    expect(await count("feedback")).toBe(0);
+    expect(await count("audit")).toBe(0);
   });
 
   it("store: list feedback by month", async () => {
@@ -181,6 +261,7 @@ describe("store feedback", () => {
         planned_id: "2026-W45-1",
         session_id: "sess-001",
         date: "2026-11-03",
+        seq: 1,
         class: "pessima",
         joint_pain: true,
         joint_where: "ginocchio",
@@ -192,6 +273,7 @@ describe("store feedback", () => {
         planned_id: null,
         session_id: "sess-002",
         date: "2026-11-20",
+        seq: 1,
         class: "normale",
         joint_pain: false,
         joint_where: null,

@@ -34,4 +34,12 @@ describe("store schema", () => {
     );
     await expect(insert.run()).rejects.toThrow("NOT NULL");
   });
+
+  // Nel percorso dello store zod ferma seq 0 prima di D1: qui si controlla il CHECK.
+  it("store: feedback seq rejects zero", async () => {
+    const insert = env.DB.prepare(
+      "INSERT INTO feedback (date, seq, class, joint_pain, updated_at) VALUES ('2026-11-03', 0, 'buona', 0, '2026-11-03T19:00:00.000Z')",
+    );
+    await expect(insert.run()).rejects.toThrow("CHECK constraint failed");
+  });
 });
