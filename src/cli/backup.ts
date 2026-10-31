@@ -24,7 +24,7 @@ const REQUIRED_ENV = [
 
 /** Esporta il database remoto `palestra` nel file indicato; restituisce l'exit code di wrangler. */
 function exportWithWrangler(output: string): Promise<number> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     // stdio "ignore", mai "inherit": wrangler stampa un link firmato (valido un'ora)
     // all'export completo del database, e i log delle Actions sono pubblici.
     // `--no`: mai scaricare un wrangler non fissato se manca quello locale (l'ambiente
@@ -45,7 +45,8 @@ function exportWithWrangler(output: string): Promise<number> {
       ],
       { stdio: "ignore" },
     );
-    child.on("error", reject);
+    // npx non avviabile (es. assente dal PATH): export fallito, 127 come nella shell.
+    child.on("error", () => resolve(127));
     child.on("close", (code) => resolve(code ?? 1));
   });
 }

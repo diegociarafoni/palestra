@@ -297,4 +297,13 @@ describe("backup", () => {
     expect(basename(output)).toMatch(/^palestra-\d{4}-\d{2}-\d{2}\.sql$/);
     expect(existsSync(dirname(output))).toBe(false);
   });
+
+  it("backup: exit 69 when npx cannot be started", () => {
+    // PATH con una sola cartella vuota: spawn("npx") fallisce con ENOENT.
+    fakeDir = mkdtempSync(join(tmpdir(), "backup-no-npx-"));
+    const result = runCli({ ...ENV, PATH: fakeDir, TMPDIR: tmpdir() });
+    expect(result.status).toBe(69);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("Export D1 non riuscito (wrangler exit 127)\n");
+  });
 });
