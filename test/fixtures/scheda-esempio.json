@@ -1,0 +1,60 @@
+{
+  "version": "2026-11",
+  "valid_from": "2026-11-03",
+  "valid_to": "2026-11-30",
+  "goal": "ricomposizione",
+  "sessions_per_week": 2,
+  "days": [
+    {
+      "id": "A",
+      "name": "Giorno A",
+      "blocks": [
+        {
+          "type": "warmup",
+          "exercises": [
+            {
+              "slug": "skillbike-warmup",
+              "technogym_name": "Skillbike",
+              "equipment": "Skillbike",
+              "duration_min": 8,
+              "target": "RPE 4-5",
+              "tracking": "auto"
+            }
+          ]
+        },
+        {
+          "type": "strength",
+          "exercises": [
+            {
+              "slug": "leg-press",
+              "technogym_name": "Leg Press",
+              "equipment": "Selection Leg Press",
+              "muscle_groups": ["quadricipiti", "glutei"],
+              "sets": 3,
+              "reps_min": 10,
+              "reps_max": 12,
+              "rest_s": 90,
+              "start_load_kg": null,
+              "step_kg": 5,
+              "tracking": "auto-if-900",
+              "notes": "Piedi a larghezza spalle, al centro della pedana; non bloccare le ginocchia"
+            }
+          ]
+        },
+        {
+          "type": "cardio",
+          "exercises": [
+            {
+              "slug": "run-artis-incline-walk",
+              "technogym_name": "Run Artis",
+              "equipment": "Run Artis",
+              "duration_min": 12,
+              "target": "6-6,5 km/h, pendenza 6 %",
+              "tracking": "auto"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
