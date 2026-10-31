@@ -122,7 +122,8 @@ export async function main(
     console.error(`Backup caricato: ${key} (${body.length} byte)`);
     return 0;
   } finally {
-    // Il file contiene dati personali: si cancella sempre, anche dopo un errore.
+    // Il file contiene dati personali: si cancella anche quando l'export o l'upload
+    // falliscono (non dopo SIGINT/SIGTERM: vedi docs/dashboard.md).
     await rm(dir, { recursive: true, force: true });
   }
 }
