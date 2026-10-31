@@ -91,13 +91,13 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 **Interfaces:**
 - Produces: script npm `test`, `lint` (`biome check .`), `typecheck` (`tsc --noEmit`), `sync` (`tsx src/cli/sync.ts`), `report` (`tsx src/cli/report.ts`), `backup` (`tsx src/cli/backup.ts`); `export const VERSION = "0.1.0"` in `src/index.ts`.
 
-- [ ] **Step 1: Test** `smoke: exports version` → `expect(VERSION).toBe("0.1.0")`.
-- [ ] **Step 2:** `npm test` → FAIL (modulo mancante).
-- [ ] **Step 3:** creare `package.json` (`"type": "module"`, `"engines": {"node": ">=22"}`), installare le dipendenze di sviluppo del Global Constraints, `tsconfig.json` (`strict`, `noUncheckedIndexedAccess`, `module: "ESNext"`, `moduleResolution: "Bundler"`, `types: ["@cloudflare/workers-types", "node"]`), `src/index.ts`.
-- [ ] **Step 4:** `npm test` → PASS; `npm run lint`, `npm run typecheck` → puliti.
-- [ ] **Step 5: `ci.yml`**: trigger `pull_request`; `permissions: contents: read`; nessun segreto; `timeout-minutes: 10`; `actions/checkout` e `actions/setup-node` (Node 22, cache npm) pinnate a SHA; `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `node scripts/check-public-tree.mjs .` (senza pattern personali: controlla solo i percorsi).
-- [ ] **Step 6: `pii-scan.yml`**: trigger `schedule` notturno e `workflow_dispatch`; `permissions: contents: read`; env `PII_PATTERNS` dal Secret; esegue `node scripts/check-public-tree.mjs .`. `dependabot.yml`: ecosistemi `github-actions` e `npm`, mensile.
-- [ ] **Step 7: Commit** `chore: scaffold typescript project and ci`
+- [x] **Step 1: Test** `smoke: exports version` → `expect(VERSION).toBe("0.1.0")`.
+- [x] **Step 2:** `npm test` → FAIL (modulo mancante).
+- [x] **Step 3:** creare `package.json` (`"type": "module"`, `"engines": {"node": ">=22"}`), installare le dipendenze di sviluppo del Global Constraints, `tsconfig.json` (`strict`, `noUncheckedIndexedAccess`, `module: "ESNext"`, `moduleResolution: "Bundler"`, `types: ["@cloudflare/workers-types", "node"]`), `src/index.ts`.
+- [x] **Step 4:** `npm test` → PASS; `npm run lint`, `npm run typecheck` → puliti.
+- [x] **Step 5: `ci.yml`**: trigger `pull_request`; `permissions: contents: read`; nessun segreto; `timeout-minutes: 10`; `actions/checkout` e `actions/setup-node` (Node 22, cache npm) pinnate a SHA; `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `node scripts/check-public-tree.mjs .` (senza pattern personali: controlla solo i percorsi).
+- [x] **Step 6: `pii-scan.yml`**: trigger `schedule` notturno e `workflow_dispatch`; `permissions: contents: read`; env `PII_PATTERNS` dal Secret; esegue `node scripts/check-public-tree.mjs .`. `dependabot.yml`: ecosistemi `github-actions` e `npm`, mensile.
+- [x] **Step 7: Commit** `chore: scaffold typescript project and ci`
 
 ---
 
@@ -121,6 +121,8 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 ---
 
 ### Task 1b: Accesso a D1 e modulo `store`
+
+> Nota (2026-10-31): `@cloudflare/vitest-pool-workers` richiede `vitest` ^4.1, mentre il Task 1 ha installato vitest 5: installare la versione 4 compatibile (`npm install -D vitest@^4.1`) e registrarlo come `Ruling:` nella PR.
 
 **Accettazione:** `npm test` verde con i test di questo task; `npx wrangler d1 migrations apply palestra --remote` (con `wrangler.toml` generato da `scripts/render-wrangler.mjs`) applica le migrazioni al database reale; i dati personali del repository privato (misure, profilo, obiettivi, modello settimanale) inseriti in D1 da Claude tramite connettore, ciascuno con riga `audit`.
 
