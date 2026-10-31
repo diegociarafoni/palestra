@@ -101,6 +101,11 @@ describe("strength", () => {
       " selection  CHEST press",
     );
     const unknown = strength(4, "Lat Pulldown", "Pure Lat Pulldown");
+    // Il nome vince sull'attrezzo: "Leg Curl" sulla Leg Press va a leg-curl.
+    const crossed = strength(5, "Leg Curl", "Selection Leg Press");
+    // Non riconosciuti elencati in ordine di esecuzione, non di arrivo.
+    const abductor = strength(7, "Abductor", null);
+    const adductor = strength(6, "Adductor", null);
     const warmup: Exercise = {
       order: 1,
       name: "Riscaldamento",
@@ -115,6 +120,9 @@ describe("strength", () => {
       unknown,
       warmup,
       byName,
+      abductor,
+      adductor,
+      crossed,
     ]);
     // Uno slug ripetuto in due giorni della scheda resta una sola chiave.
     const twoDays = {
@@ -131,10 +139,14 @@ describe("strength", () => {
       "leg-press": [{ ...byName, ...at }],
       "chest-press": [{ ...byEquipment, ...at }],
       "lat-machine": [],
-      "leg-curl": [],
+      "leg-curl": [{ ...crossed, ...at }],
       "run-artis-incline-walk": [],
     });
-    expect(unmatched).toEqual([{ ...unknown, ...at }]);
+    expect(unmatched).toEqual([
+      { ...unknown, ...at },
+      { ...adductor, ...at },
+      { ...abductor, ...at },
+    ]);
   });
 
   it("strength: table rows", () => {
@@ -230,6 +242,73 @@ describe("strength", () => {
     expect(reliability(drop)).toBe("da_rivedere");
   });
 
+  it("strength: table per session", () => {
+    const row = (executions: Execution[]) =>
+      strengthTable(scheda, { "leg-press": executions })[0];
+    const untracked = (e: Execution): Execution => ({
+      ...e,
+      sets: e.sets.map((s) => ({ ...s, reps_done: null })),
+    });
+    // Due esecuzioni per seduta: conta la serie migliore della seduta, anche per la proposta.
+    expect(
+      row([
+        execution("sess-t01", "2026-11-03", [12, 12, 12], 60),
+        execution("sess-t01", "2026-11-03", [10], 70),
+        execution("sess-t02", "2026-11-05", [12, 12, 12], 70),
+        execution("sess-t02", "2026-11-05", [15], 40),
+      ]),
+    ).toEqual({
+      slug: "leg-press",
+      name: "Leg Press",
+      sessions: 2,
+      first: { date: "2026-11-03", load_kg: 70, reps: 10 },
+      last: { date: "2026-11-05", load_kg: 70, reps: 12 },
+      e1rm_start_kg: expect.closeTo(93.3333, 3),
+      e1rm_end_kg: 98,
+      e1rm_delta_pct: expect.closeTo(5, 3),
+      reliability: "da_rivedere",
+      next: { load_kg: 75, reps_target: 10, action: "increase" },
+    });
+    // Una sola seduta con due esecuzioni: nessuna variazione; a pari e1RM vince la prima.
+    expect(
+      row([
+        execution("sess-t01", "2026-11-03", [6], 70),
+        execution("sess-t01", "2026-11-03", [12], 60),
+      ]),
+    ).toMatchObject({
+      sessions: 1,
+      first: { date: "2026-11-03", load_kg: 70, reps: 6 },
+      last: { date: "2026-11-03", load_kg: 70, reps: 6 },
+      e1rm_start_kg: 84,
+      e1rm_end_kg: 84,
+      e1rm_delta_pct: null,
+    });
+    // Carico 0 non è una serie completa: la prima seduta valida è la seconda.
+    expect(
+      row([
+        execution("sess-t01", "2026-11-03", [12], 0),
+        execution("sess-t02", "2026-11-05", [12], 60),
+      ]),
+    ).toMatchObject({
+      sessions: 2,
+      first: { date: "2026-11-05", load_kg: 60, reps: 12 },
+      e1rm_start_kg: 84,
+      e1rm_delta_pct: null,
+    });
+    // Ultima seduta senza ripetizioni registrate: la proposta parte dalla seduta prima.
+    expect(
+      row([
+        execution("sess-t01", "2026-11-03", [12, 12, 12], 60),
+        untracked(execution("sess-t02", "2026-11-10", [12, 12, 12], 65)),
+      ]),
+    ).toMatchObject({
+      sessions: 2,
+      last: { date: "2026-11-03", load_kg: 60, reps: 12 },
+      reliability: "da_rivedere",
+      next: { load_kg: 65, reps_target: 10, action: "increase" },
+    });
+  });
+
   it("strength: e1rm series per session", () => {
     // Due esecuzioni nella stessa seduta: conta la serie migliore delle due.
     const twice = [
@@ -268,5 +347,6 @@ describe("strength", () => {
     });
     expect(bestSet(execution("sess-t01", "2026-11-03", [12], null))).toBeNull();
     expect(bestSet(execution("sess-t01", "2026-11-03", [0], 60))).toBeNull();
+    expect(bestSet(execution("sess-t01", "2026-11-03", [12], 0))).toBeNull();
   });
 });

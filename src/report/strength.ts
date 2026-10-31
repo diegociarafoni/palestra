@@ -8,7 +8,7 @@ import type {
   StrengthExercise,
   StrengthSet,
 } from "../domain/types";
-import { nextPrescription } from "./progression";
+import { nextPrescription, registeredSets } from "./progression";
 
 /** Esercizio eseguito in una seduta, con la seduta e la sua data (Europe/Rome). */
 export type Execution = Exercise & { session_id: string; date: string };
@@ -105,28 +105,51 @@ export function strengthExercises(scheda: Scheda): StrengthExercise[] {
   return [...bySlug.values()];
 }
 
-// e1RM migliore di ogni seduta con almeno una serie completa, in ordine di data.
-function sessionBests(
-  executions: Execution[],
-): { date: string; e1rm_kg: number }[] {
-  const points = new Map<string, { date: string; e1rm_kg: number }>();
+type SessionBest = {
+  session_id: string;
+  date: string;
+  load_kg: number;
+  reps: number;
+  e1rm_kg: number;
+};
+
+// Serie migliore di ogni seduta con almeno una serie completa, tra tutte le esecuzioni dello
+// slug in quella seduta (a pari e1RM vince l'esecuzione precedente), in ordine di data.
+function sessionBests(executions: Execution[]): SessionBest[] {
+  const bests = new Map<string, SessionBest>();
   for (const e of executions) {
     const best = bestScored(e);
     if (best === null) continue;
-    const point = points.get(e.session_id);
-    if (point === undefined) {
-      points.set(e.session_id, { date: e.date, e1rm_kg: best.e1rm_kg });
-    } else {
-      point.e1rm_kg = Math.max(point.e1rm_kg, best.e1rm_kg);
+    const current = bests.get(e.session_id);
+    if (current === undefined || best.e1rm_kg > current.e1rm_kg) {
+      const { load_kg, reps, e1rm_kg } = best;
+      bests.set(e.session_id, {
+        session_id: e.session_id,
+        date: e.date,
+        load_kg,
+        reps,
+        e1rm_kg,
+      });
     }
   }
-  return [...points.values()];
+  return [...bests.values()];
+}
+
+// Esecuzioni dell'ultima seduta con almeno una serie registrata, unite in una sola.
+function lastRegistered(executions: Execution[]): Execution | null {
+  const last = executions.findLast((e) => registeredSets(e).length > 0);
+  if (last === undefined) return null;
+  const sets = executions
+    .filter((e) => e.session_id === last.session_id)
+    .flatMap(registeredSets);
+  return { ...last, sets };
 }
 
 /**
- * Una riga per esercizio di forza: serie migliore della prima e dell'ultima esecuzione con
- * una serie completa, variazione dell'e1RM, affidabilità e proposta per la prossima seduta.
- * "bloccato" non viene mai assegnato qui: lo decide Claude nella revisione mensile.
+ * Una riga per esercizio di forza, per seduta: serie migliore della prima e dell'ultima seduta
+ * con una serie completa, variazione dell'e1RM (con almeno due sedute), affidabilità e proposta
+ * dall'ultima seduta con serie registrate. "bloccato" non viene mai assegnato qui: lo decide
+ * Claude nella revisione mensile.
  */
 export function strengthTable(
   scheda: Scheda,
@@ -134,18 +157,14 @@ export function strengthTable(
 ): StrengthTable {
   return strengthExercises(scheda).map((ex) => {
     const executions = bySlug[ex.slug] ?? [];
-    const scored = executions.flatMap((e) => {
-      const best = bestScored(e);
-      return best === null ? [] : [{ date: e.date, ...best }];
-    });
-    const first = scored[0];
-    const last = scored.at(-1);
     const bests = sessionBests(executions);
+    const first = bests[0];
+    const last = bests.at(-1);
     const sameSetup = new Set(executions.map((e) => e.equipment)).size === 1;
     const noDrop = bests.every(
       (p, i) => i === 0 || p.e1rm_kg >= (bests[i - 1]?.e1rm_kg ?? 0),
     );
-    const ref = (s: typeof first) =>
+    const ref = (s: SessionBest | undefined) =>
       s === undefined
         ? null
         : { date: s.date, load_kg: s.load_kg, reps: s.reps };
@@ -158,16 +177,16 @@ export function strengthTable(
       e1rm_start_kg: first?.e1rm_kg ?? null,
       e1rm_end_kg: last?.e1rm_kg ?? null,
       e1rm_delta_pct:
-        first !== undefined && last !== undefined && scored.length >= 2
+        first !== undefined && last !== undefined && bests.length >= 2
           ? ((last.e1rm_kg - first.e1rm_kg) / first.e1rm_kg) * 100
           : null,
       reliability:
-        scored.length === 0
+        bests.length === 0
           ? null
           : bests.length >= 4 && sameSetup && noDrop
             ? "confermato"
             : "da_rivedere",
-      next: nextPrescription(ex, executions.at(-1) ?? null),
+      next: nextPrescription(ex, lastRegistered(executions)),
     };
   });
 }
@@ -180,6 +199,9 @@ export function e1rmSeries(
   return strengthExercises(scheda).map((ex) => ({
     slug: ex.slug,
     name: ex.technogym_name,
-    points: sessionBests(bySlug[ex.slug] ?? []),
+    points: sessionBests(bySlug[ex.slug] ?? []).map(({ date, e1rm_kg }) => ({
+      date,
+      e1rm_kg,
+    })),
   }));
 }
