@@ -251,23 +251,34 @@ type SummaryRow = {
   status: Status | null;
 };
 
-// Ultimo valore del trend, "da <primo>" con la variazione se i punti sono almeno due.
-function trendRow(label: string, values: number[], unit: string): SummaryRow {
+// Primo valore e variazione fino all'ultimo; null con meno di due punti.
+function change(values: number[]): { first: number; delta: number } | null {
   const first = values[0];
   const last = values.at(-1);
+  return values.length < 2 || first === undefined || last === undefined
+    ? null
+    : { first, delta: last - first };
+}
+
+// Ultimo valore del trend, "da <primo>" con la variazione se i punti sono almeno due.
+function trendRow(label: string, values: number[], unit: string): SummaryRow {
+  const last = values.at(-1);
+  const c = change(values);
   return {
     label,
     value: last === undefined ? null : `${num(last)} ${unit}`,
     compare:
-      first === undefined || last === undefined || values.length < 2
+      c === null
         ? "—"
-        : `da ${num(first)} ${unit} · ${signed(last - first)} ${unit}`,
+        : `da ${num(c.first)} ${unit} · ${signed(c.delta)} ${unit}`,
     status: null,
   };
 }
 
 function summaryRows(input: ReportInput, a: Analysis): SummaryRow[] {
   const { kpi } = a;
+  const fat = change(present(a.trend.map((m) => m.fat_mass_kg)));
+  const muscle = change(present(a.trend.map((m) => m.skeletal_muscle_kg)));
   const first = a.weekly[0];
   const last = a.weekly.at(-1);
   const withUnit = (n: number | null, unit: string) =>
@@ -329,7 +340,10 @@ function summaryRows(input: ReportInput, a: Analysis): SummaryRow[] {
         kpi.skeletal_muscle_last_kg,
         `${withUnit(kpi.fat_mass_last_kg, "kg")} / ${withUnit(kpi.skeletal_muscle_last_kg, "kg")}`,
       ),
-      compare: "—",
+      compare:
+        fat === null || muscle === null
+          ? "—"
+          : `da ${num(fat.first)} kg / ${num(muscle.first)} kg · ${signed(fat.delta)} kg / ${signed(muscle.delta)} kg`,
       status: null,
     },
     {
@@ -513,7 +527,7 @@ function distribution(a: Analysis): string[] {
       ["Schema di movimento", "Serie/settimana"],
       Object.entries(a.patterns).map(([p, total]) => [p, num(perWeek(total))]),
     ),
-    `Rapporti: femorali/quadricipiti ${num(a.ratios.hamstring_quad, 2)} (obiettivo ≥ 0,6) · spinta/tirata ${num(a.ratios.push_pull, 2)} (obiettivo ≤ 1,0) · spinta verticale ${num(a.ratios.vertical_push_sets)} serie.`,
+    `Rapporti: femorali/quadricipiti ${num(a.ratios.hamstring_quad, 2)} (obiettivo ≥ 0,6) · spinta/tirata ${num(a.ratios.push_pull, 2)} (obiettivo ≤ 1,0) · spinta verticale ${num(a.ratios.vertical_push_sets)} serie nel mese.`,
   ];
 }
 

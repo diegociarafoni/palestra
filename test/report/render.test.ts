@@ -75,7 +75,7 @@ describe("report", () => {
         "| Serie registrate | 27 | ~6,3 a settimana | — |",
         "| Peso | 79 kg | da 80 kg · -1 kg | — |",
         "| Circonferenza vita | 89 cm | da 90 cm · -1 cm | — |",
-        "| Massa grassa / muscolo | 17 kg / 35,5 kg | — | — |",
+        "| Massa grassa / muscolo | 17 kg / 35,5 kg | da 18 kg / 35 kg · -1 kg / +0,5 kg | — |",
         "| MOVEs medi per seduta | 295 | — | — |",
         "| Sonno · passi | 6,9 h · 8000 | — | ● |",
         "| HRV · FC a riposo | 48 ms · 61 bpm | — | — |",
@@ -292,7 +292,7 @@ describe("report", () => {
         "| tirata-verticale | 0,9 |",
         "| flessione-ginocchio | 0 |",
         "",
-        "Rapporti: femorali/quadricipiti 0,5 (obiettivo ≥ 0,6) · spinta/tirata 2,5 (obiettivo ≤ 1,0) · spinta verticale 0 serie.",
+        "Rapporti: femorali/quadricipiti 0,5 (obiettivo ≥ 0,6) · spinta/tirata 2,5 (obiettivo ≤ 1,0) · spinta verticale 0 serie nel mese.",
       ].join("\n"),
     );
   });
@@ -425,6 +425,19 @@ describe("report", () => {
     // Una sola misura in protocollo: valore senza confronto.
     const single = renderReport({ ...input, measures: measures.slice(0, 2) });
     expect(section(single, 1)).toContain("| Peso | 80 kg | — | — |");
+    expect(section(single, 1)).toContain(
+      "| Massa grassa / muscolo | 18 kg / 35 kg | — | — |",
+    );
+    // Muscolo con un solo punto nel trend: nessun confronto nemmeno per il grasso.
+    const noMuscle = renderReport({
+      ...input,
+      measures: measures.map((m) =>
+        m.date === "2026-11-17" ? { ...m, skeletal_muscle_kg: null } : m,
+      ),
+    });
+    expect(section(noMuscle, 1)).toContain(
+      "| Massa grassa / muscolo | 17 kg / 35 kg | — | — |",
+    );
   });
 
   it("report: metrics from fixtures", () => {
