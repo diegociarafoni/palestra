@@ -8,36 +8,12 @@ export async function getActiveScheda(
   db: Db,
   date: string,
 ): Promise<Scheda | null> {
-  const row = await db
-    .prepare(
-      `SELECT version, valid_from, valid_to, json FROM scheda
-       WHERE valid_from <= ?1 AND valid_to >= ?1
-       ORDER BY valid_from DESC LIMIT 1`,
-    )
-    .bind(date)
-    .first<{
-      version: string;
-      valid_from: string;
-      valid_to: string;
-      json: string;
-    }>();
-  if (row === null) return null;
-  const scheda = parseJsonColumn(SchedaSchema, row.json, "scheda", row.version);
-  if (
-    scheda.version !== row.version ||
-    scheda.valid_from !== row.valid_from ||
-    scheda.valid_to !== row.valid_to
-  ) {
-    throw new ParseError(
-      `D1: json e colonne non coerenti in scheda (${row.version})`,
-    );
-  }
-  return scheda;
+  return (await getActiveSchedaWithMd(db, date))?.scheda ?? null;
 }
 
 /**
- * Come `getActiveScheda`, ma restituisce anche il Markdown (`md`) della stessa riga:
- * lo usa la dashboard, che mostra la scheda leggibile accanto ai dati strutturati.
+ * Scheda valida in `date` con il Markdown (`md`) della stessa riga: lo usa la dashboard, che
+ * mostra la scheda leggibile accanto ai dati strutturati. A parità vince l'inizio più recente.
  */
 export async function getActiveSchedaWithMd(
   db: Db,
