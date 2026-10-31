@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
@@ -121,7 +121,7 @@ describe("web", () => {
     expect(months.at(-1)).toBe("2027-01");
     await user.click(previous);
     expect(screen.getByText("dicembre 2026")).toBeTruthy();
-    expect(months).toContain("2026-12");
+    await waitFor(() => expect(months.at(-1)).toBe("2026-12"));
   });
 
   it("web: report empty state", async () => {
