@@ -135,7 +135,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 - Produces:
   - `type Db = Pick<D1Database, "prepare" | "batch">` in `src/db/types.ts`.
   - `createD1HttpDb(opts: { accountId: string; databaseId: string; token: string; fetch?: typeof fetch }): Db` — `POST /accounts/{id}/d1/database/{db}/query`; 401/403 → `AuthError`, 429/5xx → retry (max 2) poi `TransientError`, risposta non valida (`zod`) → `ParseError`.
-  - Tabelle (`0001_init.sql`): `sessions(session_id PK, date, started_at, json)`, `timeseries(session_id, ord, json, PK(session_id, ord))`, `measures(id PK, date, json)`, `recovery(week PK, json)`, `planned_sessions(id PK, week, slot, window_days, date, scheda_day, status, reason, session_id)`, `feedback(id PK, planned_id NULL, session_id NULL, date, class, joint_pain, joint_where, notes, updated_at)` con `CHECK(class IN ('ottima','buona','normale','faticosa','pessima'))` e unicità su `date`, `profile(key PK, json)`, `scheda(version PK, valid_from, valid_to, json, md)`, `reports(month, kind, md, created_at, PK(month, kind))`, `metrics(month, key, json, PK(month, key))`, `audit(id PK, at, actor, table_name, row_key, action)`.
+  - Tabelle (`0001_init.sql`): `sessions(session_id PK, date, started_at, json)`, `timeseries(session_id, ord, json, PK(session_id, ord))`, `measures(id PK, date, json)`, `recovery(week PK, json)`, `planned_sessions(id PK, week, slot, window_days, date, scheda_day, status, reason, session_id)`, `feedback(id PK, planned_id NULL, session_id NULL, date, seq, class, joint_pain, joint_where, notes, updated_at)` con `CHECK(class IN ('ottima','buona','normale','faticosa','pessima'))` e unicità su (`date`, `seq`) — un feedback per seduta, `seq` = ordine della seduta nel giorno — e su `planned_id` e `session_id`, `profile(key PK, json)`, `scheda(version PK, valid_from, valid_to, json, md)`, `reports(month, kind, md, created_at, PK(month, kind))`, `metrics(month, key, json, PK(month, key))`, `audit(id PK, at, actor, table_name, row_key, action)`.
   - `knownSessionIds(db: Db, sinceDate: string): Promise<Set<string>>`; `upsertSession(db: Db, s: Session, ts: Record<number, unknown>): Promise<void>`; `listSessionsByMonth(db: Db, month: string): Promise<Session[]>`.
   - `getActiveScheda(db: Db, date: string): Promise<Scheda | null>`; `listMeasures(db, from?, to?)`, `listRecovery(db, from?, to?)`, `getProfile<T>(db, key, schema: z.ZodType<T>): Promise<T | null>`.
   - `upsertFeedback(db: Db, f: FeedbackInput, actor: string): Promise<Feedback>`; `listFeedback(db, month): Promise<Feedback[]>`.
@@ -147,7 +147,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
   - `store: upsert session is idempotent` — due `upsertSession` dello stesso id → una riga.
   - `store: known ids within lookback` — sedute del 2026-10-01 e 2026-10-29, `sinceDate "2026-10-16"` → `Set {"<id del 29>"}`.
   - `store: feedback rejects unknown class` — `class: "stanco"` → errore di validazione, nessuna riga.
-  - `store: feedback upsert keeps one per day and writes audit` — due salvataggi per `2026-11-03` → una riga con il secondo valore, due righe `audit`.
+  - `store: feedback upsert keeps one per seduta and writes audit` — due salvataggi per `2026-11-03` → una riga con il secondo valore, due righe `audit`.
   - `store: active scheda by date` — versioni `2026-11` (`2026-11-03`–`2026-11-30`) e `2026-12` → `getActiveScheda(db, "2026-12-02")?.version === "2026-12"`.
   - `d1-http: 403 raises AuthError`, `d1-http: retries 503 then succeeds` (2 chiamate), `d1-http: invalid body raises ParseError` (MSW).
 - [x] **Step 2:** `npm test` → FAIL.
@@ -369,11 +369,11 @@ Ordine obbligatorio: Step 1–2 prima del primo deploy.
 **Interfaces:**
 - Consumes: `verifyAccess` (10), `upsertFeedback`, `listFeedback`, `updateSlot`, `writeAudit` (1b, 4).
 - Produces:
-  - `PUT /api/feedback` corpo `{ date: "AAAA-MM-GG", class: "ottima"|"buona"|"normale"|"faticosa"|"pessima", joint_pain: boolean, joint_where?: string (≤ 80), notes?: string (≤ 1000) }` → 200 con il feedback salvato; validazione `zod`; `date` non oltre oggi (Europe/Rome) → altrimenti 400.
+  - `PUT /api/feedback` corpo `{ date: "AAAA-MM-GG", class: "ottima"|"buona"|"normale"|"faticosa"|"pessima", joint_pain: boolean, joint_where?: string (≤ 80), notes?: string (≤ 1000), seq?: number (intero ≥ 1, default 1: la prima seduta del giorno) }` → 200 con il feedback salvato; validazione `zod`; `date` non oltre oggi (Europe/Rome) → altrimenti 400.
   - `PATCH /api/slots/:id` corpo `{ status: "saltata", reason: "lavoro"|"stanchezza"|"fastidio"|"altro" }` oppure `{ date: "AAAA-MM-GG" }` (deve stare nella finestra o essere sabato/domenica della stessa settimana) → 200; `actor` dell'audit = e-mail dal JWT.
   - Modulo nella pagina Calendario esattamente come approvato: titolo "Come è andata oggi?", cinque scelte "😀 Ottima · 🙂 Buona · 😐 Normale · 😓 Faticosa · 😣 Pessima", casella "Ho sentito un fastidio articolare" con campo "dove", campo "Note (facoltative)", pulsante "Salva". Giorni con stato: programmata, fatta, spostata, da confermare (con domanda "Saltata?" e motivo), saltata, extra, senza feedback.
 
-- [ ] **Step 1: Test:** `web: feedback form submits selected class` (scelta "Buona", casella fastidio, "Salva" → corpo PUT atteso, pulsante in caricamento durante l'invio); `feedback: saves and updates same day` (due PUT → una riga, due `audit`); `feedback: rejects invalid class` (400, nessuna riga); `feedback: rejects future date` (400); `feedback: requires access` (401 senza token); `slots: mark skipped with reason`; `slots: rejects date on monday` (400, modello di esempio del Task 4b).
+- [ ] **Step 1: Test:** `web: feedback form submits selected class` (scelta "Buona", casella fastidio, "Salva" → corpo PUT atteso, pulsante in caricamento durante l'invio); `feedback: saves and updates the same seduta` (due PUT con stessa data e stesso `seq` → una riga, due `audit`); `feedback: rejects invalid class` (400, nessuna riga); `feedback: rejects future date` (400); `feedback: requires access` (401 senza token); `slots: mark skipped with reason`; `slots: rejects date on monday` (400, modello di esempio del Task 4b).
 - [ ] **Step 2:** FAIL → implementare → PASS; prova manuale dal telefono.
 - [ ] **Step 3: Commit** `feat(dashboard): feedback and planned sessions calendar`
 
