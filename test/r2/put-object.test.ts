@@ -181,8 +181,9 @@ describe("r2", () => {
         ...input,
       }).catch((e: unknown) => e);
       expect(error).toBeInstanceOf(type);
-      for (const value of Object.values(input)) {
-        expect(inspect(error)).not.toContain(value);
+      // Ogni riga del valore rifiutato, non solo il valore intero.
+      for (const part of Object.values(input).flatMap((v) => v.split("\n"))) {
+        expect(inspect(error)).not.toContain(part);
       }
       expect(calls).toBe(0);
     },
