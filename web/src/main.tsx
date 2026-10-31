@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router";
-import { retryQuery } from "./api/client";
+import { retryQuery } from "./api/session";
 import { ErrorBoundary } from "./componenti/ErrorBoundary";
 import { Navigazione } from "./componenti/Navigazione";
 import { paths } from "./percorsi";

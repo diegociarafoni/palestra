@@ -5,7 +5,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { SessionError } from "../api/client";
+import { SessionError } from "../api/session";
 import { testi } from "../testi";
 
 type StatoQueryProps<T> = {

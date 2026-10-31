@@ -6,6 +6,7 @@ import {
   ReportsResponseSchema,
   SchedaResponseSchema,
 } from "../../../src/domain/dashboard";
+import { SessionError } from "./session";
 
 // Unico client dell'API (docs/buone-pratiche-react.md § 5): percorsi e tipi arrivano da `AppType`,
 // le risposte si validano con gli schemi zod di src/domain/dashboard.ts. Con `X-Requested-With`
@@ -20,14 +21,6 @@ type ApiResponse = { status: number; json: () => Promise<unknown> };
 // Ora dell'ultima ricarica per sessione scaduta (solo un numero, in ms): al massimo una al minuto.
 const RELOAD_KEY = "palestra:lastReload";
 const RELOAD_INTERVAL_MS = 60_000;
-
-/** 401/403 anche dopo una ricarica recente: ricaricare di nuovo non basta (niente nuovi tentativi). */
-export class SessionError extends Error {}
-
-/** Nuovi tentativi del QueryClient dell'app: fino a 3, come il default, mai per la sessione. */
-export function retryQuery(failureCount: number, error: Error): boolean {
-  return !(error instanceof SessionError) && failureCount < 3;
-}
 
 /**
  * Legge una risposta: 2xx → dati validati; 404 → `null` (la pagina mostra "Nessun dato");

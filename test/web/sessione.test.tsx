@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
-import { retryQuery, SessionError } from "../../web/src/api/client";
+import { retryQuery, SessionError } from "../../web/src/api/session";
 import Misure from "../../web/src/pagine/misure/Misure";
 import measures from "../fixtures/dashboard/measures.json";
 import { renderConTema } from "./render";
