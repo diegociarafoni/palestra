@@ -217,6 +217,21 @@ describe("restore-test", () => {
     expect(f.calls).toEqual([create]);
   });
 
+  it("restore-test: a local failure after creation still deletes palestra-restore-test", async () => {
+    output();
+    const f = fakes();
+    // os.tmpdir() rilegge TMPDIR: mkdtemp fallisce con ENOENT dopo `d1 create`.
+    const previous = process.env.TMPDIR;
+    process.env.TMPDIR = "/percorso/inesistente";
+    try {
+      await expect(main(["2026-10-31"], ENV, f.deps)).rejects.toThrow();
+    } finally {
+      if (previous === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = previous;
+    }
+    expect(f.calls).toEqual([create, del]);
+  });
+
   it("restore-test: failed deletion exits 69 and says so", async () => {
     const io = output();
     const f = fakes({ codes: { delete: 1 } });

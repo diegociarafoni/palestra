@@ -207,10 +207,11 @@ export async function main(
     return 69;
   }
 
-  // Il file contiene dati personali: cartella temporanea cancellata subito dopo l'import.
-  const dir = await mkdtemp(join(tmpdir(), "palestra-restore-"));
   let exitCode: number;
   try {
+    // Dentro il try: anche se la cartella non si crea, palestra-restore-test si cancella.
+    // Il file contiene dati personali: cartella cancellata subito dopo l'import.
+    const dir = await mkdtemp(join(tmpdir(), "palestra-restore-"));
     try {
       const file = join(dir, "backup.sql");
       await writeFile(file, body);
