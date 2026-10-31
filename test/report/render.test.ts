@@ -609,6 +609,52 @@ describe("report", () => {
     });
   });
 
+  it("report: without slots", () => {
+    // Nessuno slot programmato (planned_sessions vuota): aderenza senza dati, non 0/0.
+    const noSlots = { ...input, slots: [] };
+    const md = renderReport(noSlots);
+    expect(section(md, 1)).toContain("| Aderenza | Nessun dato | — | — |");
+    expect(section(md, 2).split("\n").slice(-1)).toEqual([
+      "Aderenza: Nessun dato.",
+    ]);
+    const { kpi } = reportMetrics(noSlots);
+    expect([kpi.adherence_pct, kpi.adherence_status]).toEqual([null, null]);
+  });
+
+  it("report: rendering details", () => {
+    // Saltata senza motivo.
+    const noReason = slots.map((s) =>
+      s.status === "saltata" ? { ...s, reason: null } : s,
+    );
+    expect(section(renderReport({ ...input, slots: noReason }), 2)).toContain(
+      "Saltate: 2026-W46-2 (senza motivo).",
+    );
+    // Quattro obiettivi: il focus ne elenca tre, per priorità.
+    const goal = (slug: string, priority: number) => ({
+      slug,
+      today: 1,
+      target: 2,
+      criterion: "serie",
+      priority,
+    });
+    const fourGoals = {
+      ...scheda,
+      goals: [
+        ...(scheda.goals ?? []),
+        goal("leg-curl", 4),
+        goal("chest-press", 3),
+      ],
+    };
+    expect(section(renderReport({ ...input, scheda: fourGoals }), 8)).toContain(
+      "Focus (max 3): aderenza · leg-press · chest-press.",
+    );
+    // Settimane del mese = giorni / 7: febbraio 2026 ne ha 4, dicembre 31/7.
+    const weeks = (month: string) =>
+      reportMetrics({ ...input, month, sessions: [] }).volume_by_muscle.weeks;
+    expect(weeks("2026-02")).toBe(4);
+    expect(weeks("2026-12")).toBeCloseTo(4.4286, 4);
+  });
+
   it("report: cardio-only month", () => {
     const cardioOnly = sessions.filter((s) => s.session_id === "sess-r02");
     const md = renderReport({ ...input, sessions: cardioOnly });
