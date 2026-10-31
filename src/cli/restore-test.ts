@@ -3,9 +3,10 @@
 // confronta il numero di righe di ogni tabella con palestra (sola lettura) e cancella
 // palestra-restore-test. Uso: npm run restore-test -- [AAAA-MM-GG] (default: oggi a Roma).
 // Su stdout solo la tabella dei conteggi; mai righe del backup né output di wrangler.
-// Exit code: 0 conteggi identici · 64 argomenti · 65 conteggi diversi · 69 backup vuoto,
-// passo di wrangler non riuscito, risposta inattesa o errore di R2 · 75 errore transitorio
-// di R2 · 78 variabili mancanti o credenziali rifiutate.
+// Exit code: 0 conteggi identici · 1 conteggi diversi (la prova ha girato, esito negativo)
+// · 64 argomenti · 65 risposta di wrangler non interpretabile o nome di tabella non ammesso
+// · 69 backup vuoto, passo di wrangler non riuscito (anche CF_TOKEN_D1 rifiutato) o errore
+// di R2 · 75 errore transitorio di R2 · 78 variabili mancanti o chiavi R2 rifiutate.
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -45,7 +46,15 @@ type Wrangler = (
   opts?: { capture?: boolean },
 ) => Promise<{ code: number; stdout: string }>;
 
-class StepError extends Error {}
+/** Un passo fallito: `exitCode` 69 per wrangler, 65 per dati non interpretabili (§ 8). */
+class StepError extends Error {
+  constructor(
+    message: string,
+    readonly exitCode: 65 | 69 = 69,
+  ) {
+    super(message);
+  }
+}
 
 /** Una query in sola lettura su `db`; l'output di wrangler resta in memoria, mai stampato. */
 async function select<T>(
@@ -73,7 +82,7 @@ async function select<T>(
     ? z.array(row).safeParse(result.data[0]?.results)
     : undefined;
   if (!rows?.success) {
-    throw new StepError(`Risposta inattesa di wrangler da ${db}`);
+    throw new StepError(`Risposta inattesa di wrangler da ${db}`, 65);
   }
   return rows.data;
 }
@@ -90,7 +99,7 @@ async function tables(wrangler: Wrangler, db: string): Promise<string[]> {
     )
   ).map((r) => r.name);
   if (!names.every((t) => TABLE_NAME.test(t))) {
-    throw new StepError(`Nome di tabella non ammesso in ${db}`);
+    throw new StepError(`Nome di tabella non ammesso in ${db}`, 65);
   }
   return names;
 }
@@ -246,12 +255,12 @@ export async function main(
       console.log(
         `Esito: conteggi diversi in ${differences} tabelle su ${total}.`,
       );
-      exitCode = 65;
+      exitCode = 1;
     }
   } catch (error) {
     if (!(error instanceof StepError)) throw error;
     console.error(error.message);
-    exitCode = 69;
+    exitCode = error.exitCode;
   } finally {
     // Anche dopo un errore: il database di prova contiene una copia dei dati personali.
     const deleted = await wrangler([

@@ -1,6 +1,16 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { HttpResponse, http } from "msw";
+import { setupServer } from "msw/node";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { main } from "../../src/cli/restore-test";
 import { AuthError, SyncError, TransientError } from "../../src/errors";
 
@@ -21,7 +31,7 @@ const HEADER = "tabella           ripristino  palestra";
 type Db = "palestra-restore-test" | "palestra";
 type Script = {
   tables: Record<Db, string[] | string>;
-  counts: Record<Db, Record<string, number>>;
+  counts: Record<Db, Record<string, number> | string>;
   codes: Partial<Record<"create" | "import" | "delete" | "query", number>>;
 };
 
@@ -47,22 +57,35 @@ function fakes(
     ...overrides,
   };
   const calls: string[][] = [];
+  const captures: boolean[] = [];
   const keys: string[] = [];
   let imported = "";
-  const wrangler = async (args: readonly string[]) => {
+  // Un passo fallito "stampa" righe del backup, come può fare wrangler in errore.
+  const failed = (code: number) => ({ code, stdout: SQL });
+  const wrangler = async (
+    args: readonly string[],
+    opts?: { capture?: boolean },
+  ) => {
     calls.push([...args]);
+    captures.push(opts?.capture === true);
     const [, verb, db] = args;
     if (verb === "create")
-      return { code: script.codes.create ?? 0, stdout: "" };
+      return script.codes.create
+        ? failed(script.codes.create)
+        : { code: 0, stdout: "" };
     if (verb === "delete")
-      return { code: script.codes.delete ?? 0, stdout: "" };
+      return script.codes.delete
+        ? failed(script.codes.delete)
+        : { code: 0, stdout: "" };
     const file = args[args.indexOf("--file") + 1];
     if (args.includes("--file") && file) {
       imported = readFileSync(file, "utf8");
-      return { code: script.codes.import ?? 0, stdout: "dato-personale" };
+      return script.codes.import
+        ? failed(script.codes.import)
+        : { code: 0, stdout: "" };
     }
     const sql = args[args.indexOf("--command") + 1] ?? "";
-    if (script.codes.query) return { code: script.codes.query, stdout: "" };
+    if (script.codes.query) return failed(script.codes.query);
     const name = db as Db;
     if (sql === TABLES_SQL) {
       const tables = script.tables[name];
@@ -74,7 +97,9 @@ function fakes(
             : json(tables.map((t) => ({ name: t }))),
       };
     }
-    const rows = Object.entries(script.counts[name])
+    const counts = script.counts[name];
+    if (typeof counts === "string") return { code: 0, stdout: counts };
+    const rows = Object.entries(counts)
       .filter(([t]) => sql.includes(`FROM "${t}"`))
       .map(([t, n]) => ({ t, n }));
     return { code: 0, stdout: json(rows) };
@@ -89,6 +114,7 @@ function fakes(
       now: () => new Date("2026-10-31T22:00:00Z"),
     },
     calls,
+    captures,
     keys,
     imported: () => imported,
   };
@@ -103,9 +129,13 @@ function output() {
   };
 }
 
+const server = setupServer();
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
+  server.resetHandlers();
   vi.restoreAllMocks();
 });
+afterAll(() => server.close());
 
 const create = [
   "d1",
@@ -150,6 +180,8 @@ describe("restore-test", () => {
       query("palestra", COUNTS_SQL),
       del,
     ]);
+    // stdout catturato solo per le query; mai per create, import e delete.
+    expect(f.captures).toEqual([false, false, true, true, true, true, false]);
     expect(f.imported()).toBe(SQL);
     expect(existsSync(dirname(file))).toBe(false);
     expect(io.stdout()).toBe(
@@ -165,7 +197,7 @@ describe("restore-test", () => {
     expect(`${io.stdout()}${io.stderr()}`).not.toContain("dato-personale");
   });
 
-  it("restore-test: different counts exit 65 and still delete", async () => {
+  it("restore-test: different counts exit 1 and still delete", async () => {
     const io = output();
     const f = fakes({
       counts: {
@@ -173,7 +205,7 @@ describe("restore-test", () => {
         palestra: { audit: 3, feedback: 0, sessions: 13 },
       },
     });
-    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(65);
+    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(1);
     expect(io.stdout()).toContain(
       "sessions                  12        13  DIVERSO",
     );
@@ -189,7 +221,7 @@ describe("restore-test", () => {
         palestra: ["audit", "feedback", "sessions"],
       },
     });
-    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(65);
+    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(1);
     expect(io.stdout()).toContain(
       "feedback                   —         0  DIVERSO",
     );
@@ -205,6 +237,7 @@ describe("restore-test", () => {
     );
     expect(f.calls.map((c) => c[1])).toEqual(["create", "execute", "delete"]);
     expect(io.stdout()).toBe("");
+    expect(`${io.stdout()}${io.stderr()}`).not.toContain("dato-personale");
   });
 
   it("restore-test: failed creation exits 69 and deletes nothing", async () => {
@@ -215,6 +248,7 @@ describe("restore-test", () => {
       "Non riuscito: creazione di palestra-restore-test (wrangler exit 1)",
     );
     expect(f.calls).toEqual([create]);
+    expect(`${io.stdout()}${io.stderr()}`).not.toContain("dato-personale");
   });
 
   it("restore-test: a local failure after creation still deletes palestra-restore-test", async () => {
@@ -239,6 +273,7 @@ describe("restore-test", () => {
     expect(io.stderr()).toContain(
       "Cancellazione di palestra-restore-test non riuscita (wrangler exit 1)",
     );
+    expect(`${io.stdout()}${io.stderr()}`).not.toContain("dato-personale");
   });
 
   it("restore-test: failed count query exits 69 and still deletes", async () => {
@@ -249,6 +284,7 @@ describe("restore-test", () => {
       "Non riuscito: lettura delle tabelle di palestra-restore-test (wrangler exit 1)",
     );
     expect(f.calls.at(-1)).toEqual(del);
+    expect(`${io.stdout()}${io.stderr()}`).not.toContain("dato-personale");
   });
 
   it.each([
@@ -276,7 +312,7 @@ describe("restore-test", () => {
     expect(f.calls).toEqual([]);
   });
 
-  it("restore-test: unexpected wrangler output exits 69 without showing it", async () => {
+  it("restore-test: unexpected wrangler output exits 65 without showing it", async () => {
     const io = output();
     const f = fakes({
       tables: {
@@ -284,11 +320,27 @@ describe("restore-test", () => {
         palestra: ["audit"],
       },
     });
-    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(69);
+    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(65);
     expect(io.stderr()).toContain(
       "Risposta inattesa di wrangler da palestra-restore-test",
     );
     expect(`${io.stdout()}${io.stderr()}`).not.toContain("dato-personale");
+    expect(f.calls.at(-1)).toEqual(del);
+  });
+
+  it("restore-test: counts in an unexpected shape exit 65", async () => {
+    const io = output();
+    const f = fakes({
+      counts: {
+        "palestra-restore-test": json([{ t: "audit", n: "3" }]),
+        palestra: { audit: 3, feedback: 0, sessions: 12 },
+      },
+    });
+    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(65);
+    expect(io.stderr()).toContain(
+      "Risposta inattesa di wrangler da palestra-restore-test",
+    );
+    expect(io.stdout()).toBe("");
     expect(f.calls.at(-1)).toEqual(del);
   });
 
@@ -300,7 +352,7 @@ describe("restore-test", () => {
         palestra: ['audit"; DROP TABLE audit; --'],
       },
     });
-    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(69);
+    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(65);
     expect(f.calls.map((c) => c[1])).toEqual([
       "create",
       "execute",
@@ -337,6 +389,29 @@ describe("restore-test", () => {
       "Variabili d'ambiente mancanti: R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY",
     );
     expect(f.keys).toEqual([]);
+  });
+
+  it("restore-test: default download asks the eu bucket for the backup", async () => {
+    const io = output();
+    const urls: string[] = [];
+    server.use(
+      http.get(
+        "https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com/palestra-backup/palestra-2026-10-31.sql",
+        ({ request }) => {
+          urls.push(request.url);
+          return new HttpResponse(null, { status: 404 });
+        },
+      ),
+    );
+    const { deps, calls } = fakes();
+    const code = await main(["2026-10-31"], ENV, {
+      wrangler: deps.wrangler,
+      now: deps.now,
+    });
+    expect(code).toBe(69);
+    expect(urls).toHaveLength(1);
+    expect(io.stderr()).toContain("Download non riuscito: R2: HTTP 404");
+    expect(calls).toEqual([]);
   });
 
   it("restore-test: default date is today in Rome", async () => {
