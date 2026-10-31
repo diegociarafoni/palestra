@@ -160,7 +160,8 @@ describe("backup", () => {
 
   it.each([
     { error: new TransientError("R2: HTTP 503"), code: 75 },
-    { error: new ParseError("R2: risposta inattesa"), code: 65 },
+    // Nessun 65: putObject non legge il corpo della risposta.
+    { error: new ParseError("R2: risposta inattesa"), code: 69 },
     { error: new SyncError("R2: HTTP 404"), code: 69 },
   ])(
     "backup: exit $code when upload raises $error.name",
