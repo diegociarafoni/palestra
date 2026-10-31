@@ -83,10 +83,11 @@ export async function main(
     console.error(`Variabili d'ambiente mancanti: ${missing.join(", ")}`);
     return 78;
   }
-  // Un solo istante per il nome del file e per la firma dell'upload.
-  const instant = deps.now?.() ?? new Date();
+  const now = () => deps.now?.() ?? new Date();
   const {
     exportDb = exportWithWrangler,
+    // Firma con l'orologio letto al momento della PUT, non all'avvio: dopo un export
+    // lento gli endpoint S3 rifiutano uno scarto d'orario oltre 15 minuti (403, exit 78).
     upload = (key: string, body: Uint8Array) =>
       putObject({
         accountId,
@@ -95,10 +96,10 @@ export async function main(
         bucket: BUCKET,
         key,
         body,
-        now: instant,
+        now: now(),
       }),
   } = deps;
-  const key = `palestra-${romeDate(instant.toISOString())}.sql`;
+  const key = `palestra-${romeDate(now().toISOString())}.sql`;
   const dir = await mkdtemp(join(tmpdir(), "palestra-backup-"));
   try {
     const file = join(dir, key);

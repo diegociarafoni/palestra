@@ -263,6 +263,34 @@ describe("backup", () => {
     ]);
   });
 
+  it("backup: default upload is signed with the clock at put time", async () => {
+    // Nome del file dal primo istante (Roma: 2 novembre), firma dall'orologio letto al
+    // momento della PUT: x-amz-date non resta indietro di tutta la durata dell'export.
+    const requests: { url: string; date: string | null }[] = [];
+    server.use(
+      http.put(/.*/, ({ request }) => {
+        requests.push({
+          url: request.url,
+          date: request.headers.get("x-amz-date"),
+        });
+        return new HttpResponse(null, { status: 200 });
+      }),
+    );
+    const clock = ["2026-11-01T23:30:00Z", "2026-11-02T03:00:00Z"];
+    const { deps } = fakes({ content: SQL });
+    const code = await main([], ENV, {
+      exportDb: deps.exportDb,
+      now: () => new Date(clock.shift() ?? "2099-01-01T00:00:00Z"),
+    });
+    expect(code).toBe(0);
+    expect(requests).toEqual([
+      {
+        url: "https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com/palestra-backup/palestra-2026-11-02.sql",
+        date: "20261102T030000Z",
+      },
+    ]);
+  });
+
   it("backup: direct run exits 78 without env", () => {
     // Con un ambiente senza credenziali: wrangler non parte.
     const result = runCli({ PATH: process.env.PATH });
