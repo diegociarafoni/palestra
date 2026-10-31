@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { ParseError } from "../../src/errors";
-import { getActiveScheda } from "../../src/store/scheda";
+import { getActiveScheda, getActiveSchedaWithMd } from "../../src/store/scheda";
 import example from "../fixtures/scheda-esempio.json";
 
 // Esempio letterale di scheda/SCHEMA.md § 1 (valido dal 2026-11-03 al 2026-11-30).
@@ -101,4 +101,39 @@ describe("store scheda", () => {
       expect((error as Error).message).toContain("scheda (2026-11)");
     },
   );
+
+  it("store: active scheda with markdown", async () => {
+    await insertScheda(example);
+    await insertScheda(december);
+
+    // La riga di dicembre ha md "# Scheda 2026-12": quello della sua versione, non di un'altra.
+    expect(await getActiveSchedaWithMd(env.DB, "2026-12-02")).toEqual({
+      scheda: december,
+      md: "# Scheda 2026-12",
+    });
+    expect(await getActiveSchedaWithMd(env.DB, "2026-11-30")).toEqual({
+      scheda: example,
+      md: "# Scheda 2026-11",
+    });
+    expect(await getActiveSchedaWithMd(env.DB, "2026-11-02")).toBeNull();
+  });
+
+  it("store: active scheda with markdown rejects json not matching its columns", async () => {
+    await env.DB.prepare(
+      "INSERT INTO scheda (version, valid_from, valid_to, json, md) VALUES (?1, ?2, ?3, ?4, ?5)",
+    )
+      .bind(
+        example.version,
+        example.valid_from,
+        example.valid_to,
+        JSON.stringify({ ...example, version: "2026-10" }),
+        "# Scheda",
+      )
+      .run();
+    const error = await getActiveSchedaWithMd(env.DB, "2026-11-10").catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ParseError);
+    expect((error as Error).message).toContain("scheda (2026-11)");
+  });
 });
