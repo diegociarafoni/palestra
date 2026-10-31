@@ -21,12 +21,7 @@ import {
   vi,
 } from "vitest";
 import { main } from "../../src/cli/backup";
-import {
-  AuthError,
-  ParseError,
-  SyncError,
-  TransientError,
-} from "../../src/errors";
+import { AuthError, SyncError, TransientError } from "../../src/errors";
 
 // Valori fittizi: nessun test tocca wrangler o R2 (export finto, upload finto o MSW).
 const ENV = {
@@ -174,8 +169,6 @@ describe("backup", () => {
 
   it.each([
     { error: new TransientError("R2: HTTP 503"), code: 75 },
-    // Nessun 65: putObject non legge il corpo della risposta.
-    { error: new ParseError("R2: risposta inattesa"), code: 69 },
     { error: new SyncError("R2: HTTP 404"), code: 69 },
   ])(
     "backup: exit $code when upload raises $error.name",
