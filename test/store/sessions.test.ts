@@ -45,7 +45,8 @@ function session(id: string, startedAt: string, moves = 400): Session {
 describe("store sessions", () => {
   it("store: upsert session is idempotent", async () => {
     const first = session("sess-001", "2026-11-04T10:00:00+01:00", 400);
-    const second = session("sess-001", "2026-11-04T10:00:00+01:00", 500);
+    // Orario corretto oltre la mezzanotte di Roma: date e started_at vanno aggiornati.
+    const second = session("sess-001", "2026-11-04T23:30:00Z", 500);
     await upsertSession(env.DB, first, { 1: [{ t: 0, hr: 90 }] });
     await upsertSession(env.DB, second, { 1: [{ t: 0, hr: 95 }] });
 
@@ -55,8 +56,8 @@ describe("store sessions", () => {
     expect(sessions.results).toEqual([
       {
         session_id: "sess-001",
-        date: "2026-11-04",
-        started_at: "2026-11-04T10:00:00+01:00",
+        date: "2026-11-05",
+        started_at: "2026-11-04T23:30:00Z",
         json: JSON.stringify(second),
       },
     ]);

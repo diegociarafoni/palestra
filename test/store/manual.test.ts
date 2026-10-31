@@ -88,27 +88,49 @@ describe("store feedback", () => {
       updated_at: "2026-11-04T08:00:00.000Z",
     };
     expect(second).toEqual(saved);
+
+    // Terzo salvataggio: il nuovo planned_id vince, session_id assente resta,
+    // joint_where e notes assenti vengono cancellati.
+    vi.setSystemTime(new Date("2026-11-05T09:00:00Z"));
+    const third = await upsertFeedback(
+      env.DB,
+      {
+        date: "2026-11-03",
+        class: "normale",
+        joint_pain: false,
+        planned_id: "2026-W45-2",
+      },
+      ACTOR,
+    );
+    const last = {
+      id: 1,
+      planned_id: "2026-W45-2",
+      session_id: "sess-001",
+      date: "2026-11-03",
+      class: "normale",
+      joint_pain: false,
+      joint_where: null,
+      notes: null,
+      updated_at: "2026-11-05T09:00:00.000Z",
+    };
+    expect(third).toEqual(last);
     const rows = await env.DB.prepare("SELECT * FROM feedback").all();
-    expect(rows.results).toEqual([{ ...saved, joint_pain: 1 }]);
+    expect(rows.results).toEqual([{ ...last, joint_pain: 0 }]);
 
     const audit = await env.DB.prepare(
       "SELECT at, actor, table_name, row_key, action FROM audit ORDER BY id",
     ).all();
+    const auditRow = (at: string, action: string) => ({
+      at,
+      actor: ACTOR,
+      table_name: "feedback",
+      row_key: "2026-11-03",
+      action,
+    });
     expect(audit.results).toEqual([
-      {
-        at: "2026-11-03T20:00:00.000Z",
-        actor: ACTOR,
-        table_name: "feedback",
-        row_key: "2026-11-03",
-        action: "insert",
-      },
-      {
-        at: "2026-11-04T08:00:00.000Z",
-        actor: ACTOR,
-        table_name: "feedback",
-        row_key: "2026-11-03",
-        action: "update",
-      },
+      auditRow("2026-11-03T20:00:00.000Z", "insert"),
+      auditRow("2026-11-04T08:00:00.000Z", "update"),
+      auditRow("2026-11-05T09:00:00.000Z", "update"),
     ]);
   });
 

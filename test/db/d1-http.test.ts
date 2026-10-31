@@ -86,56 +86,59 @@ describe("d1-http", () => {
     expect(calls.count).toBe(1);
   });
 
-  it("d1-http: retries 503 then succeeds", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "Date"], now: 0 });
-    const requests: {
-      auth: string | null;
-      type: string | null;
-      body: unknown;
-    }[] = [];
-    server.use(
-      http.post(QUERY_URL, async ({ request }) => {
-        requests.push({
-          auth: request.headers.get("authorization"),
-          type: request.headers.get("content-type"),
-          body: await request.json(),
-        });
-        return requests.length === 1
-          ? new HttpResponse(null, { status: 503 })
-          : HttpResponse.json(okBody([[{ id: "sess-001" }]]));
-      }),
-    );
-    const pending = testDb()
-      .prepare("SELECT ?1, ?2, ?3, ?4, ?5")
-      .bind("sess-001", 2, true, false, null)
-      .all();
-    await vi.runAllTimersAsync();
-    const result = await pending;
+  it.each([500, 502, 503])(
+    "d1-http: retries %i then succeeds",
+    async (status) => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "Date"], now: 0 });
+      const requests: {
+        auth: string | null;
+        type: string | null;
+        body: unknown;
+      }[] = [];
+      server.use(
+        http.post(QUERY_URL, async ({ request }) => {
+          requests.push({
+            auth: request.headers.get("authorization"),
+            type: request.headers.get("content-type"),
+            body: await request.json(),
+          });
+          return requests.length === 1
+            ? new HttpResponse(null, { status })
+            : HttpResponse.json(okBody([[{ id: "sess-001" }]]));
+        }),
+      );
+      const pending = testDb()
+        .prepare("SELECT ?1, ?2, ?3, ?4, ?5")
+        .bind("sess-001", 2, true, false, null)
+        .all();
+      await vi.runAllTimersAsync();
+      const result = await pending;
 
-    const sent = {
-      auth: "Bearer test-token",
-      type: "application/json",
-      body: {
-        sql: "SELECT ?1, ?2, ?3, ?4, ?5",
-        params: ["sess-001", 2, 1, 0, null],
-      },
-    };
-    expect(requests).toEqual([sent, sent]);
-    expect(Date.now()).toBe(500); // attesa prima del secondo tentativo
-    expect(result).toEqual({
-      success: true,
-      results: [{ id: "sess-001" }],
-      meta: {
-        changed_db: false,
-        changes: 1,
-        duration: 0.5,
-        last_row_id: 7,
-        rows_read: 2,
-        rows_written: 0,
-        size_after: 0,
-      },
-    });
-  });
+      const sent = {
+        auth: "Bearer test-token",
+        type: "application/json",
+        body: {
+          sql: "SELECT ?1, ?2, ?3, ?4, ?5",
+          params: ["sess-001", 2, 1, 0, null],
+        },
+      };
+      expect(requests).toEqual([sent, sent]);
+      expect(Date.now()).toBe(500); // attesa prima del secondo tentativo
+      expect(result).toEqual({
+        success: true,
+        results: [{ id: "sess-001" }],
+        meta: {
+          changed_db: false,
+          changes: 1,
+          duration: 0.5,
+          last_row_id: 7,
+          rows_read: 2,
+          rows_written: 0,
+          size_after: 0,
+        },
+      });
+    },
+  );
 
   it("d1-http: 429 on every attempt raises TransientError after 3 calls", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "Date"], now: 0 });
@@ -241,6 +244,15 @@ describe("d1-http", () => {
     {
       label: "missing statement result",
       reply: () => HttpResponse.json({ success: true, result: [] }),
+      cause: expect.any(ZodError),
+    },
+    {
+      label: "statement not successful",
+      reply: () =>
+        HttpResponse.json({
+          success: true,
+          result: [{ results: [], success: false }],
+        }),
       cause: expect.any(ZodError),
     },
   ])(
@@ -390,5 +402,13 @@ describe("d1-http", () => {
     expect(error).toBeInstanceOf(TransientError);
     expect((error as Error).cause).toBeDefined();
     expect(calls.count).toBe(1);
+  });
+
+  it("d1-http: batch with fewer results than statements raises ParseError", async () => {
+    respondWith(() => HttpResponse.json(okBody([[{ n: 1 }]])));
+    const db = testDb();
+    await expect(
+      db.batch([db.prepare("SELECT 1"), db.prepare("SELECT 2")]),
+    ).rejects.toBeInstanceOf(ParseError);
   });
 });
