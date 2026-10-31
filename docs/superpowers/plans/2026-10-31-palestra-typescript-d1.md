@@ -389,8 +389,8 @@ Ordine obbligatorio: Step 1–2 prima del primo deploy.
 **Interfaces:**
 - Produces: `main(argv, env): Promise<number>` — esegue `wrangler d1 export palestra --remote --output <tmp>`, carica il file su R2 con l'API S3 (firma con le chiavi del bucket, endpoint della giurisdizione UE `https://<account>.eu.r2.cloudflarestorage.com`, costruito da `CLOUDFLARE_ACCOUNT_ID`; il bucket `palestra-backup` è creato con giurisdizione EU, quindi l'endpoint senza `.eu` risponderebbe "bucket inesistente"), cancella il file locale; exit 78 se mancano variabili.
 
-- [ ] **Step 1: Test:** `backup: exit 78 without r2 keys`; `backup: uploads and deletes local file` (esecuzione di `wrangler` e upload iniettati come funzioni finte).
-- [ ] **Step 2:** FAIL → implementare → PASS.
+- [x] **Step 1: Test:** `backup: exit 78 without r2 keys`; `backup: uploads and deletes local file` (esecuzione di `wrangler` e upload iniettati come funzioni finte).
+- [x] **Step 2:** FAIL → implementare → PASS.
 - [ ] **Step 3: `backup.yml`:** `schedule` il 2 di ogni mese e `workflow_dispatch`; `permissions: contents: read`; env `CF_TOKEN_D1` (come `CLOUDFLARE_API_TOKEN`), `CLOUDFLARE_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`; nessun artifact.
 - [ ] **Step 4:** run, prova di ripristino, commit `ci: monthly d1 backup to r2`.
 
