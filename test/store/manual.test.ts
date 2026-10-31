@@ -271,3 +271,28 @@ describe("store manual data", () => {
     expect((error as Error).message).toContain("test-key");
   });
 });
+
+describe("store error messages", () => {
+  it("store: malformed feedback row error omits its date", async () => {
+    await env.DB.prepare(
+      `INSERT INTO feedback (id, date, class, joint_pain, updated_at)
+       VALUES (5, '2026-11-03T10:00', 'buona', 0, '2026-11-03T19:00:00.000Z')`,
+    ).run();
+    const error = await listFeedback(env.DB, "2026-11").catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ParseError);
+    expect((error as Error).message).toContain("feedback (5)");
+    expect((error as Error).message).not.toContain("2026-11-03");
+  });
+
+  it("store: malformed recovery row error omits its week", async () => {
+    await env.DB.prepare("INSERT INTO recovery (week, json) VALUES (?1, ?2)")
+      .bind("2026-W45", '{"week":"2026-W45"}')
+      .run();
+    const error = await listRecovery(env.DB).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ParseError);
+    expect((error as Error).message).toContain("recovery");
+    expect((error as Error).message).not.toContain("W45");
+  });
+});

@@ -1,7 +1,8 @@
 import type { z } from "zod";
 import { ParseError } from "../errors";
 
-// Gli errori nominano tabella e chiave, mai il contenuto; il dettaglio resta in `cause`.
+// Gli errori nominano la tabella e solo una chiave non personale (id intero, rowid,
+// chiave di profilo, versione, mese): mai session_id, date, settimane o contenuto.
 
 /** Valida un valore letto da D1 (riga o JSON già decodificato) con il suo schema. */
 export function parseStored<T>(

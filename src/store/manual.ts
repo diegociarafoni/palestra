@@ -75,7 +75,7 @@ export async function upsertFeedback(
     FeedbackRowSchema,
     saved?.results[0],
     "feedback",
-    input.date,
+    "riga salvata",
   );
 }
 
@@ -86,9 +86,9 @@ export async function listFeedback(db: Db, month: string): Promise<Feedback[]> {
       "SELECT * FROM feedback WHERE substr(date, 1, 7) = ?1 ORDER BY date",
     )
     .bind(month)
-    .all<{ date: string }>();
+    .all<{ id: number }>();
   return results.map((r) =>
-    parseStored(FeedbackRowSchema, r, "feedback", r.date),
+    parseStored(FeedbackRowSchema, r, "feedback", String(r.id)),
   );
 }
 
@@ -119,14 +119,15 @@ export async function listRecovery(
 ): Promise<Recovery[]> {
   const { results } = await db
     .prepare(
-      `SELECT week, json FROM recovery
+      `SELECT rowid, json FROM recovery
        WHERE (?1 IS NULL OR week >= ?1) AND (?2 IS NULL OR week <= ?2)
        ORDER BY week`,
     )
     .bind(from ?? null, to ?? null)
-    .all<{ week: string; json: string }>();
+    .all<{ rowid: number; json: string }>();
+  // Il rowid, non la settimana: le chiavi personali non vanno nei messaggi.
   return results.map((r) =>
-    parseJsonColumn(RecoverySchema, r.json, "recovery", r.week),
+    parseJsonColumn(RecoverySchema, r.json, "recovery", `rowid ${r.rowid}`),
   );
 }
 

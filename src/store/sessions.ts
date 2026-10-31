@@ -52,12 +52,13 @@ export async function listSessionsByMonth(
   // julianday() confronta gli istanti anche con offset diversi (+01:00, +02:00, Z).
   const { results } = await db
     .prepare(
-      `SELECT session_id, json FROM sessions WHERE substr(date, 1, 7) = ?1
+      `SELECT rowid, json FROM sessions WHERE substr(date, 1, 7) = ?1
        ORDER BY julianday(started_at), session_id`,
     )
     .bind(month)
-    .all<{ session_id: string; json: string }>();
+    .all<{ rowid: number; json: string }>();
+  // Nel messaggio d'errore il rowid, mai session_id o date (finirebbero nei log).
   return results.map((r) =>
-    parseJsonColumn(SessionSchema, r.json, "sessions", r.session_id),
+    parseJsonColumn(SessionSchema, r.json, "sessions", `rowid ${r.rowid}`),
   );
 }

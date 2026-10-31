@@ -125,8 +125,10 @@ describe("store sessions", () => {
       expect(error).toBeInstanceOf(ParseError);
       expect((error as Error).cause).toBeInstanceOf(cause);
       expect((error as Error).message).toContain("sessions");
-      expect((error as Error).message).toContain("sess-bad");
-      expect((error as Error).message).not.toContain("secret-content");
+      // Mai id o data della seduta nel messaggio: può finire nei log pubblici.
+      for (const leaked of ["sess-bad", "2026-11-02", "secret-content"]) {
+        expect((error as Error).message).not.toContain(leaked);
+      }
     },
   );
 });
