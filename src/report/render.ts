@@ -102,10 +102,19 @@ function worst(statuses: (Status | null)[]): Status | null {
   );
 }
 
+// Valore arrotondato come viene mostrato nel report. Gli stati si calcolano su questo valore,
+// così il simbolo non contraddice il numero accanto; le metriche restano grezze (R7).
+function round(n: number, decimals = 1): number {
+  const factor = 10 ** decimals;
+  return Math.round(n * factor) / factor;
+}
+
 const statusOf = (
   indicator: Parameters<typeof status>[0],
   value: number | null,
-): Status | null => (value === null ? null : status(indicator, value, null));
+  decimals = 1,
+): Status | null =>
+  value === null ? null : status(indicator, round(value, decimals), null);
 
 /** Settimane del mese = giorni / 7 (es. 30/7 per novembre). */
 const weeksInMonth = (month: string): number =>
@@ -124,8 +133,9 @@ function analyse(input: ReportInput): Analysis {
   const trend = measuresTrend(input.measures);
   const weeks = weeksInMonth(input.month);
 
-  const firstWeek = weekly[0];
-  const lastWeek = weekly.at(-1);
+  const firstKgPerSet = round(weekly[0]?.kg_per_set ?? 0);
+  const lastKgPerSet = round(weekly.at(-1)?.kg_per_set ?? 0);
+  const adherencePct = adh.planned > 0 ? (adh.done / adh.planned) * 100 : null;
   const deltas = present(strength.map((r) => r.e1rm_delta_pct));
   const e1rmMean = mean(deltas);
   const sets = weekly.reduce((n, w) => n + w.sets, 0);
@@ -135,20 +145,17 @@ function analyse(input: ReportInput): Analysis {
   const steps = mean(recovery.map((r) => r.steps_avg));
   const kpi: Kpi = {
     sessions: sessions.length,
-    adherence_pct: adh.planned > 0 ? (adh.done / adh.planned) * 100 : null,
-    adherence_status: statusOf(
-      "adherence",
-      adh.planned > 0 ? adh.done / adh.planned : null,
-    ),
-    tonnage_first_week_kg: firstWeek?.tonnage_kg ?? null,
-    tonnage_last_week_kg: lastWeek?.tonnage_kg ?? null,
+    adherence_pct: adherencePct,
+    adherence_status:
+      adherencePct === null
+        ? null
+        : status("adherence", round(adherencePct) / 100, null),
+    tonnage_first_week_kg: weekly[0]?.tonnage_kg ?? null,
+    tonnage_last_week_kg: weekly.at(-1)?.tonnage_kg ?? null,
     // kg per serie, "a parità di serie" (linee guida § 5); una base a 0 renderebbe tutto ✓.
     tonnage_status:
-      weekly.length >= 2 &&
-      firstWeek !== undefined &&
-      lastWeek !== undefined &&
-      firstWeek.kg_per_set > 0
-        ? status("tonnage", lastWeek.kg_per_set, firstWeek.kg_per_set)
+      weekly.length >= 2 && firstKgPerSet > 0
+        ? status("tonnage", lastKgPerSet, firstKgPerSet)
         : null,
     e1rm_mean_delta_pct: e1rmMean,
     e1rm_exercises: deltas.length,
@@ -172,9 +179,13 @@ function analyse(input: ReportInput): Analysis {
       statusOf("steps_avg", steps),
     ]),
     hamstring_quad: balance.hamstring_quad,
-    hamstring_quad_status: statusOf("hamstring_quad", balance.hamstring_quad),
+    hamstring_quad_status: statusOf(
+      "hamstring_quad",
+      balance.hamstring_quad,
+      2,
+    ),
     push_pull: balance.push_pull,
-    push_pull_status: statusOf("push_pull", balance.push_pull),
+    push_pull_status: statusOf("push_pull", balance.push_pull, 2),
   };
   return {
     unmatched,
@@ -195,12 +206,15 @@ function analyse(input: ReportInput): Analysis {
 // separatore delle migliaia; un valore mancante è "—" (mai NaN, Infinity o undefined).
 function num(n: number | null, decimals = 1): string {
   if (n === null || !Number.isFinite(n)) return "—";
-  const factor = 10 ** decimals;
-  const rounded = Math.round(n * factor) / factor;
+  const rounded = round(n, decimals);
   return String(rounded === 0 ? 0 : rounded).replace(".", ",");
 }
 
-const signed = (n: number): string => (n > 0 ? `+${num(n)}` : num(n));
+// Segno deciso sul valore mostrato: mai "+0" né "-0".
+function signed(n: number): string {
+  const shown = num(n);
+  return n > 0 && shown !== "0" ? `+${shown}` : shown;
+}
 
 const SYMBOLS: Record<Status, string> = { ok: "✓", watch: "●", fix: "!" };
 const symbol = (s: Status | null): string => (s === null ? "—" : SYMBOLS[s]);
@@ -484,7 +498,7 @@ function strength(a: Analysis): string[] {
 function distribution(a: Analysis): string[] {
   const muscles = Object.entries(a.muscles);
   if (muscles.length === 0) return [NO_DATA];
-  const perWeek = (total: number) => total / a.weeks;
+  const perWeek = (total: number) => round(total / a.weeks);
   return [
     `Serie per distretto (lavoro indiretto al 50 %) e per schema di movimento, a settimana: serie del mese / ${num(a.weeks)} settimane.`,
     table(
@@ -553,8 +567,10 @@ function composition(input: ReportInput): string[] {
 // Segnali di recupero di una settimana (linee guida § 5): sonno ≥ 7 h, passi ≥ 8000.
 function signal(r: Recovery): string {
   const signals = [
-    ...(r.sleep_h !== null && r.sleep_h < 7 ? ["sonno sotto 7 h"] : []),
-    ...(r.steps_avg !== null && r.steps_avg < 8000 ? ["passi sotto 8000"] : []),
+    ...(r.sleep_h !== null && round(r.sleep_h) < 7 ? ["sonno sotto 7 h"] : []),
+    ...(r.steps_avg !== null && round(r.steps_avg) < 8000
+      ? ["passi sotto 8000"]
+      : []),
   ];
   return signals.length === 0 ? "—" : signals.join(" · ");
 }

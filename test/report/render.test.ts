@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MetricsSchema } from "../../src/domain/metrics";
+import type { PlannedSlot } from "../../src/domain/planning";
+import type { Exercise, Session } from "../../src/domain/types";
 import {
   type ReportInput,
   renderReport,
@@ -117,6 +119,118 @@ describe("report", () => {
     expect(
       reportMetrics({ ...input, sessions: noLoad }).kpi.tonnage_status,
     ).toBeNull();
+  });
+
+  it("report: statuses on displayed values", () => {
+    // Esercizio di forza con `count` serie da 10 ripetizioni allo stesso carico.
+    const ex = (
+      order: number,
+      name: string,
+      count: number,
+      load: number,
+    ): Exercise => ({
+      order,
+      name,
+      equipment: `Selection ${name}`,
+      kind: "strength",
+      sets: Array.from({ length: count }, (_, i) => ({
+        n: i + 1,
+        reps_target: 10,
+        reps_done: 10,
+        load_target_kg: load,
+        load_done_kg: load,
+      })),
+    });
+    const at = (
+      session_id: string,
+      started_at: string,
+      exercises: Exercise[],
+    ): Session => ({
+      session_id,
+      source: "mywellness-api",
+      started_at,
+      ended_at: null,
+      name: "Seduta libera",
+      program: null,
+      moves: null,
+      calories_kcal: null,
+      duration_s: null,
+      exercises,
+    });
+    const slot = (n: number, status: PlannedSlot["status"]): PlannedSlot => ({
+      id: `2026-W45-${n}`,
+      week: "2026-W45",
+      slot: n,
+      window: ["2026-11-03"],
+      date: null,
+      scheda_day: "A",
+      status,
+      reason: null,
+      session_id: null,
+    });
+    // Valori grezzi appena sotto la soglia e mostrati arrotondati sulla soglia: lo stato segue
+    // il valore mostrato. 13/17 = 76,47 % → 76,5 %; 43 serie × 7/30 = 10,03 → 10; sonno
+    // 6,96 → 7; passi 7999,96 → 8000; e1RM 80 → 80,01 (+0,02 %) → 0 %.
+    const md = renderReport({
+      ...input,
+      sessions: [
+        at("sess-t01", "2026-11-03T18:00:00+01:00", [
+          ex(1, "Leg Press", 22, 60),
+        ]),
+        at("sess-t02", "2026-11-05T18:00:00+01:00", [
+          ex(1, "Leg Press", 21, 60.01),
+        ]),
+      ],
+      slots: Array.from({ length: 17 }, (_, i) =>
+        slot(i + 1, i < 13 ? "fatta" : "saltata"),
+      ),
+      recovery: recovery
+        .slice(0, 1)
+        .map((r) => ({ ...r, sleep_h: 6.96, steps_avg: 7999.96 })),
+    });
+    expect(section(md, 1)).toContain(
+      "| Aderenza | 13/17 sedute (76,5 %) | — | ● |",
+    );
+    expect(section(md, 1)).toContain(
+      "| e1RM medio (esercizi tracciati) | 0 % | media su 1 esercizio | ! |",
+    );
+    expect(section(md, 1)).toContain("| Sonno · passi | 7 h · 8000 | — | ✓ |");
+    expect(section(md, 3)).toContain(
+      "| Leg Press | 60 × 10, 2026-11-03 | 60 × 10, 2026-11-05 | 80 → 80 | 0 % | 2 | da rivedere | mantieni → 60 kg × 11 |",
+    );
+    expect(section(md, 4)).toContain("| quadricipiti | 10 | ✓ |");
+    expect(section(md, 7)).toContain("| 2026-W45 | 7 | 8000 | 50 | 60 | — |");
+    // kg per serie 100,04 → 90, mostrati 100 → 90: esattamente il 10 % in meno (●).
+    const perSet = renderReport({
+      ...input,
+      sessions: [
+        at("sess-t05", "2026-11-03T18:00:00+01:00", [
+          ex(1, "Leg Press", 1, 10.004),
+        ]),
+        at("sess-t06", "2026-11-10T18:00:00+01:00", [ex(1, "Leg Press", 1, 9)]),
+      ],
+    });
+    expect(section(perSet, 1)).toContain(
+      "| Tonnellaggio settimanale | 90 kg | da 100 kg · -10 % · kg per serie 100 → 90 | ● |",
+    );
+    // Rapporti a due decimali: 125/210 = 0,595 → 0,6; 202/201 = 1,005 → 1.
+    const balanced = renderReport({
+      ...input,
+      sessions: [
+        at("sess-t03", "2026-11-03T18:00:00+01:00", [
+          ex(1, "Leg Press", 210, 60),
+          ex(2, "Leg Curl", 20, 30),
+          ex(3, "Chest Press", 202, 30),
+          ex(4, "Lat Machine", 201, 40),
+        ]),
+      ],
+    });
+    expect(section(balanced, 1)).toContain(
+      "| Rapporto femorali/quadricipiti | 0,6 | serie, indiretto incluso | ✓ |",
+    );
+    expect(section(balanced, 1)).toContain(
+      "| Rapporto spinta/tirata | 1 | — | ✓ |",
+    );
   });
 
   it("report: volume, strength and distribution from fixtures", () => {
