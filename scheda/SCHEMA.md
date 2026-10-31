@@ -2,6 +2,26 @@
 
 Tutti i file sono JSON UTF-8, chiavi in `snake_case`, date ISO 8601 (`YYYY-MM-DD`, orari `YYYY-MM-DDTHH:MM:SS+01:00`).
 
+## 0. Tabelle D1
+
+I dati vivono nel database Cloudflare D1 `palestra`, creato da `migrations/0001_init.sql`. Le sezioni 1–5 descrivono il formato delle colonne `json`: i percorsi di file nei loro titoli sono storici. Date, istanti e JSON sono `TEXT`; ogni scrittura manuale (dashboard o connettore) aggiunge una riga in `audit` nella stessa operazione, la sync e il job del report no.
+
+| Tabella | Colonne | Chiavi e vincoli | Colonna `json` | Chi scrive |
+| --- | --- | --- | --- | --- |
+| `sessions` | `session_id`, `date`, `started_at`, `json` | PK `session_id`; `date` = data in Europe/Rome di `started_at`, indicizzata | § 2 (una seduta) | sync |
+| `timeseries` | `session_id`, `ord`, `json` | PK (`session_id`, `ord`); `session_id` → `sessions`; `ord` = `exercises[].order` | serie temporale grezza dell'esercizio | sync |
+| `measures` | `id`, `date`, `json` | PK `id` intero; `date` indicizzata | § 4 (una misura) | Claude via connettore, con `audit` |
+| `recovery` | `week`, `json` | PK `week` (`YYYY-Www`) | § 4b (una settimana) | Claude via connettore, con `audit` |
+| `planned_sessions` | `id`, `week`, `slot`, `window_days`, `date`, `scheda_day`, `status`, `reason`, `session_id` | PK `id` (`<week>-<slot>`); UNIQUE (`week`, `slot`); `week` indicizzata; `window_days` = array JSON di date; `status` ∈ {`programmata`, `fatta`, `spostata`, `da_confermare`, `saltata`}; `date`, `reason`, `session_id` facoltativi | — | sync; dashboard, con `audit` |
+| `feedback` | `id`, `planned_id`, `session_id`, `date`, `seq`, `class`, `joint_pain`, `joint_where`, `notes`, `updated_at` | PK `id` intero; UNIQUE (`date`, `seq`): un feedback per seduta, `seq` = ordine della seduta nel giorno (1 la prima, default), così si può salvare prima della sync; `planned_id` e `session_id` facoltativi e UNIQUE (una seduta collegata ha al massimo un feedback), senza chiavi esterne (il feedback può precedere la sync); `class` ∈ {`ottima`, `buona`, `normale`, `faticosa`, `pessima`}; `joint_pain` 0/1; `joint_where`, `notes` facoltativi | — | dashboard o Claude via connettore, con `audit` |
+| `profile` | `key`, `json` | PK `key` | valore della chiave (es. `livello`, `obiettivo`, `protocollo_bia`) | Claude via connettore, con `audit` |
+| `scheda` | `version`, `valid_from`, `valid_to`, `json`, `md` | PK `version` (`AAAA-MM`); `valid_from` e `valid_to` obbligatori, uguali (con `version`) ai campi del `json`; `json` e `md` cambiano insieme | § 1 | Claude via connettore (revisione mensile), con `audit` |
+| `reports` | `month`, `kind`, `md`, `created_at` | PK (`month`, `kind`); `kind` ∈ {`report`, `revisione`} | — (Markdown in `md`) | job del report (`report`); Claude via connettore (`revisione`), con `audit` |
+| `metrics` | `month`, `key`, `json` | PK (`month`, `key`) | valore della metrica | job del report |
+| `audit` | `id`, `at`, `actor`, `table_name`, `row_key`, `action` | PK `id` intero; `action` ∈ {`insert`, `update`, `delete`} | — | insieme a ogni scrittura manuale |
+
+Nelle sedute il campo `timeseries_ref` (§ 2) è superato dalla chiave `timeseries(session_id, ord)` e resta solo come campo facoltativo storico.
+
 ## 1. `scheda/scheda.json`
 
 ```json
@@ -28,6 +48,7 @@ Tutti i file sono JSON UTF-8, chiavi in `snake_case`, date ISO 8601 (`YYYY-MM-DD
           "exercises": [
             {"slug": "leg-press", "technogym_name": "Leg Press", "equipment": "Selection Leg Press",
              "muscle_groups": ["quadricipiti", "glutei"], "sets": 3, "reps_min": 10, "reps_max": 12,
+             "indirect_muscles": ["femorali", "polpacci"], "movement_pattern": "squat",
              "rest_s": 90, "start_load_kg": null, "step_kg": 5, "tracking": "auto-if-900",
              "notes": "Piedi a larghezza spalle, al centro della pedana; non bloccare le ginocchia"}
           ]

@@ -1,6 +1,6 @@
 ---
 tipo: indice
-aggiornato: 2026-10-30
+aggiornato: 2026-10-31
 ---
 # Palestra – Knowledge base
 
@@ -97,6 +97,8 @@ Inventario per zona e verifiche aperte: [docs/attrezzi-via-mantova.md](../docs/a
 - 2026-10-30 · [La conoscenza vive in `kb/` nel repository, apribile come vault Obsidian](decisioni/2026-10-30-kb-nel-repository.md)
 - 2026-10-31 · [Le sedute non hanno un vincolo di durata](decisioni/2026-10-31-nessun-vincolo-di-durata.md)
 - 2026-10-31 · [Claude scrive i dati manuali in data/ (oggi in D1); protocollo BIA pomeridiano](decisioni/2026-10-31-misure-trascritte-da-claude.md)
+- 2026-10-31 · [I test su D1 usano @cloudflare/vitest-plugin con Vitest 5](decisioni/2026-10-31-vitest-plugin-al-posto-di-pool-workers.md)
+- 2026-10-31 · [Il feedback è uno per seduta, con chiave data e ordine nel giorno](decisioni/2026-10-31-feedback-uno-per-seduta.md)
 
 ## Documenti di processo
 - [Specifica](../docs/superpowers/specs/2026-10-30-palestra-technogym-design.md) · [Specifica repository pubblico e D1](../docs/superpowers/specs/2026-10-31-repo-pubblico-e-database-design.md) · [Piano](../docs/superpowers/plans/2026-10-31-palestra-typescript-d1.md) · [Flusso di lavoro](../docs/flusso-di-lavoro.md) · [Buone pratiche](../docs/buone-pratiche.md)

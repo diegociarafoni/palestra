@@ -6,7 +6,7 @@
 
 **Architecture:** Un solo progetto TypeScript. I job notturni (GitHub Actions, Node 22) eseguono `sync` e `report` e scrivono in D1 tramite l'API HTTP; le Pages Functions espongono un'API sottile sullo stesso D1 tramite binding, verificando il JWT di Access a ogni richiesta; il frontend è una SPA React + Material UI compilata con Vite e l'API usa Hono. Tutto l'accesso ai dati passa dal modulo `src/store/`, che usa un'interfaccia compatibile con il binding D1 e quindi gira identico in Actions, nelle Functions e nei test (D1 locale di Miniflare).
 
-**Tech Stack:** Node 22 LTS, TypeScript `strict`, npm, Biome, Vitest + `@cloudflare/vitest-pool-workers`, MSW, `node-html-parser`, `zod`, `jose`, `wrangler`, `tsx`; Hono; React 19 + Vite + Material UI 9 + MUI X Charts, TanStack Query, React Router, Testing Library.
+**Tech Stack:** Node 22 LTS, TypeScript `strict`, npm, Biome, Vitest + `@cloudflare/vitest-plugin`, MSW, `node-html-parser`, `zod`, `jose`, `wrangler`, `tsx`; Hono; React 19 + Vite + Material UI 9 + MUI X Charts, TanStack Query, React Router, Testing Library.
 
 **Stato:** approvato dall'utente il 2026-10-31 (GATE 2); metodo di esecuzione: subagent-driven.
 
@@ -19,7 +19,7 @@ Sostituisce `docs/superpowers/plans/2026-10-30-palestra-technogym.md` (piano Pyt
 ## Global Constraints
 
 - Node 22 LTS; TypeScript con `strict: true` e `noUncheckedIndexedAccess: true`; nessun `any` esplicito (Biome `noExplicitAny`).
-- Dipendenze ammesse (pre-approvate dal GATE 1): runtime `node-html-parser`, `zod`, `jose`, `hono`, `react`, `react-dom`, `@mui/material`, `@emotion/react`, `@emotion/styled`, `@mui/icons-material`, `@mui/x-charts`, `@tanstack/react-query`, `react-router`, `react-markdown`, `remark-gfm`; sviluppo `typescript`, `@biomejs/biome`, `vitest`, `@cloudflare/vitest-pool-workers`, `@cloudflare/workers-types`, `msw`, `wrangler`, `tsx`, `vite`, `@vitejs/plugin-react`, `@rolldown/plugin-babel`, `babel-plugin-react-compiler`, `@testing-library/react`, `@testing-library/user-event`, `jsdom`. Qualunque altra: chiedere prima.
+- Dipendenze ammesse (pre-approvate dal GATE 1): runtime `node-html-parser`, `zod`, `jose`, `hono`, `react`, `react-dom`, `@mui/material`, `@emotion/react`, `@emotion/styled`, `@mui/icons-material`, `@mui/x-charts`, `@tanstack/react-query`, `react-router`, `react-markdown`, `remark-gfm`; sviluppo `typescript`, `@biomejs/biome`, `vitest`, `@cloudflare/vitest-plugin` (successore di `@cloudflare/vitest-pool-workers`, approvato dall'utente il 2026-10-31), `@cloudflare/workers-types`, `msw`, `wrangler`, `tsx`, `vite`, `@vitejs/plugin-react`, `@rolldown/plugin-babel`, `babel-plugin-react-compiler`, `@testing-library/react`, `@testing-library/user-event`, `jsdom`. Qualunque altra: chiedere prima.
 - Frontend: regole di `docs/buone-pratiche-react.md` e `docs/buone-pratiche-mui.md`, con le pagine ufficiali in `docs/riferimenti/` (lette prima di scrivere componenti).
 - `package-lock.json` committato; in CI `npm ci`. Comandi: `npm test`, `npm run lint`, `npm run typecheck`, `npm run sync`, `npm run report -- --month AAAA-MM`, `npm run backup`.
 - Credenziali e identificativi solo da variabili d'ambiente (`MYWELLNESS_EMAIL`, `MYWELLNESS_PASSWORD`, `CLOUDFLARE_ACCOUNT_ID`, `D1_DATABASE_ID`, `CF_TOKEN_D1`, `CF_TOKEN_PAGES`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `PII_PATTERNS`) e, nelle Functions, da variabili/secret di Pages (`ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `ALLOWED_EMAIL`); mai in file, commit, log o messaggi.
@@ -123,18 +123,19 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 ### Task 1b: Accesso a D1 e modulo `store`
 
 > Nota (2026-10-31): `@cloudflare/vitest-pool-workers` richiede `vitest` ^4.1, mentre il Task 1 ha installato vitest 5: installare la versione 4 compatibile (`npm install -D vitest@^4.1`) e registrarlo come `Ruling:` nella PR.
+> Aggiornamento (2026-10-31, decisione dell'utente): `@cloudflare/vitest-pool-workers` è deprecato (rinominato `@cloudflare/vitest-plugin` il 2026-08-19); si usa `@cloudflare/vitest-plugin` 1.x, che supporta Vitest 5, e Vitest resta alla 5. Vedi [`kb/decisioni/2026-10-31-vitest-plugin-al-posto-di-pool-workers.md`](../../../kb/decisioni/2026-10-31-vitest-plugin-al-posto-di-pool-workers.md).
 
 **Accettazione:** `npm test` verde con i test di questo task; `npx wrangler d1 migrations apply palestra --remote` (con `wrangler.toml` generato da `scripts/render-wrangler.mjs`) applica le migrazioni al database reale; i dati personali del repository privato (misure, profilo, obiettivi, modello settimanale) inseriti in D1 da Claude tramite connettore, ciascuno con riga `audit`.
 
 **Files:**
-- Create: `migrations/0001_init.sql`, `src/db/d1-http.ts`, `src/db/types.ts`, `src/store/sessions.ts`, `src/store/planning.ts`, `src/store/manual.ts` (misure, recupero, feedback, profilo), `src/store/scheda.ts`, `src/store/reports.ts`, `src/store/audit.ts`, `test/store/*.test.ts`, `test/db/d1-http.test.ts`, `wrangler.template.toml`, `scripts/render-wrangler.mjs`
+- Create: `migrations/0001_init.sql`, `src/db/d1-http.ts`, `src/db/types.ts`, `src/store/sessions.ts`, `src/store/manual.ts` (misure, recupero, feedback, profilo), `src/store/scheda.ts`, `src/store/reports.ts`, `src/store/audit.ts`, `test/store/*.test.ts`, `test/db/d1-http.test.ts`, `wrangler.template.toml`, `scripts/render-wrangler.mjs`; in anticipo, perché servono a questo task: `src/errors.ts` (`SyncError`, `AuthError`, `ParseError`, `TransientError`) e `src/domain/dates.ts` (`romeDate`, con `test/domain/dates.test.ts`); `src/store/planning.ts` passa al Task 4
 - Modify: `scheda/SCHEMA.md` (nuova § 0 "Tabelle D1" con le colonne; le sezioni JSON restano come formato delle colonne JSON), `vitest.config.ts` (pool Workers con D1 locale e migrazioni)
 
 **Interfaces:**
 - Produces:
   - `type Db = Pick<D1Database, "prepare" | "batch">` in `src/db/types.ts`.
   - `createD1HttpDb(opts: { accountId: string; databaseId: string; token: string; fetch?: typeof fetch }): Db` — `POST /accounts/{id}/d1/database/{db}/query`; 401/403 → `AuthError`, 429/5xx → retry (max 2) poi `TransientError`, risposta non valida (`zod`) → `ParseError`.
-  - Tabelle (`0001_init.sql`): `sessions(session_id PK, date, started_at, json)`, `timeseries(session_id, ord, json, PK(session_id, ord))`, `measures(id PK, date, json)`, `recovery(week PK, json)`, `planned_sessions(id PK, week, slot, window_days, date, scheda_day, status, reason, session_id)`, `feedback(id PK, planned_id NULL, session_id NULL, date, class, joint_pain, joint_where, notes, updated_at)` con `CHECK(class IN ('ottima','buona','normale','faticosa','pessima'))` e unicità su `date`, `profile(key PK, json)`, `scheda(version PK, valid_from, valid_to, json, md)`, `reports(month, kind, md, created_at, PK(month, kind))`, `metrics(month, key, json, PK(month, key))`, `audit(id PK, at, actor, table_name, row_key, action)`.
+  - Tabelle (`0001_init.sql`): `sessions(session_id PK, date, started_at, json)`, `timeseries(session_id, ord, json, PK(session_id, ord))`, `measures(id PK, date, json)`, `recovery(week PK, json)`, `planned_sessions(id PK, week, slot, window_days, date, scheda_day, status, reason, session_id)`, `feedback(id PK, planned_id NULL, session_id NULL, date, seq, class, joint_pain, joint_where, notes, updated_at)` con `CHECK(class IN ('ottima','buona','normale','faticosa','pessima'))` e unicità su (`date`, `seq`) — un feedback per seduta, `seq` = ordine della seduta nel giorno — e su `planned_id` e `session_id`, `profile(key PK, json)`, `scheda(version PK, valid_from, valid_to, json, md)`, `reports(month, kind, md, created_at, PK(month, kind))`, `metrics(month, key, json, PK(month, key))`, `audit(id PK, at, actor, table_name, row_key, action)`.
   - `knownSessionIds(db: Db, sinceDate: string): Promise<Set<string>>`; `upsertSession(db: Db, s: Session, ts: Record<number, unknown>): Promise<void>`; `listSessionsByMonth(db: Db, month: string): Promise<Session[]>`.
   - `getActiveScheda(db: Db, date: string): Promise<Scheda | null>`; `listMeasures(db, from?, to?)`, `listRecovery(db, from?, to?)`, `getProfile<T>(db, key, schema: z.ZodType<T>): Promise<T | null>`.
   - `upsertFeedback(db: Db, f: FeedbackInput, actor: string): Promise<Feedback>`; `listFeedback(db, month): Promise<Feedback[]>`.
@@ -142,17 +143,17 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
   - `writeAudit(db, actor, table, rowKey, action: "insert" | "update" | "delete"): Promise<void>` — chiamata da ogni scrittura manuale.
   - Tipi di dominio `Session`, `Exercise`, `StrengthSet`, `Scheda`, `Measure`, `Feedback`, `FeedbackInput` in `src/domain/types.ts` con gli schemi `zod` corrispondenti, campi come `scheda/SCHEMA.md`.
 
-- [ ] **Step 1: Test** (D1 locale con migrazioni):
+- [x] **Step 1: Test** (D1 locale con migrazioni):
   - `store: upsert session is idempotent` — due `upsertSession` dello stesso id → una riga.
   - `store: known ids within lookback` — sedute del 2026-10-01 e 2026-10-29, `sinceDate "2026-10-16"` → `Set {"<id del 29>"}`.
   - `store: feedback rejects unknown class` — `class: "stanco"` → errore di validazione, nessuna riga.
-  - `store: feedback upsert keeps one per day and writes audit` — due salvataggi per `2026-11-03` → una riga con il secondo valore, due righe `audit`.
+  - `store: feedback upsert keeps one per seduta and writes audit` — due salvataggi per `2026-11-03` → una riga con il secondo valore, due righe `audit`.
   - `store: active scheda by date` — versioni `2026-11` (`2026-11-03`–`2026-11-30`) e `2026-12` → `getActiveScheda(db, "2026-12-02")?.version === "2026-12"`.
   - `d1-http: 403 raises AuthError`, `d1-http: retries 503 then succeeds` (2 chiamate), `d1-http: invalid body raises ParseError` (MSW).
-- [ ] **Step 2:** `npm test` → FAIL.
-- [ ] **Step 3:** implementare migrazione, `d1-http.ts`, moduli `store`, `render-wrangler.mjs` (scrive `wrangler.toml` da `wrangler.template.toml` sostituendo `D1_DATABASE_ID` da env; il file generato è in `.gitignore`).
-- [ ] **Step 4:** `npm test` → PASS; aggiornare `scheda/SCHEMA.md`.
-- [ ] **Step 5: Commit** `feat(store): d1 access layer and schema`
+- [x] **Step 2:** `npm test` → FAIL.
+- [x] **Step 3:** implementare migrazione, `d1-http.ts`, moduli `store`, `render-wrangler.mjs` (scrive `wrangler.toml` da `wrangler.template.toml` sostituendo `D1_DATABASE_ID` da env; il file generato è in `.gitignore`).
+- [x] **Step 4:** `npm test` → PASS; aggiornare `scheda/SCHEMA.md`.
+- [x] **Step 5: Commit** `feat(store): d1 access layer and schema`
 - [ ] **Step 6 (utente + Claude):** applicare le migrazioni al database reale; Claude inserisce via connettore i dati personali dal repository privato (`measures`, `profile` con chiavi `profilo`, `obiettivi`, `livello`, `obiettivo`, `protocollo_bia` (fascia oraria e condizioni della BIA), `settimana_tipo` nel formato `WeekTemplate` del Task 4b, con i giorni reali dell'utente), ciascuno con `audit`.
 
 ---
@@ -162,7 +163,8 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 **Accettazione:** `npx vitest run test/mywellness/client.test.ts` → `5 passed`; nessuna richiesta non intercettata da MSW (`onUnhandledRequest: "error"`).
 
 **Files:**
-- Create: `src/mywellness/client.ts`, `src/errors.ts`, `test/mywellness/client.test.ts`, `test/msw.ts` (server MSW e lettura fixture)
+- Create: `src/mywellness/client.ts`, `test/mywellness/client.test.ts`, `test/msw.ts` (server MSW e lettura fixture)
+- Modify: `src/errors.ts` (creato nel Task 1b: aggiungere `UpstreamError` ed `exitCodeFor`)
 
 **Interfaces:**
 - Consumes: fixture del Task 0; endpoint di `docs/mywellness-api.md` § 2.
@@ -181,13 +183,13 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 **Accettazione:** `npx vitest run test/mywellness/normalize.test.ts` → `5 passed`; il JSON prodotto dalla fixture di forza è allegato alla PR e rispetta `scheda/SCHEMA.md` § 2.
 
 **Files:**
-- Create: `src/mywellness/normalize.ts`, `src/domain/dates.ts`, `test/mywellness/normalize.test.ts`, `test/fixtures/mywellness/strength_detail_broken.html`
+- Create: `src/mywellness/normalize.ts`, `test/mywellness/normalize.test.ts`, `test/fixtures/mywellness/strength_detail_broken.html` (`romeDate` esiste già in `src/domain/dates.ts`, dal Task 1b)
 
 **Interfaces:**
 - Consumes: `Session`, `StrengthSet` (Task 1b), risposte grezze del client (Task 2).
-- Produces: `normalizeSession(raw: unknown, ctx: { strengthDetails: Record<string, string>; timeseries: Record<string, unknown> }): Session`; `parseStrengthDetail(html: string): StrengthSet[]` (`ParseError` con l'URL o l'id se la tabella serie manca); `romeDate(iso: string): string` (`YYYY-MM-DD` in `Europe/Rome`, con `Intl.DateTimeFormat`).
+- Produces: `normalizeSession(raw: unknown, ctx: { strengthDetails: Record<string, string>; timeseries: Record<string, unknown> }): Session`; `parseStrengthDetail(html: string): StrengthSet[]` (`ParseError` con l'URL o l'id se la tabella serie manca). `romeDate` è prodotto dal Task 1b.
 
-- [ ] **Step 1: Test:** `normalize: cardio only` (`moves` e `distance_m` uguali ai valori letterali della fixture del Task 0, 2 esercizi, il primo `kind "cardio"`, `sets` vuoto); `normalize: strength sets` (`{ n: 1, reps_target: 12, reps_done: 12, load_target_kg: 60, load_done_kg: 60 }`); `normalize: broken html raises ParseError`; `normalize: rome date` (`romeDate("2026-10-29T23:30:00Z") === "2026-10-30"`); `normalize: schema keys` (chiavi di primo livello esattamente `session_id, source, started_at, ended_at, name, program, moves, calories_kcal, duration_s, exercises`).
+- [ ] **Step 1: Test:** `normalize: cardio only` (`moves` e `distance_m` uguali ai valori letterali della fixture del Task 0, 2 esercizi, il primo `kind "cardio"`, `sets` vuoto); `normalize: strength sets` (`{ n: 1, reps_target: 12, reps_done: 12, load_target_kg: 60, load_done_kg: 60 }`); `normalize: broken html raises ParseError`; `normalize: rome date` (`romeDate("2026-10-29T23:30:00Z") === "2026-10-30"`; `romeDate` esiste dal Task 1b, quindi questo test resta come regressione e passa al primo giro); `normalize: schema keys` (chiavi di primo livello esattamente `session_id, source, started_at, ended_at, name, program, moves, calories_kcal, duration_s, exercises`).
 - [ ] **Step 2:** FAIL → implementare con `node-html-parser` e validazione `zod` della risposta grezza → PASS.
 - [ ] **Step 3: Commit** `feat(sync): normalize mywellness sessions`
 
@@ -225,10 +227,10 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 **Accettazione:** `npm test` verde, compresi i test di questo task; l'output di `npm run sync` contiene solo righe del tipo `sedute nuove: N`, `slot aggiornati: N`.
 
 **Files:**
-- Create: `src/sync/sync.ts`, `src/cli/sync.ts`, `test/sync/sync.test.ts`, `test/cli/sync.test.ts`
+- Create: `src/sync/sync.ts`, `src/cli/sync.ts`, `src/store/planning.ts`, `test/sync/sync.test.ts`, `test/cli/sync.test.ts`
 
 **Interfaces:**
-- Consumes: `MywellnessClient` (2), `normalizeSession`, `romeDate` (3), `Db`, `knownSessionIds`, `upsertSession`, `getProfile` (1b), `weekSlots`, `matchSession`, `overdue` (4b); store degli slot: `ensureWeekSlots(db, week, tpl)`, `updateSlot(db, id, patch)` da aggiungere in `src/store/planning.ts`.
+- Consumes: `MywellnessClient` (2), `normalizeSession` (3), `romeDate` (1b), `Db`, `knownSessionIds`, `upsertSession`, `getProfile` (1b), `weekSlots`, `matchSession`, `overdue` (4b); store degli slot: `ensureWeekSlots(db, week, tpl)`, `updateSlot(db, id, patch)` da aggiungere in `src/store/planning.ts`.
 - Produces: `sync(client: MywellnessClient, db: Db, opts?: { lookbackDays?: number; today?: string }): Promise<{ newSessions: number; slotsUpdated: number }>` (default `lookbackDays` 14); `main(argv: string[], env: Record<string, string | undefined>): Promise<number>` (`--lookback-days N`).
 
 - [ ] **Step 1: Test:**
@@ -367,11 +369,11 @@ Ordine obbligatorio: Step 1–2 prima del primo deploy.
 **Interfaces:**
 - Consumes: `verifyAccess` (10), `upsertFeedback`, `listFeedback`, `updateSlot`, `writeAudit` (1b, 4).
 - Produces:
-  - `PUT /api/feedback` corpo `{ date: "AAAA-MM-GG", class: "ottima"|"buona"|"normale"|"faticosa"|"pessima", joint_pain: boolean, joint_where?: string (≤ 80), notes?: string (≤ 1000) }` → 200 con il feedback salvato; validazione `zod`; `date` non oltre oggi (Europe/Rome) → altrimenti 400.
+  - `PUT /api/feedback` corpo `{ date: "AAAA-MM-GG", class: "ottima"|"buona"|"normale"|"faticosa"|"pessima", joint_pain: boolean, joint_where?: string (≤ 80), notes?: string (≤ 1000), seq?: number (intero ≥ 1, default 1: la prima seduta del giorno) }` → 200 con il feedback salvato; validazione `zod`; `date` non oltre oggi (Europe/Rome) → altrimenti 400.
   - `PATCH /api/slots/:id` corpo `{ status: "saltata", reason: "lavoro"|"stanchezza"|"fastidio"|"altro" }` oppure `{ date: "AAAA-MM-GG" }` (deve stare nella finestra o essere sabato/domenica della stessa settimana) → 200; `actor` dell'audit = e-mail dal JWT.
-  - Modulo nella pagina Calendario esattamente come approvato: titolo "Come è andata oggi?", cinque scelte "😀 Ottima · 🙂 Buona · 😐 Normale · 😓 Faticosa · 😣 Pessima", casella "Ho sentito un fastidio articolare" con campo "dove", campo "Note (facoltative)", pulsante "Salva". Giorni con stato: programmata, fatta, spostata, da confermare (con domanda "Saltata?" e motivo), saltata, extra, senza feedback.
+  - Modulo nella pagina Calendario esattamente come approvato: titolo "Come è andata oggi?", cinque scelte "😀 Ottima · 🙂 Buona · 😐 Normale · 😓 Faticosa · 😣 Pessima", casella "Ho sentito un fastidio articolare" con campo "dove", campo "Note (facoltative)", pulsante "Salva". Giorni con stato: programmata, fatta, spostata, da confermare (con domanda "Saltata?" e motivo), saltata, extra, senza feedback. Se il giorno ha già un feedback, il modulo si apre in modifica su quello (stesso `seq`) e offre anche il pulsante "Un'altra seduta oggi", che salva con `seq` = il più alto del giorno + 1; nel calendario un giorno con più sedute mostra un feedback per seduta, in ordine di `seq`.
 
-- [ ] **Step 1: Test:** `web: feedback form submits selected class` (scelta "Buona", casella fastidio, "Salva" → corpo PUT atteso, pulsante in caricamento durante l'invio); `feedback: saves and updates same day` (due PUT → una riga, due `audit`); `feedback: rejects invalid class` (400, nessuna riga); `feedback: rejects future date` (400); `feedback: requires access` (401 senza token); `slots: mark skipped with reason`; `slots: rejects date on monday` (400, modello di esempio del Task 4b).
+- [ ] **Step 1: Test:** `web: feedback form submits selected class` (scelta "Buona", casella fastidio, "Salva" → corpo PUT atteso, pulsante in caricamento durante l'invio); `feedback: saves and updates the same seduta` (due PUT con stessa data e stesso `seq` → una riga, due `audit`); `feedback: second seduta of the same day` (PUT con `seq: 2` sulla stessa data → due righe, due `audit` `insert`); `web: feedback form offers another seduta` (giorno con un feedback `seq` 1 → modulo precompilato; "Un'altra seduta oggi" → corpo PUT con `seq: 2`); `feedback: rejects invalid class` (400, nessuna riga); `feedback: rejects future date` (400); `feedback: requires access` (401 senza token); `slots: mark skipped with reason`; `slots: rejects date on monday` (400, modello di esempio del Task 4b).
 - [ ] **Step 2:** FAIL → implementare → PASS; prova manuale dal telefono.
 - [ ] **Step 3: Commit** `feat(dashboard): feedback and planned sessions calendar`
 

@@ -1,0 +1,11 @@
+# Modello di wrangler.toml: `node scripts/render-wrangler.mjs` scrive wrangler.toml
+# (in .gitignore) sostituendo il segnaposto con la variabile d'ambiente D1_DATABASE_ID.
+# Nessun identificativo reale in questo file.
+name = "palestra"
+compatibility_date = "2026-10-23"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "palestra"
+database_id = "<D1_DATABASE_ID>"
+migrations_dir = "migrations"
