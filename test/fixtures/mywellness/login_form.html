@@ -1,0 +1,19 @@
+<!-- fixture sintetica, da sostituire con quella anonimizzata del Task 0 -->
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <title>Accedi</title>
+</head>
+<body>
+  <form action="/cloud/User/Login" method="post">
+    <input type="hidden" name="UserBinder.MifareId" value="">
+    <input type="hidden" name="UserBinder.IsFromLogin" value="True">
+    <input type="hidden" name="UserBinder.ForceJoinFacility" value="">
+    <input type="email" name="UserBinder.Username" value="">
+    <input type="password" name="UserBinder.Password" value="">
+    <input type="checkbox" name="UserBinder.KeepMeLogged" value="true">
+    <button type="submit">Accedi</button>
+  </form>
+</body>
+</html>
