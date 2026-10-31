@@ -8,8 +8,12 @@ import {
 } from "../../../src/domain/dashboard";
 
 // Unico client dell'API (docs/buone-pratiche-react.md § 5): percorsi e tipi arrivano da `AppType`,
-// le risposte si validano con gli schemi zod di src/domain/dashboard.ts.
-const api = hc<AppType>("/").api;
+// le risposte si validano con gli schemi zod di src/domain/dashboard.ts. Con `X-Requested-With`
+// Cloudflare Access risponde 401 a una sessione scaduta invece del redirect alla pagina di login
+// (developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/#ajax).
+const api = hc<AppType>("/", {
+  headers: { "X-Requested-With": "XMLHttpRequest" },
+}).api;
 
 type ApiResponse = { status: number; json: () => Promise<unknown> };
 
