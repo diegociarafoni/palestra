@@ -217,7 +217,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
   - `planning: saturday with every slot done is extra` — slot 1 e 2 `fatta`, seduta `2026-11-07` → `{ kind: "extra" }`.
   - `planning: midnight session is extra on friday` — `matchSession(romeDate("2026-11-05T23:30:00Z"), …)` (= `2026-11-06`) → `{ kind: "extra" }`.
   - `planning: overdue after window` — `overdue(slots, "2026-11-05")` → `["2026-W45-1"]`; con `"2026-11-04"` → `[]`.
-  - `planning: done slot takes no second session` — slot 1 `fatta`, seduta `2026-11-04` → `{ kind: "extra" }`; slot 1 `spostata`, seduta `2026-11-08` → `{ kind: "extra" }`.
+  - `planning: done slot takes no second session` — slot 1 `fatta`, seduta `2026-11-04` → `{ kind: "extra" }`; slot 1 `spostata` e slot 2 `fatta`, seduta `2026-11-08` → `{ kind: "extra" }`.
   - `planning: saturday after missed slot 2 is spostata` — slot 1 `fatta`, slot 2 `da_confermare`, seduta `2026-11-07` → `{ kind: "slot", id: "2026-W45-2", status: "spostata" }`.
 - [x] **Step 2:** FAIL → implementare → PASS.
 - [x] **Step 3: Commit** `feat(domain): planned sessions logic`
@@ -232,7 +232,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 - Create: `src/sync/sync.ts`, `src/cli/sync.ts`, `src/store/planning.ts`, `test/sync/sync.test.ts`, `test/cli/sync.test.ts`
 
 **Interfaces:**
-- Consumes: `MywellnessClient` (2), `normalizeSession` (3), `romeDate` (1b), `Db`, `knownSessionIds`, `upsertSession`, `getProfile` (1b), `weekSlots`, `matchSession`, `overdue` (4b); store degli slot: `ensureWeekSlots(db, week, tpl)`, `updateSlot(db, id, patch)` da aggiungere in `src/store/planning.ts`.
+- Consumes: `MywellnessClient` (2), `normalizeSession` (3), `romeDate` (1b), `Db`, `knownSessionIds`, `upsertSession`, `getProfile` (1b), `weekSlots`, `matchSession`, `overdue` (4b); store degli slot: `ensureWeekSlots(db, week, tpl)`, `updateSlot(db, id, patch)` da aggiungere in `src/store/planning.ts`. La sync abbina le sedute nuove una alla volta in ordine crescente di `started_at`, applicando ogni esito agli slot prima della chiamata successiva, e chiama `overdue` dopo gli abbinamenti.
 - Produces: `sync(client: MywellnessClient, db: Db, opts?: { lookbackDays?: number; today?: string }): Promise<{ newSessions: number; slotsUpdated: number }>` (default `lookbackDays` 14); `main(argv: string[], env: Record<string, string | undefined>): Promise<number>` (`--lookback-days N`).
 
 - [ ] **Step 1: Test:**
@@ -240,6 +240,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
   - `sync: idempotent` — seconda esecuzione → `{ newSessions: 0, slotsUpdated: 0 }`.
   - `sync: matches session to slot` (modello di esempio del Task 4b) — seduta di martedì 2026-11-03 → slot `2026-W45-1` `fatta` con `session_id`.
   - `sync: marks overdue slots` (modello di esempio del Task 4b) — oggi `2026-11-05`, slot 1 senza seduta → `da_confermare`.
+  - `sync: weekend sessions in date order` (modello di esempio del Task 4b) — slot 1 e 2 non fatti, sedute nuove di domenica 2026-11-08 e sabato 2026-11-07 restituite dal client dalla più recente → slot `2026-W45-1` `spostata` con la seduta di sabato, slot `2026-W45-2` `spostata` con quella di domenica.
   - `cli sync: exit 78 on auth error` — `login` rifiuta → `78`, stderr contiene "Login Mywellness fallito", nessuna riga in `sessions`, la password non compare in stdout/stderr.
   - `cli sync: exit 78 on missing env` — senza `MYWELLNESS_PASSWORD` → `78`.
   - `cli sync: output has only counts` — stdout corrisponde a `/^(sedute nuove|slot aggiornati): \d+$/m` per ogni riga.
