@@ -169,4 +169,59 @@ describe("access", () => {
       }
     }
   });
+
+  it("access: rejects token without expiry", async () => {
+    const { jwks, sign } = await createTestSigner();
+    const token = await sign({ exp: undefined });
+    await expectAccessError(
+      verifyAccess(requestWith(token), TEST_ENV, jwks),
+      401,
+    );
+  });
+
+  it("access: configuration error precedes missing token", async () => {
+    const req = new Request(URL_DI_PROVA);
+    const result = verifyAccess(req, { ...TEST_ENV, ACCESS_AUD: "" });
+    await expect(result).rejects.toThrow("Access configuration missing");
+    await expect(result).rejects.not.toBeInstanceOf(AccessError);
+  });
+
+  it("access: configuration with surrounding spaces is an error", async () => {
+    const { jwks, sign } = await createTestSigner();
+    const req = requestWith(await sign());
+    const padded = [
+      { ...TEST_ENV, ACCESS_TEAM_DOMAIN: " esempio.cloudflareaccess.com" },
+      { ...TEST_ENV, ACCESS_TEAM_DOMAIN: "esempio.cloudflareaccess.com " },
+      { ...TEST_ENV, ACCESS_AUD: " aud-di-prova" },
+      { ...TEST_ENV, ACCESS_AUD: "aud-di-prova " },
+    ];
+    for (const env of padded) {
+      const result = verifyAccess(req, env, jwks);
+      await expect(result).rejects.toThrow(
+        "Access configuration missing or invalid",
+      );
+      await expect(result).rejects.not.toBeInstanceOf(AccessError);
+    }
+  });
+
+  it("access: rejects when certs endpoint fails", async () => {
+    // Team diverso dagli altri test: l'insieme di chiavi remoto è in cache per dominio.
+    const team = "guasto.cloudflareaccess.com";
+    const { sign } = await createTestSigner();
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => new Response(null, { status: 503 }));
+    const token = await sign({ iss: `https://${team}` });
+    await expectAccessError(
+      verifyAccess(requestWith(token), {
+        ...TEST_ENV,
+        ACCESS_TEAM_DOMAIN: team,
+      }),
+      401,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      `https://${team}/cdn-cgi/access/certs`,
+    );
+  });
 });

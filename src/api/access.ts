@@ -40,7 +40,7 @@ function remoteKeys(teamDomain: string): JWTVerifyGetKey {
 /**
  * Verifica il JWT di Cloudflare Access (header `Cf-Access-Jwt-Assertion`) e l'e-mail ammessa.
  * Rifiuta con `AccessError` (401 token assente o non valido, 403 e-mail non ammessa); una
- * configurazione incompleta è un errore generico, non un `AccessError` (fail closed).
+ * configurazione incompleta o non valida è un errore generico, non un `AccessError` (fail closed).
  * `jwks` serve solo ai test: in produzione le chiavi vengono dall'endpoint del team.
  * Messaggio e `cause` non contengono mai token, e-mail o claim.
  */
@@ -49,13 +49,20 @@ export async function verifyAccess(
   env: AccessEnv,
   jwks?: JWTVerifyGetKey,
 ): Promise<{ email: string }> {
-  // Fail closed: senza configurazione completa non si guarda nemmeno il token.
-  const configured = [
-    env.ACCESS_TEAM_DOMAIN,
-    env.ACCESS_AUD,
-    env.ALLOWED_EMAIL,
-  ].every((value) => typeof value === "string" && value.trim() !== "");
-  if (!configured) throw new Error("Access configuration missing");
+  // Fail closed: senza configurazione valida non si guarda nemmeno il token. Team e audience
+  // sono usati alla lettera: spazi ai bordi sono un errore di configurazione, non si correggono.
+  const {
+    ACCESS_TEAM_DOMAIN: team,
+    ACCESS_AUD: aud,
+    ALLOWED_EMAIL: allowed,
+  } = env;
+  const configured =
+    isSet(team) &&
+    team === team.trim() &&
+    isSet(aud) &&
+    aud === aud.trim() &&
+    isSet(allowed);
+  if (!configured) throw new Error("Access configuration missing or invalid");
   const token = req.headers.get("Cf-Access-Jwt-Assertion");
   if (!token) throw new AccessError(401, "Access token missing");
   const keys = jwks ?? remoteKeys(env.ACCESS_TEAM_DOMAIN);
@@ -65,6 +72,7 @@ export async function verifyAccess(
       issuer: `https://${env.ACCESS_TEAM_DOMAIN}`,
       audience: env.ACCESS_AUD,
       algorithms: ["RS256"],
+      requiredClaims: ["exp"],
     }));
   } catch (error) {
     // Come causa solo il nome dell'errore di jose: i suoi oggetti portano i claim (e-mail inclusa).
@@ -78,6 +86,10 @@ export async function verifyAccess(
     throw new AccessError(403, "Access email not allowed");
   }
   return { email };
+}
+
+function isSet(value: unknown): value is string {
+  return typeof value === "string" && value.trim() !== "";
 }
 
 function normalizeEmail(email: string): string {
