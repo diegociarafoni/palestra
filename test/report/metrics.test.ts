@@ -57,6 +57,36 @@ describe("metrics", () => {
       },
     ]);
 
+    // Serie senza carico: conta tra le serie, non nel tonnellaggio; 0 ripetizioni non conta.
+    // 23:30 UTC di domenica 8 novembre è lunedì 9 a Roma: settimana W46.
+    const manual: Session = {
+      ...legPress,
+      session_id: "sess-t02",
+      started_at: "2026-11-08T23:30:00Z",
+      exercises: legPress.exercises.map((ex) => ({
+        ...ex,
+        sets: [
+          {
+            n: 1,
+            reps_target: 12,
+            reps_done: 12,
+            load_target_kg: null,
+            load_done_kg: null,
+          },
+          {
+            n: 2,
+            reps_target: 12,
+            reps_done: 0,
+            load_target_kg: 60,
+            load_done_kg: 60,
+          },
+        ],
+      })),
+    };
+    expect(weeklyVolume([manual])).toEqual([
+      { week: "2026-W46", sessions: 1, sets: 1, tonnage_kg: 0, kg_per_set: 0 },
+    ]);
+
     // Fixture: W45 con la seduta extra di solo cardio (conta tra le sedute, non nelle serie).
     // W45 = 2040 + 990 + 1160 (sess-r01, 9 serie) + 2880 + 1440 (sess-r03, 8 serie) = 8510 kg;
     // W46 = 2015 + 1050 + 1600 (sess-r04) = 4665 kg in 10 serie.
@@ -156,6 +186,7 @@ describe("metrics", () => {
     // Aderenza (frazione), obiettivo predefinito 0,85; "watch" entro il 10 % (≥ 0,765).
     expect(status("adherence", 0.85, null)).toBe("ok");
     expect(status("adherence", 0.8, null)).toBe("watch");
+    expect(status("adherence", 0.765, null)).toBe("watch");
     expect(status("adherence", 0.75, null)).toBe("fix");
     expect(status("e1rm_delta_pct", 5, null)).toBe("ok");
     expect(status("e1rm_delta_pct", 4.6, null)).toBe("watch");
@@ -163,6 +194,7 @@ describe("metrics", () => {
     expect(status("hamstring_quad", 0.5, null)).toBe("fix");
     // Spinta/tirata: più basso è meglio, obiettivo ≤ 1,0.
     expect(status("push_pull", 0.8, null)).toBe("ok");
+    expect(status("push_pull", 1, null)).toBe("ok");
     expect(status("push_pull", 1.05, null)).toBe("watch");
     expect(status("push_pull", 1.2, null)).toBe("fix");
     // Serie per distretto a settimana: intervallo 6–10, l'obiettivo passato è ignorato.
@@ -170,6 +202,10 @@ describe("metrics", () => {
     expect(status("muscle_sets_week", 10, null)).toBe("ok");
     expect(status("muscle_sets_week", 5.5, null)).toBe("watch");
     expect(status("muscle_sets_week", 10.5, null)).toBe("watch");
+    expect(status("muscle_sets_week", 5.4, null)).toBe("watch");
+    expect(status("muscle_sets_week", 11, null)).toBe("watch");
+    expect(status("muscle_sets_week", 5.39, null)).toBe("fix");
+    expect(status("muscle_sets_week", 11.01, null)).toBe("fix");
     expect(status("muscle_sets_week", 5, null)).toBe("fix");
     expect(status("muscle_sets_week", 12, null)).toBe("fix");
     expect(status("sleep_h", 6.5, null)).toBe("watch");
@@ -202,10 +238,13 @@ describe("metrics", () => {
       slot("2026-W45-1", "fatta"),
       slot("2026-W45-2", "spostata"),
       slot("2026-W46-1", "saltata", "lavoro"),
+      // Da confermare e programmata: previste ma non svolte.
+      slot("2026-W46-2", "da_confermare"),
+      slot("2026-W47-1", "programmata"),
     ];
     expect(adherence(slots)).toEqual({
       done: 2,
-      planned: 3,
+      planned: 5,
       skipped: [{ id: "2026-W46-1", reason: "lavoro" }],
     });
   });
