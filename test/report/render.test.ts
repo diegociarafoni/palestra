@@ -55,7 +55,8 @@ describe("report", () => {
     expect(md.split("\n")[2]).toBe(
       "Generato il 2026-12-01 da `palestra-report` · Scheda 2026-11 · Ciclo 1, blocco 1 (avvio) · Fonti: Technogym/Mywellness (sedute), misure manuali/InBody (composizione), orologio (recupero, se presente)",
     );
-    // Valori calcolati a mano dalle fixture: tonnellaggio 8510 → 4665 kg (−45,2 %); Δ e1RM
+    // Valori calcolati a mano dalle fixture: tonnellaggio 8510 → 4665 kg (−45,2 %), kg per serie
+    // 500,6 → 466,5 (−6,8 %, entro il 10 %: ●); Δ e1RM
     // leg press +5,75 %, chest press +11,1 % (media 8,4 %); 27 serie in 30/7 settimane;
     // femorali 5 / quadricipiti 10; spinta 10 / tirata 4; sonno (7,5 + 6,3) / 2.
     expect(section(md, 1)).toBe(
@@ -67,7 +68,7 @@ describe("report", () => {
         "| Indicatore | Valore | Confronto | Stato |",
         "| --- | --- | --- | --- |",
         "| Aderenza | 3/4 sedute (75 %) | — | ! |",
-        "| Tonnellaggio settimanale | 4665 kg | da 8510 kg · -45,2 % | ! |",
+        "| Tonnellaggio settimanale | 4665 kg | da 8510 kg · -45,2 % · kg per serie 500,6 → 466,5 | ● |",
         "| e1RM medio (esercizi tracciati) | +8,4 % | media su 2 esercizi | ✓ |",
         "| Serie registrate | 27 | ~6,3 a settimana | — |",
         "| Peso | 79 kg | da 80 kg · -1 kg | — |",
@@ -81,9 +82,41 @@ describe("report", () => {
         "",
         "Legenda: ✓ migliorato o come previsto · ● vicino all'obiettivo, da seguire · ! da correggere.",
         "",
-        "**Ha funzionato** — e1RM medio (esercizi tracciati). **Da correggere** — Aderenza, Tonnellaggio settimanale, Rapporto femorali/quadricipiti, Rapporto spinta/tirata; da seguire: Sonno · passi. **Prossima mossa** — da decidere nella revisione mensile.",
+        "**Ha funzionato** — e1RM medio (esercizi tracciati). **Da correggere** — Aderenza, Rapporto femorali/quadricipiti, Rapporto spinta/tirata; da seguire: Tonnellaggio settimanale, Sonno · passi. **Prossima mossa** — da decidere nella revisione mensile.",
       ].join("\n"),
     );
+  });
+
+  it("report: tonnage status per set", () => {
+    const only = (...ids: string[]) =>
+      sessions.filter((s) => ids.includes(s.session_id));
+    // Una sola settimana: niente confronto né stato.
+    const oneWeek = { ...input, sessions: only("sess-r01", "sess-r03") };
+    expect(reportMetrics(oneWeek).kpi.tonnage_status).toBeNull();
+    expect(section(renderReport(oneWeek), 1)).toContain(
+      "| Tonnellaggio settimanale | 8510 kg | — | — |",
+    );
+    // Prima settimana di solo cardio (0 serie): confronto senza variazione, nessuno stato.
+    const cardioFirst = { ...input, sessions: only("sess-r02", "sess-r04") };
+    expect(reportMetrics(cardioFirst).kpi.tonnage_status).toBeNull();
+    expect(section(renderReport(cardioFirst), 1)).toContain(
+      "| Tonnellaggio settimanale | 4665 kg | da 0 kg · kg per serie 0 → 466,5 | — |",
+    );
+    // Prima settimana con serie ma senza carichi (0 kg per serie): nessuno stato.
+    const noLoad = only("sess-r01", "sess-r04").map((s) =>
+      s.session_id !== "sess-r01"
+        ? s
+        : {
+            ...s,
+            exercises: s.exercises.map((e) => ({
+              ...e,
+              sets: e.sets.map((set) => ({ ...set, load_done_kg: null })),
+            })),
+          },
+    );
+    expect(
+      reportMetrics({ ...input, sessions: noLoad }).kpi.tonnage_status,
+    ).toBeNull();
   });
 
   it("report: volume, strength and distribution from fixtures", () => {
@@ -302,7 +335,7 @@ describe("report", () => {
       adherence_status: "fix",
       tonnage_first_week_kg: 8510,
       tonnage_last_week_kg: 4665,
-      tonnage_status: "fix",
+      tonnage_status: "watch",
       // (5,754 % + 11,111 %) / 2
       e1rm_mean_delta_pct: expect.closeTo(8.4325, 3),
       e1rm_exercises: 2,

@@ -109,6 +109,8 @@ export const KpiSchema = z.object({
   adherence_status: nullableStatus,
   tonnage_first_week_kg: nullableNumber,
   tonnage_last_week_kg: nullableNumber,
+  // Su kg per serie (ultima vs prima settimana), non sul tonnellaggio grezzo: linee guida § 5
+  // "crescente a parità di serie". Null con meno di due settimane o prima settimana a 0 kg per serie.
   tonnage_status: nullableStatus,
   e1rm_mean_delta_pct: nullableNumber,
   e1rm_exercises: z.int(),

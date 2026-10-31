@@ -124,8 +124,8 @@ function analyse(input: ReportInput): Analysis {
   const trend = measuresTrend(input.measures);
   const weeks = weeksInMonth(input.month);
 
-  const first = weekly[0]?.tonnage_kg ?? null;
-  const last = weekly.at(-1)?.tonnage_kg ?? null;
+  const firstWeek = weekly[0];
+  const lastWeek = weekly.at(-1);
   const deltas = present(strength.map((r) => r.e1rm_delta_pct));
   const e1rmMean = mean(deltas);
   const sets = weekly.reduce((n, w) => n + w.sets, 0);
@@ -140,11 +140,15 @@ function analyse(input: ReportInput): Analysis {
       "adherence",
       adh.planned > 0 ? adh.done / adh.planned : null,
     ),
-    tonnage_first_week_kg: first,
-    tonnage_last_week_kg: last,
+    tonnage_first_week_kg: firstWeek?.tonnage_kg ?? null,
+    tonnage_last_week_kg: lastWeek?.tonnage_kg ?? null,
+    // kg per serie, "a parità di serie" (linee guida § 5); una base a 0 renderebbe tutto ✓.
     tonnage_status:
-      weekly.length >= 2 && first !== null && first > 0 && last !== null
-        ? status("tonnage", last, first)
+      weekly.length >= 2 &&
+      firstWeek !== undefined &&
+      lastWeek !== undefined &&
+      firstWeek.kg_per_set > 0
+        ? status("tonnage", lastWeek.kg_per_set, firstWeek.kg_per_set)
         : null,
     e1rm_mean_delta_pct: e1rmMean,
     e1rm_exercises: deltas.length,
@@ -250,8 +254,8 @@ function trendRow(label: string, values: number[], unit: string): SummaryRow {
 
 function summaryRows(input: ReportInput, a: Analysis): SummaryRow[] {
   const { kpi } = a;
-  const first = kpi.tonnage_first_week_kg;
-  const last = kpi.tonnage_last_week_kg;
+  const first = a.weekly[0];
+  const last = a.weekly.at(-1);
   const withUnit = (n: number | null, unit: string) =>
     n === null ? "—" : `${num(n)} ${unit}`;
   const either = (x: number | null, y: number | null, text: string) =>
@@ -268,11 +272,19 @@ function summaryRows(input: ReportInput, a: Analysis): SummaryRow[] {
     },
     {
       label: "Tonnellaggio settimanale",
-      value: last === null ? null : `${num(last)} kg`,
+      value: last === undefined ? null : `${num(last.tonnage_kg)} kg`,
       compare:
-        a.weekly.length < 2 || first === null || last === null
+        a.weekly.length < 2 || first === undefined || last === undefined
           ? "—"
-          : `da ${num(first)} kg${first > 0 ? ` · ${signed(((last - first) / first) * 100)} %` : ""}`,
+          : [
+              `da ${num(first.tonnage_kg)} kg`,
+              ...(first.tonnage_kg > 0
+                ? [
+                    `${signed(((last.tonnage_kg - first.tonnage_kg) / first.tonnage_kg) * 100)} %`,
+                  ]
+                : []),
+              `kg per serie ${num(first.kg_per_set)} → ${num(last.kg_per_set)}`,
+            ].join(" · "),
       status: kpi.tonnage_status,
     },
     {
