@@ -86,6 +86,7 @@ Inventario per zona e verifiche aperte: [docs/attrezzi-via-mantova.md](../docs/a
 - [Protocollo misure corporee (BIA / InBody)](concetti/protocollo-bia.md)
 - [Schemi di movimento e distribuzione del lavoro](concetti/schemi-di-movimento.md)
 - [MOVEs (Technogym)](concetti/moves.md)
+- [Sedute programmate, slot e abbinamento delle sedute](concetti/sedute-programmate.md)
 
 ## Decisioni
 - 2026-10-30 · [La scheda vive nella Technogym App, non in un'app propria](decisioni/2026-10-30-scheda-nella-technogym-app.md)
@@ -100,6 +101,7 @@ Inventario per zona e verifiche aperte: [docs/attrezzi-via-mantova.md](../docs/a
 - 2026-10-31 · [I test su D1 usano @cloudflare/vitest-plugin con Vitest 5](decisioni/2026-10-31-vitest-plugin-al-posto-di-pool-workers.md)
 - 2026-10-31 · [Il feedback è uno per seduta, con chiave data e ordine nel giorno](decisioni/2026-10-31-feedback-uno-per-seduta.md)
 - 2026-10-31 · [Lo schema del D1 reale si applica via connettore, registrando la migrazione come wrangler](decisioni/2026-10-31-schema-d1-applicato-via-connettore.md)
+- 2026-10-31 · [Nel fine settimana si recupera il primo slot non fatto della settimana](decisioni/2026-10-31-recupero-nel-fine-settimana.md)
 - 2026-10-31 · [Il backup mensile di D1 va su R2 con chiavi S3 limitate al bucket, senza mai mostrare l'output di wrangler](decisioni/2026-10-31-backup-d1-su-r2.md)
 
 ## Documenti di processo
