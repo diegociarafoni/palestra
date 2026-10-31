@@ -1,6 +1,8 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MetricsSchema } from "../../src/domain/metrics";
+import type { Scheda } from "../../src/domain/types";
+import { ParseError } from "../../src/errors";
 import { runReport } from "../../src/report/run";
 import { getMetrics } from "../../src/store/reports";
 import { upsertSession } from "../../src/store/sessions";
@@ -18,28 +20,44 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// Le fixture del mese, più una riga fuori mese per ogni lettura (non devono entrare).
-async function seed(): Promise<void> {
-  const db = env.DB;
-  await db
-    .prepare(
-      "INSERT INTO scheda (version, valid_from, valid_to, json, md) VALUES (?1, ?2, ?3, ?4, ?5)",
-    )
+async function insertScheda(s: Scheda): Promise<void> {
+  await env.DB.prepare(
+    "INSERT INTO scheda (version, valid_from, valid_to, json, md) VALUES (?1, ?2, ?3, ?4, ?5)",
+  )
     .bind(
-      scheda.version,
-      scheda.valid_from,
-      scheda.valid_to,
-      JSON.stringify(scheda),
+      s.version,
+      s.valid_from,
+      s.valid_to,
+      JSON.stringify(s),
       "# Scheda di prova",
     )
     .run();
-  const october = {
+}
+
+// Le fixture del mese, più righe fuori mese ai due lati delle letture (non devono entrare).
+async function seed(): Promise<void> {
+  const db = env.DB;
+  // Due versioni nel mese: conta quella attiva l'ultimo giorno (dal 15/11).
+  await insertScheda({
+    ...scheda,
+    version: "2026-10",
+    valid_from: "2026-10-01",
+    valid_to: "2026-11-14",
+  });
+  await insertScheda({
+    ...scheda,
+    valid_from: "2026-11-15",
+    valid_to: "2026-12-14",
+  });
+  const octoberSession = {
     ...sessions[1],
     session_id: "sess-r00",
     started_at: "2026-10-30T18:00:00+01:00",
     ended_at: null,
   } as (typeof sessions)[number];
-  for (const s of [october, ...sessions]) await upsertSession(db, s, {});
+  for (const s of [octoberSession, ...sessions]) {
+    await upsertSession(db, s, {});
+  }
   for (const s of slots) {
     await db
       .prepare(
@@ -60,15 +78,17 @@ async function seed(): Promise<void> {
       )
       .run();
   }
+  const october = { ...measures[0], date: "2026-10-31", weight_kg: 60 };
   const december = { ...measures[0], date: "2026-12-01", weight_kg: 70 };
-  for (const m of [...measures, december]) {
+  for (const m of [october, ...measures, december]) {
     await db
       .prepare("INSERT INTO measures (date, json) VALUES (?1, ?2)")
       .bind(m.date, JSON.stringify(m))
       .run();
   }
   const w43 = { ...recovery[0], week: "2026-W43", sleep_h: 4 };
-  for (const r of [...recovery, w43]) {
+  const w50 = { ...recovery[0], week: "2026-W50", sleep_h: 12 };
+  for (const r of [...recovery, w43, w50]) {
     await db
       .prepare("INSERT INTO recovery (week, json) VALUES (?1, ?2)")
       .bind(r.week, JSON.stringify(r))
@@ -109,7 +129,8 @@ describe("run report", () => {
   it("cli report: saves report and metrics", async () => {
     await seed();
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-12-01T05:00:00Z"));
+    // 23:30 UTC del 30 novembre è già il 1° dicembre a Roma.
+    vi.setSystemTime(new Date("2026-11-30T23:30:00Z"));
     const log = vi.spyOn(console, "log");
     const error = vi.spyOn(console, "error");
 
@@ -122,7 +143,7 @@ describe("run report", () => {
     const [row] = reports.results;
     expect(row?.month).toBe("2026-11");
     expect(row?.kind).toBe("report");
-    expect(row?.created_at).toBe("2026-12-01T05:00:00.000Z");
+    expect(row?.created_at).toBe("2026-11-30T23:30:00.000Z");
     const md = row?.md ?? "";
     expect(md).toContain("# Report novembre 2026");
     expect(md).toContain(
@@ -165,5 +186,37 @@ describe("run report", () => {
     expect(metrics.feedback_summary.pessima).toBe(0);
     expect(log).not.toHaveBeenCalled();
     expect(error).not.toHaveBeenCalled();
+  });
+
+  it("run report: metrics outside the schema are not saved", async () => {
+    await insertScheda(scheda);
+    // Ripetizioni non intere: la proposta avrebbe reps_target 11,5, che lo schema rifiuta.
+    const [first] = sessions;
+    if (first === undefined) throw new Error("fixture mancante");
+    await upsertSession(
+      env.DB,
+      {
+        ...first,
+        exercises: first.exercises.map((e) => ({
+          ...e,
+          sets: e.sets.map((set) => ({ ...set, reps_done: 10.5 })),
+        })),
+      },
+      {},
+    );
+
+    const error = await runReport(env.DB, "2026-11").catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ParseError);
+    expect((error as Error).message).toBe(
+      "report: metriche non conformi allo schema",
+    );
+    expect((error as Error).cause).toBeDefined();
+    for (const table of ["reports", "metrics"]) {
+      const count = await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM ${table}`,
+      ).first<{ n: number }>();
+      expect(count?.n).toBe(0);
+    }
   });
 });
