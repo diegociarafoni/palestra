@@ -27,4 +27,11 @@ describe("store schema", () => {
   ])("store: $table text primary key rejects null", async ({ sql }) => {
     await expect(env.DB.prepare(sql).run()).rejects.toThrow("NOT NULL");
   });
+
+  it("store: scheda valid_to rejects null", async () => {
+    const insert = env.DB.prepare(
+      "INSERT INTO scheda (version, valid_from, valid_to, json, md) VALUES ('2026-11', '2026-11-03', NULL, '{}', '')",
+    );
+    await expect(insert.run()).rejects.toThrow("NOT NULL");
+  });
 });

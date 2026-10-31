@@ -71,7 +71,7 @@ CREATE TABLE profile (
 CREATE TABLE scheda (
   version TEXT NOT NULL PRIMARY KEY,
   valid_from TEXT NOT NULL,
-  valid_to TEXT,
+  valid_to TEXT NOT NULL,
   json TEXT NOT NULL,
   md TEXT NOT NULL
 );
