@@ -1,0 +1,26 @@
+{
+  "data": {
+    "analitics": {
+      "descriptor": [
+        { "i": 0, "pr": { "name": "Speed" } },
+        { "i": 1, "pr": { "name": "HDistance" } },
+        { "i": 2, "pr": { "name": "Hr" } }
+      ],
+      "samples": [
+        { "t": 0, "vs": [0, 0, 92] },
+        { "t": 1200, "vs": [6, 2, 115] },
+        { "t": 2400, "vs": [6, 4.01, 121] },
+        { "t": 3730, "vs": [6, 6.23, 118] }
+      ],
+      "hr": [
+        { "t": 0, "hr": 92 },
+        { "t": 1200, "hr": 115 },
+        { "t": 2400, "hr": 121 },
+        { "t": 3730, "hr": 118 }
+      ],
+      "hrZones": []
+    },
+    "data": [{ "property": "HDistance", "rawValue": 6.23 }]
+  },
+  "errors": []
+}
