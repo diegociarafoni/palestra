@@ -21,5 +21,5 @@ DELETE FROM sqlite_sequence;
 INSERT INTO "sqlite_sequence" ("name","seq") VALUES('audit',3);
 CREATE INDEX audit_note ON audit(note);
 CREATE TRIGGER feedback_audit AFTER INSERT ON feedback BEGIN
-  INSERT INTO "audit" ("note") VALUES('trigger');
+INSERT INTO "audit" ("note") VALUES('trigger');
 END;

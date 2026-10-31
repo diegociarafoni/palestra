@@ -210,7 +210,7 @@ describe("restore-test", () => {
       [
         HEADER,
         // Dal dump: 3 INSERT in audit (non contano l'INSERT dentro una stringa né quello del
-        // trigger), nessuna in feedback, 2 in sessions; sqlite_sequence escluso come nel ripristino.
+        // trigger, che segue i dati), nessuna in feedback, 2 in sessions; sqlite_sequence escluso.
         "audit                        3           3           3",
         "feedback                     0           0           0",
         "sessions                     2           2           2",
@@ -254,6 +254,72 @@ describe("restore-test", () => {
       "Esito: conteggi diversi dal dump in 1 tabelle su 3.",
     );
     expect(f.calls.at(-1)).toEqual(del);
+  });
+
+  it("restore-test: a table only in palestra is shown but not checked", async () => {
+    const io = output();
+    const f = fakes({
+      tables: {
+        "palestra-restore-test": ["audit", "feedback", "sessions"],
+        palestra: ["audit", "feedback", "metrics", "sessions"],
+      },
+      counts: {
+        "palestra-restore-test": { audit: 3, feedback: 0, sessions: 2 },
+        palestra: { audit: 3, feedback: 0, metrics: 4, sessions: 2 },
+      },
+    });
+    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(0);
+    expect(io.stdout()).toContain(
+      "metrics                      —           —           4\n",
+    );
+    expect(io.stdout()).toContain(
+      "Esito: conteggi identici al dump in 3 tabelle.",
+    );
+  });
+
+  it("restore-test: INSERT lines in an unknown format leave the dump at 0 and exit 1", async () => {
+    const io = output();
+    const f = fakes({}, async () =>
+      new TextEncoder().encode(
+        [
+          "INSERT INTO audit VALUES(1);",
+          "INSERT INTO audit VALUES(2);",
+          "INSERT INTO audit VALUES(3);",
+          "INSERT INTO sessions VALUES('s1');",
+          "INSERT INTO sessions VALUES('s2');",
+        ].join("\n"),
+      ),
+    );
+    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(1);
+    expect(io.stdout()).toContain(
+      "audit                        0           3           3  DIVERSO",
+    );
+    expect(io.stdout()).toContain(
+      "Esito: conteggi diversi dal dump in 2 tabelle su 3.",
+    );
+  });
+
+  it("restore-test: counting stops at a trigger or view after the data", async () => {
+    const io = output();
+    const f = fakes({}, async () =>
+      new TextEncoder().encode(
+        [
+          'INSERT INTO "audit" ("id") VALUES(1);',
+          'INSERT INTO "audit" ("id") VALUES(2);',
+          'INSERT INTO "audit" ("id") VALUES(3);',
+          'INSERT INTO "sessions" ("id") VALUES(1);',
+          'INSERT INTO "sessions" ("id") VALUES(2);',
+          "CREATE TRIGGER t AFTER INSERT ON audit BEGIN",
+          'INSERT INTO "sessions" ("id") VALUES(9);',
+          "END;",
+          'CREATE VIEW "v" AS SELECT 1;',
+        ].join("\n"),
+      ),
+    );
+    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(0);
+    expect(io.stdout()).toContain(
+      "sessions                     2           2           2\n",
+    );
   });
 
   it("restore-test: a table of the dump missing from the restore is a difference", async () => {

@@ -37,6 +37,8 @@ const TABLES_SQL =
 // Una riga per INSERT nell'export di D1: `INSERT INTO "<tabella>" ("c1",…) VALUES(…);`, con gli
 // a capo delle stringhe scritti come char(10). Una riga che non inizia così non si conta.
 const INSERT_LINE = /^INSERT INTO "([^"]+)"[ (]/;
+// Indici, trigger e viste seguono tutti i dati: da lì in poi (corpi dei trigger) non si conta.
+const SCHEMA_TAIL = /^CREATE\s+(?:UNIQUE\s+)?(?:INDEX|TRIGGER|VIEW)\s/i;
 const INTERNAL_TABLE = /^(sqlite_|_cf_)/;
 
 // Risposta di `wrangler d1 execute --json` per una sola istruzione.
@@ -144,6 +146,7 @@ async function counts(
 function dumpCounts(sql: string): Map<string, number> {
   const counts = new Map<string, number>();
   for (const line of sql.split("\n")) {
+    if (SCHEMA_TAIL.test(line)) break;
     const name = INSERT_LINE.exec(line)?.[1];
     if (name === undefined || INTERNAL_TABLE.test(name)) continue;
     counts.set(name, (counts.get(name) ?? 0) + 1);
