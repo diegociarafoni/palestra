@@ -149,10 +149,9 @@ export function createD1HttpDb(opts: {
       let json: unknown;
       try {
         json = await response.json();
-      } catch (error) {
-        if (response.ok) {
-          throw new ParseError("D1: risposta non JSON", { cause: error });
-        }
+      } catch {
+        // Niente cause: il SyntaxError cita l'inizio del corpo della risposta.
+        if (response.ok) throw new ParseError("D1: risposta non JSON");
         // Corpo di errore non JSON (es. pagina HTML): basta lo stato HTTP.
       }
       const failure = FailureSchema.safeParse(json);

@@ -1,3 +1,4 @@
+import { inspect } from "node:util";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import {
@@ -217,13 +218,14 @@ describe("d1-http", () => {
   it.each([
     {
       label: "not JSON",
+      // Il SyntaxError cita il corpo ("not json" is not valid JSON): niente cause.
       reply: () => HttpResponse.text("not json"),
-      cause: SyntaxError,
+      cause: undefined,
     },
     {
       label: "unexpected object",
       reply: () => HttpResponse.json({ unexpected: true }),
-      cause: ZodError,
+      cause: expect.any(ZodError),
     },
     {
       label: "results not an array",
@@ -232,12 +234,12 @@ describe("d1-http", () => {
           success: true,
           result: [{ results: "x", success: true }],
         }),
-      cause: ZodError,
+      cause: expect.any(ZodError),
     },
     {
       label: "missing statement result",
       reply: () => HttpResponse.json({ success: true, result: [] }),
-      cause: ZodError,
+      cause: expect.any(ZodError),
     },
   ])(
     "d1-http: invalid body raises ParseError ($label)",
@@ -248,7 +250,8 @@ describe("d1-http", () => {
         .all()
         .catch((e: unknown) => e);
       expect(error).toBeInstanceOf(ParseError);
-      expect((error as Error).cause).toBeInstanceOf(cause);
+      expect((error as Error).cause).toEqual(cause);
+      expect(inspect(error)).not.toContain("not json");
     },
   );
 

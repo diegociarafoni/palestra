@@ -30,10 +30,9 @@ export function parseJsonColumn<T>(
   let value: unknown;
   try {
     value = JSON.parse(text);
-  } catch (error) {
-    throw new ParseError(`D1: JSON non valido in ${table} (${key})`, {
-      cause: error,
-    });
+  } catch {
+    // Niente cause: il SyntaxError di V8 cita l'inizio del testo memorizzato.
+    throw new ParseError(`D1: JSON non valido in ${table} (${key})`);
   }
   return parseStored(schema, value, table, key);
 }

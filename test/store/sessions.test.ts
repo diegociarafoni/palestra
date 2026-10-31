@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { inspect } from "node:util";
 import { describe, expect, it } from "vitest";
 import { ZodError } from "zod";
 import type { Session } from "../../src/domain/types";
@@ -105,11 +106,12 @@ describe("store sessions", () => {
   });
 
   it.each([
-    { label: "broken JSON", json: "{secret-content", cause: SyntaxError },
+    // Il SyntaxError di V8 cita il testo ("secret-content" is not valid JSON): niente cause.
+    { label: "broken JSON", json: "secret-content", cause: undefined },
     {
       label: "schema mismatch",
       json: '{"session_id":"secret-content"}',
-      cause: ZodError,
+      cause: expect.any(ZodError),
     },
   ])(
     "store: invalid session json raises ParseError ($label)",
@@ -123,7 +125,8 @@ describe("store sessions", () => {
         (e: unknown) => e,
       );
       expect(error).toBeInstanceOf(ParseError);
-      expect((error as Error).cause).toBeInstanceOf(cause);
+      expect((error as Error).cause).toEqual(cause);
+      expect(inspect(error)).not.toContain("secret-content");
       expect((error as Error).message).toContain("sessions");
       // Mai id o data della seduta nel messaggio: può finire nei log pubblici.
       for (const leaked of ["sess-bad", "2026-11-02", "secret-content"]) {
