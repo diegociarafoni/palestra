@@ -1,0 +1,61 @@
+name: restore-test
+
+# Prova di ripristino del backup mensile, solo a mano: scarica palestra-AAAA-MM-GG.sql da R2,
+# lo importa in palestra-restore-test, confronta il numero di righe di ogni tabella con
+# palestra (sola lettura) e cancella palestra-restore-test (docs/dashboard.md).
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Data del backup (AAAA-MM-GG); vuoto = oggi, ora di Roma"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restore-test
+  cancel-in-progress: false
+
+jobs:
+  restore-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Log: solo nomi delle tabelle e conteggi (mai righe del backup né output di wrangler).
+      # La data arriva dall'ambiente, mai interpolata nello script; la CLI la valida.
+      - name: Restore into palestra-restore-test, compare row counts, delete it
+        # Lascia al passo di pulizia il tempo che resta del job.
+        timeout-minutes: 12
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_TOKEN_D1 }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          BACKUP_DATE: ${{ inputs.date }}
+        run: npm run restore-test -- ${BACKUP_DATE:+"$BACKUP_DATE"}
+      # Run annullato, in timeout o fallito: il `finally` della CLI può non girare (SIGINT,
+      # SIGTERM) e palestra-restore-test, copia dei dati personali, resterebbe. Lo cancella
+      # (o non trova nulla), con l'output di wrangler scartato.
+      - name: Delete palestra-restore-test after a cancelled or failed run
+        if: cancelled() || failure()
+        timeout-minutes: 2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_TOKEN_D1 }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_WRITE_LOGS: "false"
+          WRANGLER_SEND_METRICS: "false"
+        run: |
+          if npx --no -- wrangler d1 delete palestra-restore-test --skip-confirmation </dev/null >/dev/null 2>&1; then
+            echo "palestra-restore-test cancellato dal passo di pulizia"
+          else
+            echo "Passo di pulizia: niente da cancellare o cancellazione non riuscita (wrangler exit $?)"
+          fi
