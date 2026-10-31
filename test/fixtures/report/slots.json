@@ -1,0 +1,46 @@
+[
+  {
+    "id": "2026-W45-1",
+    "week": "2026-W45",
+    "slot": 1,
+    "window": ["2026-11-03", "2026-11-04"],
+    "date": "2026-11-03",
+    "scheda_day": "A",
+    "status": "fatta",
+    "reason": null,
+    "session_id": "sess-r01"
+  },
+  {
+    "id": "2026-W45-2",
+    "week": "2026-W45",
+    "slot": 2,
+    "window": ["2026-11-05"],
+    "date": "2026-11-05",
+    "scheda_day": "A",
+    "status": "fatta",
+    "reason": null,
+    "session_id": "sess-r03"
+  },
+  {
+    "id": "2026-W46-1",
+    "week": "2026-W46",
+    "slot": 1,
+    "window": ["2026-11-10", "2026-11-11"],
+    "date": "2026-11-10",
+    "scheda_day": "A",
+    "status": "fatta",
+    "reason": null,
+    "session_id": "sess-r04"
+  },
+  {
+    "id": "2026-W46-2",
+    "week": "2026-W46",
+    "slot": 2,
+    "window": ["2026-11-12"],
+    "date": null,
+    "scheda_day": "A",
+    "status": "saltata",
+    "reason": "lavoro",
+    "session_id": null
+  }
+]

@@ -1,0 +1,330 @@
+[
+  {
+    "session_id": "sess-r01",
+    "source": "mywellness-api",
+    "started_at": "2026-11-03T18:00:00+01:00",
+    "ended_at": "2026-11-03T19:00:00+01:00",
+    "name": "Seduta libera",
+    "program": null,
+    "moves": 300,
+    "calories_kcal": 400,
+    "duration_s": 3600,
+    "exercises": [
+      {
+        "order": 1,
+        "name": "Riscaldamento",
+        "equipment": "Skillbike",
+        "kind": "cardio",
+        "duration_s": 480,
+        "calories_kcal": 60,
+        "distance_m": 3000,
+        "moves": 90,
+        "sets": []
+      },
+      {
+        "order": 2,
+        "name": "Leg Press",
+        "equipment": "Selection Leg Press",
+        "kind": "strength",
+        "sets": [
+          {
+            "n": 1,
+            "reps_target": 12,
+            "reps_done": 12,
+            "load_target_kg": 60,
+            "load_done_kg": 60
+          },
+          {
+            "n": 2,
+            "reps_target": 12,
+            "reps_done": 12,
+            "load_target_kg": 60,
+            "load_done_kg": 60
+          },
+          {
+            "n": 3,
+            "reps_target": 12,
+            "reps_done": 10,
+            "load_target_kg": 60,
+            "load_done_kg": 60
+          }
+        ]
+      },
+      {
+        "order": 3,
+        "name": "Chest Press",
+        "equipment": "Selection Chest Press",
+        "kind": "strength",
+        "sets": [
+          {
+            "n": 1,
+            "reps_target": 12,
+            "reps_done": 12,
+            "load_target_kg": 30,
+            "load_done_kg": 30
+          },
+          {
+            "n": 2,
+            "reps_target": 12,
+            "reps_done": 11,
+            "load_target_kg": 30,
+            "load_done_kg": 30
+          },
+          {
+            "n": 3,
+            "reps_target": 12,
+            "reps_done": 10,
+            "load_target_kg": 30,
+            "load_done_kg": 30
+          }
+        ]
+      },
+      {
+        "order": 4,
+        "name": "Lat Pulldown",
+        "equipment": "Pure Lat Pulldown",
+        "kind": "strength",
+        "sets": [
+          {
+            "n": 1,
+            "reps_target": 12,
+            "reps_done": 10,
+            "load_target_kg": 40,
+            "load_done_kg": 40
+          },
+          {
+            "n": 2,
+            "reps_target": 12,
+            "reps_done": 10,
+            "load_target_kg": 40,
+            "load_done_kg": 40
+          },
+          {
+            "n": 3,
+            "reps_target": 12,
+            "reps_done": 9,
+            "load_target_kg": 40,
+            "load_done_kg": 40
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "session_id": "sess-r02",
+    "source": "mywellness-api",
+    "started_at": "2026-11-04T19:00:00+01:00",
+    "ended_at": "2026-11-04T19:30:00+01:00",
+    "name": "Seduta libera",
+    "program": null,
+    "moves": 200,
+    "calories_kcal": 150,
+    "duration_s": 1800,
+    "exercises": [
+      {
+        "order": 1,
+        "name": "Camminata in salita",
+        "equipment": "Run Artis",
+        "kind": "cardio",
+        "duration_s": 1200,
+        "calories_kcal": 150,
+        "distance_m": 2000,
+        "moves": 200,
+        "sets": []
+      }
+    ]
+  },
+  {
+    "session_id": "sess-r03",
+    "source": "mywellness-api",
+    "started_at": "2026-11-05T18:00:00+01:00",
+    "ended_at": "2026-11-05T19:00:00+01:00",
+    "name": "Seduta libera",
+    "program": null,
+    "moves": 350,
+    "calories_kcal": 350,
+    "duration_s": 3600,
+    "exercises": [
+      {
+        "order": 1,
+        "name": "Leg Press",
+        "equipment": "Selection Leg Press",
+        "kind": "strength",
+        "sets": [
+          {
+            "n": 1,
+            "reps_target": 12,
+            "reps_done": 12,
+            "load_target_kg": 60,
+            "load_done_kg": 60
+          },
+          {
+            "n": 2,
+            "reps_target": 12,
+            "reps_done": 12,
+            "load_target_kg": 60,
+            "load_done_kg": 60
+          },
+          {
+            "n": 3,
+            "reps_target": 12,
+            "reps_done": 12,
+            "load_target_kg": 60,
+            "load_done_kg": 60
+          }
+        ]
+      },
+      {
+        "order": 2,
+        "name": "Chest Press",
+        "equipment": "Selection Chest Press",
+        "kind": "strength",
+        "sets": [
+          {
+            "n": 1,
+            "reps_target": 12,
+            "reps_done": 12,
+            "load_target_kg": 30,
+            "load_done_kg": 30
+          },
+          {
+            "n": 2,
+            "reps_target": 12,
+            "reps_done": 12,
+            "load_target_kg": 30,
+            "load_done_kg": 30
+          },
+          {
+            "n": 3,
+            "reps_target": 12,
+            "reps_done": 12,
+            "load_target_kg": 30,
+            "load_done_kg": 30
+          }
+        ]
+      },
+      {
+        "order": 3,
+        "name": "Camminata in salita",
+        "equipment": "Run Artis",
+        "kind": "cardio",
+        "duration_s": 720,
+        "calories_kcal": 90,
+        "distance_m": 1200,
+        "moves": 120,
+        "sets": []
+      }
+    ]
+  },
+  {
+    "session_id": "sess-r04",
+    "source": "mywellness-api",
+    "started_at": "2026-11-10T18:00:00+01:00",
+    "ended_at": "2026-11-10T19:00:00+01:00",
+    "name": "Seduta libera",
+    "program": null,
+    "moves": 330,
+    "calories_kcal": 380,
+    "duration_s": 3600,
+    "exercises": [
+      {
+        "order": 1,
+        "name": "Riscaldamento",
+        "equipment": "Skillbike",
+        "kind": "cardio",
+        "duration_s": 480,
+        "calories_kcal": 60,
+        "distance_m": 3000,
+        "moves": null,
+        "sets": []
+      },
+      {
+        "order": 2,
+        "name": "Leg Press",
+        "equipment": "Selection Leg Press",
+        "kind": "strength",
+        "sets": [
+          {
+            "n": 1,
+            "reps_target": 12,
+            "reps_done": 11,
+            "load_target_kg": 65,
+            "load_done_kg": 65
+          },
+          {
+            "n": 2,
+            "reps_target": 12,
+            "reps_done": 10,
+            "load_target_kg": 65,
+            "load_done_kg": 65
+          },
+          {
+            "n": 3,
+            "reps_target": 12,
+            "reps_done": 10,
+            "load_target_kg": 65,
+            "load_done_kg": 65
+          }
+        ]
+      },
+      {
+        "order": 3,
+        "name": "Chest Press",
+        "equipment": "Selection Chest Press",
+        "kind": "strength",
+        "sets": [
+          {
+            "n": 1,
+            "reps_target": 12,
+            "reps_done": 10,
+            "load_target_kg": 35,
+            "load_done_kg": 35
+          },
+          {
+            "n": 2,
+            "reps_target": 12,
+            "reps_done": 10,
+            "load_target_kg": 35,
+            "load_done_kg": 35
+          },
+          {
+            "n": 3,
+            "reps_target": 12,
+            "reps_done": 10,
+            "load_target_kg": 35,
+            "load_done_kg": 35
+          }
+        ]
+      },
+      {
+        "order": 4,
+        "name": "Lat Machine",
+        "equipment": "Selection Lat Machine",
+        "kind": "strength",
+        "sets": [
+          {
+            "n": 1,
+            "reps_target": 12,
+            "reps_done": 10,
+            "load_target_kg": 40,
+            "load_done_kg": 40
+          },
+          {
+            "n": 2,
+            "reps_target": 12,
+            "reps_done": 10,
+            "load_target_kg": 40,
+            "load_done_kg": 40
+          },
+          {
+            "n": 3,
+            "reps_target": 12,
+            "reps_done": 10,
+            "load_target_kg": 40,
+            "load_done_kg": 40
+          }
+        ]
+      }
+    ]
+  }
+]
