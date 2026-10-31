@@ -17,10 +17,22 @@ const api = hc<AppType>("/", {
 
 type ApiResponse = { status: number; json: () => Promise<unknown> };
 
+// Ora dell'ultima ricarica per sessione scaduta (solo un numero, in ms): al massimo una al minuto.
+const RELOAD_KEY = "palestra:lastReload";
+const RELOAD_INTERVAL_MS = 60_000;
+
+/** 401/403 anche dopo una ricarica recente: ricaricare di nuovo non basta (niente nuovi tentativi). */
+export class SessionError extends Error {}
+
+/** Nuovi tentativi del QueryClient dell'app: fino a 3, come il default, mai per la sessione. */
+export function retryQuery(failureCount: number, error: Error): boolean {
+  return !(error instanceof SessionError) && failureCount < 3;
+}
+
 /**
  * Legge una risposta: 2xx → dati validati; 404 → `null` (la pagina mostra "Nessun dato");
- * 401/403 → sessione di Access scaduta: si ricarica la pagina, che passa di nuovo da Access;
- * ogni altro stato → errore (la pagina offre "Riprova").
+ * 401/403 → sessione di Access scaduta: si ricarica la pagina, che passa di nuovo da Access, ma
+ * non più di una volta al minuto (poi `SessionError`); ogni altro stato → errore ("Riprova").
  */
 async function read<T>(
   request: Promise<ApiResponse>,
@@ -28,6 +40,14 @@ async function read<T>(
 ): Promise<T | null> {
   const response = await request;
   if (response.status === 401 || response.status === 403) {
+    const now = Date.now();
+    const lastReload = Number(sessionStorage.getItem(RELOAD_KEY));
+    if (now - lastReload < RELOAD_INTERVAL_MS) {
+      throw new SessionError(
+        `API: risposta ${response.status} dopo una ricarica`,
+      );
+    }
+    sessionStorage.setItem(RELOAD_KEY, String(now));
     window.location.reload();
     // La richiesta resta in corso fino alla ricarica: nessun errore tecnico da mostrare.
     return new Promise<never>(() => {});

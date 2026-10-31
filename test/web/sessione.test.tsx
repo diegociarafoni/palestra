@@ -1,12 +1,29 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { retryQuery, SessionError } from "../../web/src/api/client";
 import Misure from "../../web/src/pagine/misure/Misure";
 import measures from "../fixtures/dashboard/measures.json";
 import { renderConTema } from "./render";
 import { server } from "./setup";
 
 // Sessione di Cloudflare Access: come il client chiede le risposte e come reagisce a 401/403.
+// L'ultima ricarica sta in sessionStorage (solo un numero); jsdom non permette di osservare
+// `location.reload()` (scrive solo "Not implemented: navigation…" sullo stderr del processo),
+// quindi si guardano la pagina e quel numero.
+const RELOAD_KEY = "palestra:lastReload";
+const NOW = new Date("2026-11-03T08:00:00Z"); // 1793692800000
+
+function expiredSession(status: number) {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
+  server.use(
+    http.get("/api/measures", () =>
+      HttpResponse.json({ error: "unauthorized" }, { status }),
+    ),
+  );
+}
+
 describe("web", () => {
   it("web: api requests ask Access for a 401", async () => {
     // Senza `X-Requested-With: XMLHttpRequest` Access risponde a una sessione scaduta con un
@@ -22,5 +39,52 @@ describe("web", () => {
 
     await screen.findByRole("table", { name: "Tutte le misure" });
     expect(headers).toEqual(["XMLHttpRequest"]);
+  });
+
+  it("web: expired session reloads the page", async () => {
+    expiredSession(401);
+    renderConTema(<Misure />);
+
+    await waitFor(() =>
+      expect(sessionStorage.getItem(RELOAD_KEY)).toBe("1793692800000"),
+    );
+    expect(screen.getByRole("status", { name: "Caricamento" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("web: expired session reloads again after 60 s", async () => {
+    sessionStorage.setItem(RELOAD_KEY, "1793692739000"); // 61 s prima
+    expiredSession(401);
+    renderConTema(<Misure />);
+
+    await waitFor(() =>
+      expect(sessionStorage.getItem(RELOAD_KEY)).toBe("1793692800000"),
+    );
+    expect(screen.getByRole("status", { name: "Caricamento" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it.each([401, 403])(
+    "web: session still invalid after a reload shows message (%i)",
+    async (status) => {
+      sessionStorage.setItem(RELOAD_KEY, "1793692770000"); // 30 s prima
+      expiredSession(status);
+      renderConTema(<Misure />);
+
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toContain(
+        "Sessione non valida. Chiudi e riapri la dashboard.",
+      );
+      expect(alert.textContent).not.toContain("Impossibile caricare i dati.");
+      expect(sessionStorage.getItem(RELOAD_KEY)).toBe("1793692770000");
+    },
+  );
+
+  it("web: session error is not retried", () => {
+    // Politica dei nuovi tentativi del QueryClient dell'app (main.tsx): 3 per gli altri errori.
+    expect(retryQuery(0, new SessionError("sessione"))).toBe(false);
+    expect(retryQuery(0, new Error("rete"))).toBe(true);
+    expect(retryQuery(2, new Error("rete"))).toBe(true);
+    expect(retryQuery(3, new Error("rete"))).toBe(false);
   });
 });

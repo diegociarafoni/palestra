@@ -16,6 +16,7 @@ export const testi = {
     loading: "Caricamento",
     empty: "Nessun dato",
     error: "Impossibile caricare i dati.",
+    session: "Sessione non valida. Chiudi e riapri la dashboard.",
     retry: "Riprova",
   },
   page: {

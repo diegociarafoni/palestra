@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router";
+import { retryQuery } from "./api/client";
 import { ErrorBoundary } from "./componenti/ErrorBoundary";
 import { Navigazione } from "./componenti/Navigazione";
 import { paths } from "./percorsi";
@@ -28,7 +29,9 @@ const pages = [
   { path: paths.report, page: <Report /> },
 ];
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: retryQuery } },
+});
 
 const root = document.getElementById("root");
 if (root === null) throw new Error("elemento #root mancante in index.html");

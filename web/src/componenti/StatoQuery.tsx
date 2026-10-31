@@ -5,6 +5,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { SessionError } from "../api/client";
 import { testi } from "../testi";
 
 type StatoQueryProps<T> = {
@@ -14,7 +15,7 @@ type StatoQueryProps<T> = {
 
 /**
  * Stati di una query di pagina: caricamento (Skeleton), errore (messaggio e "Riprova", che rilancia
- * la query), vuoto ("Nessun dato": risposta `null`, cioè 404, o lista vuota) oppure i dati.
+ * la query; per la sessione non valida un messaggio suo), vuoto ("Nessun dato": risposta `null`, cioè 404, o lista vuota) oppure i dati.
  */
 export function StatoQuery<T>({ query, children }: StatoQueryProps<T>) {
   if (query.isPending) {
@@ -39,7 +40,9 @@ export function StatoQuery<T>({ query, children }: StatoQueryProps<T>) {
           </Button>
         }
       >
-        {testi.state.error}
+        {query.error instanceof SessionError
+          ? testi.state.session
+          : testi.state.error}
       </Alert>
     );
   }

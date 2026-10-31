@@ -9,6 +9,7 @@ export const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   cleanup();
+  sessionStorage.clear();
   server.resetHandlers();
   vi.useRealTimers();
   vi.restoreAllMocks();
