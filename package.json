@@ -9,10 +9,11 @@
   "scripts": {
     "test": "vitest run",
     "lint": "biome check .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p web",
     "sync": "tsx src/cli/sync.ts",
     "report": "tsx src/cli/report.ts",
-    "backup": "tsx src/cli/backup.ts"
+    "backup": "tsx src/cli/backup.ts",
+    "build:web": "vite build web --outDir ../site --emptyOutDir"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.4",

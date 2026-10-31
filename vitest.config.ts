@@ -34,6 +34,16 @@ export default defineConfig({
           setupFiles: ["test/store/setup.ts"],
         },
       },
+      {
+        // Frontend: stessi plugin della build (React + React Compiler), DOM di jsdom, API con MSW.
+        extends: "./web/vite.config.ts",
+        test: {
+          name: "web",
+          environment: "jsdom",
+          include: ["test/web/**/*.test.tsx"],
+          setupFiles: ["test/web/setup.ts"],
+        },
+      },
     ],
   },
 });

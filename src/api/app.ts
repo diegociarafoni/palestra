@@ -1,3 +1,4 @@
+import type { D1Database } from "@cloudflare/workers-types";
 import { Hono } from "hono";
 import type { JWTVerifyGetKey } from "jose";
 import { romeDate } from "../domain/dates";

@@ -7,12 +7,26 @@
       "!!.superpowers",
       "!!docs/riferimenti",
       "!!**/*.md",
-      "!!package-lock.json"
+      "!!package-lock.json",
+      "!!site"
     ]
   },
   "formatter": { "indentStyle": "space", "indentWidth": 2 },
   "linter": {
     "enabled": true,
-    "rules": { "suspicious": { "noExplicitAny": "error" } }
+    "rules": {
+      "suspicious": { "noExplicitAny": "error" },
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "@mui/material": "Importare per percorso, es. import Button from \"@mui/material/Button\" (docs/buone-pratiche-mui.md § 5).",
+              "@mui/icons-material": "Importare per percorso, es. import SaveIcon from \"@mui/icons-material/Save\" (docs/buone-pratiche-mui.md § 5)."
+            }
+          }
+        }
+      }
+    }
   }
 }
