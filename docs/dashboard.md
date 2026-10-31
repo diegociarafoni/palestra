@@ -38,7 +38,11 @@ npx wrangler d1 delete palestra-restore-test --skip-confirmation
 rm -r "$dir"
 ```
 
-L'export contiene anche le istruzioni `CREATE TABLE`, quindi si applica a un database vuoto. Il ripristino sul database reale `palestra` (Time Travel o dal backup) si fa solo con conferma esplicita dell'utente.
+L'export contiene le istruzioni `CREATE TABLE` senza `IF NOT EXISTS`: si applica solo a un database vuoto, non al `palestra` reale che ha già le tabelle. Un ripristino reale si pianifica con l'utente quando serve e si fa solo con la sua conferma esplicita:
+
+- entro 30 giorni la prima scelta resta Time Travel;
+- (a) un nuovo database creato dal backup come nella prova sopra (senza cancellarlo); poi `D1_DATABASE_ID`, il binding D1 di Pages e il nome del database usato da `src/cli/backup.ts` puntano al nuovo database;
+- (b) svuotare `palestra` (`DROP` delle tabelle, solo con conferma esplicita dell'utente) e importarvi il backup.
 
 ### Registro delle prove di ripristino
 
