@@ -87,6 +87,7 @@ Inventario per zona e verifiche aperte: [docs/attrezzi-via-mantova.md](../docs/a
 - [Schemi di movimento e distribuzione del lavoro](concetti/schemi-di-movimento.md)
 - [MOVEs (Technogym)](concetti/moves.md)
 - [Sedute programmate, slot e abbinamento delle sedute](concetti/sedute-programmate.md)
+- [Come il report mensile calcola gli indicatori](concetti/report-mensile.md)
 
 ## Decisioni
 - 2026-10-30 · [La scheda vive nella Technogym App, non in un'app propria](decisioni/2026-10-30-scheda-nella-technogym-app.md)
