@@ -30,6 +30,13 @@ export function formatShortDate(date: string): string {
   return shortDate.format(middayOf(date));
 }
 
+/** `2026-11-03`, `08:00` → "3 nov 2026, 08:00"; senza ora solo la data. L'ora (`HH:MM`, scritta a mano) resta com'è. */
+export function formatShortDateTime(date: string, time: string | null): string {
+  return time === null
+    ? formatShortDate(date)
+    : `${formatShortDate(date)}, ${time}`;
+}
+
 /** `2026-11-03` → "3 novembre 2026". */
 export function formatDate(date: string): string {
   return longDate.format(middayOf(date));

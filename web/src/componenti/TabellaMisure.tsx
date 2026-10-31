@@ -10,7 +10,7 @@ import Typography from "@mui/material/Typography";
 import { useId } from "react";
 import type { Measure } from "../../../src/domain/types";
 import { testi } from "../testi";
-import { formatShortDate } from "../utils/date";
+import { formatShortDateTime } from "../utils/date";
 import { formatNumber } from "../utils/numeri";
 
 type TabellaMisureProps = { measures: Measure[] };
@@ -35,11 +35,7 @@ export function TabellaMisure({ measures }: TabellaMisureProps) {
           <TableBody>
             {measures.map((m) => (
               <TableRow key={`${m.date} ${m.time ?? ""} ${m.source}`}>
-                <TableCell>
-                  {m.time === null
-                    ? formatShortDate(m.date)
-                    : `${formatShortDate(m.date)}, ${m.time}`}
-                </TableCell>
+                <TableCell>{formatShortDateTime(m.date, m.time)}</TableCell>
                 <TableCell align="right">{formatNumber(m.weight_kg)}</TableCell>
                 <TableCell align="right">{formatNumber(m.waist_cm)}</TableCell>
                 <TableCell align="right">

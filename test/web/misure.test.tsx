@@ -76,16 +76,19 @@ describe("web", () => {
   });
 
   it("web: misure chart without protocol measures", async () => {
-    // Solo la misura fuori protocollo: tabella con una riga, grafico senza assi vuoti.
+    // Solo la misura fuori protocollo, senza ora: tabella con una riga, grafico senza assi vuoti.
+    const outside = measures
+      .filter((m) => !m.in_protocol)
+      .map((m) => ({ ...m, time: null }));
     server.use(
-      http.get("/api/measures", () =>
-        HttpResponse.json({ measures: measures.filter((m) => !m.in_protocol) }),
-      ),
+      http.get("/api/measures", () => HttpResponse.json({ measures: outside })),
     );
     renderConTema(<Misure />);
 
     const table = await screen.findByRole("table", { name: "Tutte le misure" });
-    expect(within(table).getAllByRole("row")).toHaveLength(2);
+    const rows = within(table).getAllByRole("row");
+    expect(rows).toHaveLength(2);
+    expect(rows[1] && cells(rows[1])[0]).toBe("17 nov 2026");
     const chart = screen.getByRole("region", { name: "Peso in protocollo" });
     expect(within(chart).getByText("Nessun dato")).toBeTruthy();
     expect(chart.querySelector("svg")).toBeNull();

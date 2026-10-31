@@ -6,12 +6,14 @@ import Report from "../../web/src/pagine/report/Report";
 import { renderConTema } from "./render";
 import { server } from "./setup";
 
-// Report sintetico con una tabella GFM.
+// Report sintetico con una tabella GFM e un collegamento.
 const REPORT_WITH_TABLE = `# Report novembre 2026
 
 | Esercizio | Serie | Ripetizioni |
 | --- | --- | --- |
 | Leg Press | 3 | 10-12 |
+
+Regole in [linee guida](https://example.com/linee-guida).
 `;
 
 describe("web", () => {
@@ -48,6 +50,11 @@ describe("web", () => {
         .getAllByRole("cell")
         .map((cell) => cell.textContent),
     ).toEqual(["Leg Press", "3", "10-12"]);
+    expect(
+      within(report)
+        .getByRole("link", { name: "linee guida" })
+        .getAttribute("href"),
+    ).toBe("https://example.com/linee-guida");
     expect(screen.queryByRole("region", { name: "Revisione" })).toBeNull();
     expect(months).toEqual(["2026-11"]);
   });
