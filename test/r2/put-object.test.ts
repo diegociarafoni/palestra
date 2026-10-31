@@ -109,22 +109,20 @@ describe("r2", () => {
     ]);
   });
 
-  it("r2: 403 raises AuthError", async () => {
-    server.use(
-      http.put(OBJECT_URL, () => new HttpResponse(null, { status: 403 })),
-    );
+  it.each([401, 403])("r2: %i raises AuthError", async (status) => {
+    server.use(http.put(OBJECT_URL, () => new HttpResponse(null, { status })));
     const error = await upload().catch((e: unknown) => e);
     expect(error).toBeInstanceOf(AuthError);
-    expect((error as Error).message).toBe("R2: accesso negato (HTTP 403)");
+    expect((error as Error).message).toBe(
+      `R2: accesso negato (HTTP ${status})`,
+    );
   });
 
-  it("r2: 503 raises TransientError", async () => {
-    server.use(
-      http.put(OBJECT_URL, () => new HttpResponse(null, { status: 503 })),
-    );
+  it.each([429, 503])("r2: %i raises TransientError", async (status) => {
+    server.use(http.put(OBJECT_URL, () => new HttpResponse(null, { status })));
     const error = await upload().catch((e: unknown) => e);
     expect(error).toBeInstanceOf(TransientError);
-    expect((error as Error).message).toBe("R2: HTTP 503");
+    expect((error as Error).message).toBe(`R2: HTTP ${status}`);
   });
 
   it("r2: network error raises TransientError", async () => {
