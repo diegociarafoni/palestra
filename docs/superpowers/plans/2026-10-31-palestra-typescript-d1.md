@@ -154,7 +154,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 - [x] **Step 3:** implementare migrazione, `d1-http.ts`, moduli `store`, `render-wrangler.mjs` (scrive `wrangler.toml` da `wrangler.template.toml` sostituendo `D1_DATABASE_ID` da env; il file generato è in `.gitignore`).
 - [x] **Step 4:** `npm test` → PASS; aggiornare `scheda/SCHEMA.md`.
 - [x] **Step 5: Commit** `feat(store): d1 access layer and schema`
-- [ ] **Step 6 (utente + Claude):** applicare le migrazioni al database reale; Claude inserisce via connettore i dati personali dal repository privato (`measures`, `profile` con chiavi `profilo`, `obiettivi`, `livello`, `obiettivo`, `protocollo_bia` (fascia oraria e condizioni della BIA), `settimana_tipo` nel formato `WeekTemplate` del Task 4b, con i giorni reali dell'utente), ciascuno con `audit`.
+- [x] **Step 6 (utente + Claude):** applicare le migrazioni al database reale; Claude inserisce via connettore i dati personali dal repository privato (`measures`, `profile` con chiavi `profilo`, `obiettivi`, `livello`, `obiettivo`, `protocollo_bia` (fascia oraria e condizioni della BIA), `settimana_tipo` nel formato `WeekTemplate` del Task 4b, con i giorni reali dell'utente), ciascuno con `audit`.
 
 ---
 
