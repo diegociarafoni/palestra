@@ -42,7 +42,7 @@ beforeEach(() => {
       `printf '%s %s\\n' "\${WRANGLER_WRITE_LOGS-unset}" "\${WRANGLER_SEND_METRICS-unset}" >> '${join(dir, "env.txt")}'`,
       'echo "$FAKE_ROW"',
       'echo "$FAKE_ROW" >&2',
-      'if [ -n "${FAKE_FAIL-}" ]; then case "$*" in *"$FAKE_FAIL"*) exit 3;; esac; fi',
+      `if [ -n "\${FAKE_FAIL-}" ]; then case "$*" in *"$FAKE_FAIL"*) exit 3;; esac; fi`,
       'prev=""',
       'for a in "$@"; do',
       '  if [ "$prev" = "--file" ]; then',
@@ -62,7 +62,7 @@ beforeEach(() => {
     join(fakeBin, "date"),
     [
       "#!/bin/sh",
-      'if [ "${TZ-}" = Europe/Rome ] && [ "$1" = +%F ]; then echo 2026-11-02; else echo sbagliato; fi',
+      `if [ "\${TZ-}" = Europe/Rome ] && [ "$1" = +%F ]; then echo 2026-11-02; else echo sbagliato; fi`,
       "",
     ].join("\n"),
     { mode: 0o755 },
