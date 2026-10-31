@@ -86,6 +86,21 @@ function toSeconds(value: Value | undefined): number | null {
     : Number(a) * 3600 + Number(b) * 60 + Number(c);
 }
 
+// Intestazioni attese (italiano, inglese, tedesco), nell'ordine: serie, ripetizioni
+// previste ed eseguite, kg previsti ed eseguiti; seguono due colonne di compliance.
+const REPS = /ripetizion|rep|wdh/i;
+const LOAD = /kg|peso|weight|gewicht/i;
+const TARGET = /previst|target|soll/i;
+const DONE = /eseguit|done|\bist\b/i;
+const HEADERS = [
+  [/seri/i],
+  [REPS, TARGET],
+  [REPS, DONE],
+  [LOAD, TARGET],
+  [LOAD, DONE],
+];
+const COLUMNS = 7;
+
 /** Serie di un esercizio di forza dalla pagina HTML di dettaglio. */
 export function parseStrengthDetail(html: string): StrengthSet[] {
   // Tabella con un'intestazione "Serie" / "Series" / "Serien".
@@ -95,25 +110,40 @@ export function parseStrengthDetail(html: string): StrengthSet[] {
   if (!table) {
     throw new ParseError("Mywellness: tabella delle serie assente");
   }
-  return table
+  // Colonne lette per posizione: numero e ordine delle intestazioni devono tornare.
+  const headers = table.querySelectorAll("th").map((th) => th.text);
+  if (
+    headers.length !== COLUMNS ||
+    !HEADERS.every((res, i) => res.every((re) => re.test(headers[i] ?? "")))
+  ) {
+    throw new ParseError(
+      "Mywellness: intestazioni della tabella serie inattese",
+    );
+  }
+  // Le righe d'intestazione non hanno <td>; ogni altra riga è una serie.
+  const rows = table
     .querySelectorAll("tr")
     .map((tr) => tr.querySelectorAll("td").map((td) => parseNumber(td.text)))
-    .filter((cells) => cells.length >= 7)
-    .map(([n, repsTarget, repsDone, loadTarget, loadDone]) => {
-      if (n == null || !Number.isInteger(n)) {
-        throw new ParseError("Mywellness: numero di serie non valido");
-      }
-      return {
-        n,
-        reps_target: repsTarget ?? null,
-        reps_done: repsDone ?? null,
-        load_target_kg: loadTarget ?? null,
-        load_done_kg: loadDone ?? null,
-      };
-    });
+    .filter((cells) => cells.length > 0);
+  if (rows.length === 0 || rows.some((cells) => cells.length !== COLUMNS)) {
+    throw new ParseError("Mywellness: righe della tabella serie inattese");
+  }
+  return rows.map(([n, repsTarget, repsDone, loadTarget, loadDone]) => {
+    if (n == null || !Number.isInteger(n)) {
+      throw new ParseError("Mywellness: numero di serie non valido");
+    }
+    return {
+      n,
+      reps_target: repsTarget ?? null,
+      reps_done: repsDone ?? null,
+      load_target_kg: loadTarget ?? null,
+      load_done_kg: loadDone ?? null,
+    };
+  });
 }
 
-function strengthSets(html: string | undefined, id: string): StrengthSet[] {
+// Nei messaggi l'esercizio si indica con l'ordine, mai con id Mywellness (log pubblici).
+function strengthSets(html: string | undefined, order: number): StrengthSet[] {
   // Esercizi senza pagina di dettaglio (es. registrati a mano): nessuna serie.
   if (html === undefined) return [];
   try {
@@ -121,19 +151,19 @@ function strengthSets(html: string | undefined, id: string): StrengthSet[] {
   } catch (error) {
     if (!(error instanceof ParseError)) throw error;
     throw new ParseError(
-      `Mywellness: dettaglio forza non interpretabile (attività ${id})`,
+      `Mywellness: dettaglio forza non interpretabile (esercizio ${order})`,
       { cause: error },
     );
   }
 }
 
 // Distanza in km dal riepilogo della serie temporale, se presente.
-function timeseriesKm(value: unknown, id: string): number | null {
+function timeseriesKm(value: unknown, order: number): number | null {
   if (value === undefined) return null;
   const parsed = CardioLogSchema.safeParse(value);
   if (!parsed.success) {
     throw new ParseError(
-      `Mywellness: serie temporale non conforme (attività ${id})`,
+      `Mywellness: serie temporale non conforme (esercizio ${order})`,
       { cause: parsed.error },
     );
   }
@@ -151,11 +181,12 @@ function toExercise(
   const prop = (name: string) =>
     data.data.find((p) => p.physicalProperty === name);
   const cardio = activity.isCardio;
+  const order = index + 1;
   const km = cardio
-    ? (toNumber(prop("HDistance")) ?? timeseriesKm(ctx.timeseries[id], id))
+    ? (toNumber(prop("HDistance")) ?? timeseriesKm(ctx.timeseries[id], order))
     : null;
   return {
-    order: index + 1,
+    order,
     name: activity.physicalActivityName,
     equipment: activity.equipmentName ?? null,
     kind: cardio ? "cardio" : "strength",
@@ -166,7 +197,7 @@ function toExercise(
       : {}),
     moves: toNumber(prop("Move")),
     compliance_pct: toNumber(prop("ExerciseCompliance")),
-    sets: cardio ? [] : strengthSets(ctx.strengthDetails[id], id),
+    sets: cardio ? [] : strengthSets(ctx.strengthDetails[id], order),
   };
 }
 
@@ -200,17 +231,23 @@ export function normalizeSession(raw: unknown, ctx: NormalizeContext): Session {
   const exercises = data.physicalActivities.map((a, i) =>
     toExercise(a, i, ctx),
   );
+  // Durata: fine − inizio se la fine è nota, altrimenti la somma degli esercizi.
+  const ended = data.endedOn ?? null;
+  const duration =
+    ended === null
+      ? sum(exercises, "duration_s")
+      : (Date.parse(ended) - Date.parse(data.startedOn)) / 1000;
   return {
     session_id: ctx.sessionId,
     source: "mywellness-api",
     started_at: data.startedOn,
-    ended_at: data.endedOn ?? null,
+    ended_at: ended,
     name: data.displayName ?? data.name,
     // Nessun campo noto indica il programma della Technogym App.
     program: null,
     moves: parseNumber(data.displayMoveDoneShort) ?? sum(exercises, "moves"),
     calories_kcal: sum(exercises, "calories_kcal"),
-    duration_s: sum(exercises, "duration_s"),
+    duration_s: duration,
     exercises,
   };
 }

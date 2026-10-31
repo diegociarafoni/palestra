@@ -26,8 +26,8 @@
               { "physicalProperty": "Move", "formattedValue": "110 MOVEs" },
               {
                 "physicalProperty": "HDistance",
-                "formattedValue": "3,20 km",
-                "rawValue": 3.2
+                "formattedValue": "3,21 km",
+                "rawValue": 3.214
               }
             ]
           }
