@@ -128,7 +128,8 @@ describe("store sessions", () => {
       expect(error).toBeInstanceOf(ParseError);
       expect((error as Error).cause).toEqual(cause);
       expect(inspect(error)).not.toContain("secret-content");
-      expect((error as Error).message).toContain("sessions");
+      // Tabelle svuotate in beforeEach: la riga inserita ha rowid 1.
+      expect((error as Error).message).toContain("sessions (rowid 1)");
       // Mai id o data della seduta nel messaggio: può finire nei log pubblici.
       for (const leaked of ["sess-bad", "2026-11-02", "secret-content"]) {
         expect((error as Error).message).not.toContain(leaked);

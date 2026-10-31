@@ -47,6 +47,7 @@ describe("store feedback", () => {
         class: "buona",
         joint_pain: false,
         planned_id: "2026-W45-1",
+        session_id: "sess-001",
       },
       ACTOR,
     );
@@ -59,7 +60,7 @@ describe("store feedback", () => {
         joint_pain: true,
         joint_where: "spalla",
         notes: "nota di prova",
-        session_id: "sess-001",
+        session_id: "sess-002",
       },
       ACTOR,
     );
@@ -67,7 +68,7 @@ describe("store feedback", () => {
     expect(first).toEqual({
       id: 1,
       planned_id: "2026-W45-1",
-      session_id: null,
+      session_id: "sess-001",
       date: "2026-11-03",
       class: "buona",
       joint_pain: false,
@@ -75,11 +76,11 @@ describe("store feedback", () => {
       notes: null,
       updated_at: "2026-11-03T20:00:00.000Z",
     });
-    // planned_id resta quello del primo salvataggio (COALESCE).
+    // Il nuovo session_id sostituisce il precedente; planned_id assente resta.
     const saved = {
       id: 1,
       planned_id: "2026-W45-1",
-      session_id: "sess-001",
+      session_id: "sess-002",
       date: "2026-11-03",
       class: "faticosa",
       joint_pain: true,
@@ -89,7 +90,7 @@ describe("store feedback", () => {
     };
     expect(second).toEqual(saved);
 
-    // Terzo salvataggio: il nuovo planned_id vince, session_id assente resta,
+    // Terzo salvataggio: il nuovo planned_id sostituisce il precedente, session_id assente resta,
     // joint_where e notes assenti vengono cancellati.
     vi.setSystemTime(new Date("2026-11-05T09:00:00Z"));
     const third = await upsertFeedback(
@@ -105,7 +106,7 @@ describe("store feedback", () => {
     const last = {
       id: 1,
       planned_id: "2026-W45-2",
-      session_id: "sess-001",
+      session_id: "sess-002",
       date: "2026-11-03",
       class: "normale",
       joint_pain: false,
@@ -314,7 +315,7 @@ describe("store error messages", () => {
       .run();
     const error = await listRecovery(env.DB).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ParseError);
-    expect((error as Error).message).toContain("recovery");
+    expect((error as Error).message).toContain("recovery (rowid 1)");
     expect((error as Error).message).not.toContain("W45");
   });
 });
