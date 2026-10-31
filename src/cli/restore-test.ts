@@ -1,9 +1,10 @@
 // Prova di ripristino del backup mensile (docs/dashboard.md, «Backup e ripristino»):
 // scarica palestra-AAAA-MM-GG.sql da R2, lo importa nel database nuovo palestra-restore-test,
-// confronta il numero di righe di ogni tabella con palestra (sola lettura) e cancella
-// palestra-restore-test. Uso: npm run restore-test -- [AAAA-MM-GG] (default: oggi a Roma).
+// confronta il numero di righe di ogni tabella con le INSERT del dump (palestra, in sola
+// lettura, è solo una colonna informativa) e cancella palestra-restore-test.
+// Uso: npm run restore-test -- [AAAA-MM-GG] (default: oggi a Roma).
 // Su stdout solo la tabella dei conteggi; mai righe del backup né output di wrangler.
-// Exit code: 0 conteggi identici · 1 conteggi diversi (la prova ha girato, esito negativo)
+// Exit code: 0 conteggi identici al dump · 1 conteggi diversi (la prova ha girato, esito negativo)
 // · 64 argomenti · 65 risposta di wrangler non interpretabile o nome di tabella non ammesso
 // · 69 backup vuoto, passo di wrangler non riuscito (anche CF_TOKEN_D1 rifiutato) o errore
 // di R2 · 75 errore transitorio di R2 · 78 variabili mancanti o chiavi R2 rifiutate.
@@ -33,6 +34,10 @@ const TABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 // Tabelle dell'utente: escluse quelle interne di SQLite (sqlite_*) e di D1 (_cf_*).
 const TABLES_SQL =
   "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\' ORDER BY name";
+// Una riga per INSERT nell'export di D1: `INSERT INTO "<tabella>" ("c1",…) VALUES(…);`, con gli
+// a capo delle stringhe scritti come char(10). Una riga che non inizia così non si conta.
+const INSERT_LINE = /^INSERT INTO "([^"]+)"[ (]/;
+const INTERNAL_TABLE = /^(sqlite_|_cf_)/;
 
 // Risposta di `wrangler d1 execute --json` per una sola istruzione.
 const D1Json = z
@@ -135,27 +140,48 @@ async function counts(
   return new Map(Object.entries(row));
 }
 
-/** Tabella del confronto per stdout; `differences` = tabelle con conteggi diversi. */
+/** Righe attese per tabella: le INSERT del dump, contate in memoria (tabelle interne escluse). */
+function dumpCounts(sql: string): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const line of sql.split("\n")) {
+    const name = INSERT_LINE.exec(line)?.[1];
+    if (name === undefined || INTERNAL_TABLE.test(name)) continue;
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * Tabella del confronto per stdout. L'esito dipende solo da dump e ripristino: `palestra`
+ * riceve righe nuove dopo il backup, quindi la sua colonna è informativa (#35).
+ */
 function report(
+  dump: Map<string, number>,
   restored: Map<string, number>,
   source: Map<string, number>,
 ): { lines: string[]; differences: number; total: number } {
-  const names = [...new Set([...restored.keys(), ...source.keys()])].sort();
-  const cell = (n: number | undefined) => String(n ?? "—").padStart(10);
+  const names = [
+    ...new Set([...dump.keys(), ...restored.keys(), ...source.keys()]),
+  ].sort();
+  const cell = (n: number | undefined) => String(n ?? "—").padStart(12);
   let differences = 0;
+  let total = 0;
   const lines = [
-    `${"tabella".padEnd(18)}${"ripristino".padStart(10)}${"palestra".padStart(10)}`,
+    `${"tabella".padEnd(18)}${"dump".padStart(12)}${"ripristino".padStart(12)}${"palestra".padStart(12)}`,
   ];
   for (const name of names) {
-    const a = restored.get(name);
-    const b = source.get(name);
-    const same = a !== undefined && a === b;
+    const r = restored.get(name);
+    // Una tabella ripristinata senza INSERT nel dump è vuota; una solo in palestra non si controlla.
+    const checked = dump.has(name) || restored.has(name);
+    const d = checked ? (dump.get(name) ?? 0) : undefined;
+    const same = !checked || r === d;
+    if (checked) total++;
     if (!same) differences++;
     lines.push(
-      `${name.padEnd(18)}${cell(a)}${cell(b)}${same ? "" : "  DIVERSO"}`,
+      `${name.padEnd(18)}${cell(d)}${cell(r)}${cell(source.get(name))}${same ? "" : "  DIVERSO"}`,
     );
   }
-  return { lines, differences, total: names.length };
+  return { lines, differences, total };
 }
 
 export async function main(
@@ -212,6 +238,7 @@ export async function main(
     return 69;
   }
   console.error(`Backup scaricato: ${key} (${body.length} byte)`);
+  const dump = dumpCounts(new TextDecoder().decode(body));
 
   const created = await wrangler([
     "d1",
@@ -257,14 +284,14 @@ export async function main(
     const sourceTables = await tables(wrangler, SOURCE);
     const restored = await counts(wrangler, TARGET, restoredTables);
     const source = await counts(wrangler, SOURCE, sourceTables);
-    const { lines, differences, total } = report(restored, source);
+    const { lines, differences, total } = report(dump, restored, source);
     for (const line of lines) console.log(line);
     if (differences === 0) {
-      console.log(`Esito: conteggi identici in ${total} tabelle.`);
+      console.log(`Esito: conteggi identici al dump in ${total} tabelle.`);
       exitCode = 0;
     } else {
       console.log(
-        `Esito: conteggi diversi in ${differences} tabelle su ${total}.`,
+        `Esito: conteggi diversi dal dump in ${differences} tabelle su ${total}.`,
       );
       exitCode = 1;
     }

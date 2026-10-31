@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import {
@@ -20,8 +20,11 @@ const ENV = {
   R2_ACCESS_KEY_ID: "k",
   R2_SECRET_ACCESS_KEY: "s",
 };
-// Riga finta del backup: non deve mai comparire nell'output.
-const SQL = "INSERT INTO measures VALUES('dato-personale');\n";
+// Backup finto nel formato dell'export di D1: «dato-personale» non deve mai comparire nell'output.
+const SQL = readFileSync(
+  join(import.meta.dirname, "..", "fixtures", "d1-export-sintetico.sql"),
+  "utf8",
+);
 const TABLES_SQL =
   "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\' ORDER BY name";
 // Una SELECT non composta: D1 rifiuta le SELECT composte con più di 5 termini (#36).
@@ -42,7 +45,7 @@ const ALL_TABLES = [
   "sessions",
   "timeseries",
 ];
-const HEADER = "tabella           ripristino  palestra";
+const HEADER = "tabella                   dump  ripristino    palestra";
 
 type Db = "palestra-restore-test" | "palestra";
 type Script = {
@@ -66,8 +69,8 @@ function fakes(
       palestra: ["audit", "feedback", "sessions"],
     },
     counts: {
-      "palestra-restore-test": { audit: 3, feedback: 0, sessions: 12 },
-      palestra: { audit: 3, feedback: 0, sessions: 12 },
+      "palestra-restore-test": { audit: 3, feedback: 0, sessions: 2 },
+      palestra: { audit: 3, feedback: 0, sessions: 2 },
     },
     codes: {},
     ...overrides,
@@ -175,7 +178,7 @@ const query = (db: Db, sql: string) => [
 ];
 
 describe("restore-test", () => {
-  it("restore-test: imports, compares the counts and deletes palestra-restore-test", async () => {
+  it("restore-test: imports, compares the counts with the dump and deletes palestra-restore-test", async () => {
     const io = output();
     const f = fakes();
     const code = await main(["2026-10-31"], ENV, f.deps);
@@ -206,43 +209,64 @@ describe("restore-test", () => {
     expect(io.stdout()).toBe(
       [
         HEADER,
-        "audit                      3         3",
-        "feedback                   0         0",
-        "sessions                  12        12",
-        "Esito: conteggi identici in 3 tabelle.",
+        // Dal dump: 3 INSERT in audit (non contano l'INSERT dentro una stringa né quello del
+        // trigger), nessuna in feedback, 2 in sessions; sqlite_sequence escluso come nel ripristino.
+        "audit                        3           3           3",
+        "feedback                     0           0           0",
+        "sessions                     2           2           2",
+        "Esito: conteggi identici al dump in 3 tabelle.",
       ].join("\n"),
     );
     expect(io.stderr()).toContain("palestra-restore-test cancellato");
     expect(`${io.stdout()}${io.stderr()}`).not.toContain("dato-personale");
   });
 
-  it("restore-test: different counts exit 1 and still delete", async () => {
+  it("restore-test: rows written to palestra after the backup only inform", async () => {
     const io = output();
     const f = fakes({
       counts: {
-        "palestra-restore-test": { audit: 3, feedback: 0, sessions: 12 },
-        palestra: { audit: 3, feedback: 0, sessions: 13 },
+        "palestra-restore-test": { audit: 3, feedback: 0, sessions: 2 },
+        palestra: { audit: 3, feedback: 0, sessions: 5 },
+      },
+    });
+    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(0);
+    expect(io.stdout()).toContain(
+      "sessions                     2           2           5\n",
+    );
+    expect(io.stdout()).toContain(
+      "Esito: conteggi identici al dump in 3 tabelle.",
+    );
+  });
+
+  it("restore-test: a restore different from the dump exits 1 and still deletes", async () => {
+    const io = output();
+    const f = fakes({
+      counts: {
+        "palestra-restore-test": { audit: 3, feedback: 0, sessions: 1 },
+        palestra: { audit: 3, feedback: 0, sessions: 2 },
       },
     });
     expect(await main(["2026-10-31"], ENV, f.deps)).toBe(1);
     expect(io.stdout()).toContain(
-      "sessions                  12        13  DIVERSO",
+      "sessions                     2           1           2  DIVERSO",
     );
-    expect(io.stdout()).toContain("Esito: conteggi diversi in 1 tabelle su 3.");
+    expect(io.stdout()).toContain(
+      "Esito: conteggi diversi dal dump in 1 tabelle su 3.",
+    );
     expect(f.calls.at(-1)).toEqual(del);
   });
 
-  it("restore-test: a table missing from the restore is a difference", async () => {
+  it("restore-test: a table of the dump missing from the restore is a difference", async () => {
     const io = output();
     const f = fakes({
       tables: {
-        "palestra-restore-test": ["audit", "sessions"],
+        "palestra-restore-test": ["audit", "feedback"],
         palestra: ["audit", "feedback", "sessions"],
       },
     });
     expect(await main(["2026-10-31"], ENV, f.deps)).toBe(1);
     expect(io.stdout()).toContain(
-      "feedback                   —         0  DIVERSO",
+      "sessions                     2           —           2  DIVERSO",
     );
     expect(f.calls.at(-1)).toEqual(del);
   });
@@ -352,9 +376,9 @@ describe("restore-test", () => {
     const f = fakes({
       counts: {
         "palestra-restore-test": json([
-          { audit: "3", feedback: 0, sessions: 12 },
+          { audit: "3", feedback: 0, sessions: 2 },
         ]),
-        palestra: { audit: 3, feedback: 0, sessions: 12 },
+        palestra: { audit: 3, feedback: 0, sessions: 2 },
       },
     });
     expect(await main(["2026-10-31"], ENV, f.deps)).toBe(65);
@@ -368,16 +392,30 @@ describe("restore-test", () => {
   it("restore-test: counts all twelve real tables without a compound select", async () => {
     const io = output();
     const counts = Object.fromEntries(ALL_TABLES.map((t, i) => [t, i]));
-    const f = fakes({
-      tables: { "palestra-restore-test": ALL_TABLES, palestra: ALL_TABLES },
-      counts: { "palestra-restore-test": counts, palestra: counts },
-    });
+    // Dump con i righe nella tabella i, come i conteggi finti.
+    const dump = ALL_TABLES.flatMap((t, i) =>
+      Array.from(
+        { length: i },
+        (_, k) => `INSERT INTO "${t}" ("id") VALUES(${k});`,
+      ),
+    ).join("\n");
+    const f = fakes(
+      {
+        tables: { "palestra-restore-test": ALL_TABLES, palestra: ALL_TABLES },
+        counts: { "palestra-restore-test": counts, palestra: counts },
+      },
+      async () => new TextEncoder().encode(dump),
+    );
     expect(await main(["2026-10-31"], ENV, f.deps)).toBe(0);
     const countQueries = f.calls.slice(4, 6).map((c) => c.at(-1) ?? "");
     expect(countQueries).toHaveLength(2);
     for (const sql of countQueries) expect(sql).not.toContain("UNION");
-    expect(io.stdout()).toContain("timeseries                11        11");
-    expect(io.stdout()).toContain("Esito: conteggi identici in 12 tabelle.");
+    expect(io.stdout()).toContain(
+      "timeseries                  11          11          11",
+    );
+    expect(io.stdout()).toContain(
+      "Esito: conteggi identici al dump in 12 tabelle.",
+    );
   });
 
   it("restore-test: a count row without one of the tables exits 65", async () => {
@@ -385,7 +423,7 @@ describe("restore-test", () => {
     const f = fakes({
       counts: {
         "palestra-restore-test": json([{ audit: 3, feedback: 0 }]),
-        palestra: { audit: 3, feedback: 0, sessions: 12 },
+        palestra: { audit: 3, feedback: 0, sessions: 2 },
       },
     });
     expect(await main(["2026-10-31"], ENV, f.deps)).toBe(65);
