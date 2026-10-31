@@ -10,7 +10,6 @@ describe("api pages adapter", () => {
       functionPath: "/api/measures",
       waitUntil: () => {},
       passThroughOnException: () => {},
-      props: {},
       next: async () => new Response(null, { status: 500 }),
       env: {
         ...TEST_ENV,
