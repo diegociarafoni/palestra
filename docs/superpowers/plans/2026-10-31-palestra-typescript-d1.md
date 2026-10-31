@@ -6,7 +6,7 @@
 
 **Architecture:** Un solo progetto TypeScript. I job notturni (GitHub Actions, Node 22) eseguono `sync` e `report` e scrivono in D1 tramite l'API HTTP; le Pages Functions espongono un'API sottile sullo stesso D1 tramite binding, verificando il JWT di Access a ogni richiesta; il frontend è una SPA React + Material UI compilata con Vite e l'API usa Hono. Tutto l'accesso ai dati passa dal modulo `src/store/`, che usa un'interfaccia compatibile con il binding D1 e quindi gira identico in Actions, nelle Functions e nei test (D1 locale di Miniflare).
 
-**Tech Stack:** Node 22 LTS, TypeScript `strict`, npm, Biome, Vitest + `@cloudflare/vitest-pool-workers`, MSW, `node-html-parser`, `zod`, `jose`, `wrangler`, `tsx`; Hono; React 19 + Vite + Material UI 9 + MUI X Charts, TanStack Query, React Router, Testing Library.
+**Tech Stack:** Node 22 LTS, TypeScript `strict`, npm, Biome, Vitest + `@cloudflare/vitest-plugin`, MSW, `node-html-parser`, `zod`, `jose`, `wrangler`, `tsx`; Hono; React 19 + Vite + Material UI 9 + MUI X Charts, TanStack Query, React Router, Testing Library.
 
 **Stato:** approvato dall'utente il 2026-10-31 (GATE 2); metodo di esecuzione: subagent-driven.
 
@@ -19,7 +19,7 @@ Sostituisce `docs/superpowers/plans/2026-10-30-palestra-technogym.md` (piano Pyt
 ## Global Constraints
 
 - Node 22 LTS; TypeScript con `strict: true` e `noUncheckedIndexedAccess: true`; nessun `any` esplicito (Biome `noExplicitAny`).
-- Dipendenze ammesse (pre-approvate dal GATE 1): runtime `node-html-parser`, `zod`, `jose`, `hono`, `react`, `react-dom`, `@mui/material`, `@emotion/react`, `@emotion/styled`, `@mui/icons-material`, `@mui/x-charts`, `@tanstack/react-query`, `react-router`, `react-markdown`, `remark-gfm`; sviluppo `typescript`, `@biomejs/biome`, `vitest`, `@cloudflare/vitest-pool-workers`, `@cloudflare/workers-types`, `msw`, `wrangler`, `tsx`, `vite`, `@vitejs/plugin-react`, `@rolldown/plugin-babel`, `babel-plugin-react-compiler`, `@testing-library/react`, `@testing-library/user-event`, `jsdom`. Qualunque altra: chiedere prima.
+- Dipendenze ammesse (pre-approvate dal GATE 1): runtime `node-html-parser`, `zod`, `jose`, `hono`, `react`, `react-dom`, `@mui/material`, `@emotion/react`, `@emotion/styled`, `@mui/icons-material`, `@mui/x-charts`, `@tanstack/react-query`, `react-router`, `react-markdown`, `remark-gfm`; sviluppo `typescript`, `@biomejs/biome`, `vitest`, `@cloudflare/vitest-plugin` (successore di `@cloudflare/vitest-pool-workers`, approvato dall'utente il 2026-10-31), `@cloudflare/workers-types`, `msw`, `wrangler`, `tsx`, `vite`, `@vitejs/plugin-react`, `@rolldown/plugin-babel`, `babel-plugin-react-compiler`, `@testing-library/react`, `@testing-library/user-event`, `jsdom`. Qualunque altra: chiedere prima.
 - Frontend: regole di `docs/buone-pratiche-react.md` e `docs/buone-pratiche-mui.md`, con le pagine ufficiali in `docs/riferimenti/` (lette prima di scrivere componenti).
 - `package-lock.json` committato; in CI `npm ci`. Comandi: `npm test`, `npm run lint`, `npm run typecheck`, `npm run sync`, `npm run report -- --month AAAA-MM`, `npm run backup`.
 - Credenziali e identificativi solo da variabili d'ambiente (`MYWELLNESS_EMAIL`, `MYWELLNESS_PASSWORD`, `CLOUDFLARE_ACCOUNT_ID`, `D1_DATABASE_ID`, `CF_TOKEN_D1`, `CF_TOKEN_PAGES`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `PII_PATTERNS`) e, nelle Functions, da variabili/secret di Pages (`ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `ALLOWED_EMAIL`); mai in file, commit, log o messaggi.
@@ -123,6 +123,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 ### Task 1b: Accesso a D1 e modulo `store`
 
 > Nota (2026-10-31): `@cloudflare/vitest-pool-workers` richiede `vitest` ^4.1, mentre il Task 1 ha installato vitest 5: installare la versione 4 compatibile (`npm install -D vitest@^4.1`) e registrarlo come `Ruling:` nella PR.
+> Aggiornamento (2026-10-31, decisione dell'utente): `@cloudflare/vitest-pool-workers` è deprecato (rinominato `@cloudflare/vitest-plugin` il 2026-08-19); si usa `@cloudflare/vitest-plugin` 1.x, che supporta Vitest 5, e Vitest resta alla 5. Vedi [`kb/decisioni/2026-10-31-vitest-plugin-al-posto-di-pool-workers.md`](../../../kb/decisioni/2026-10-31-vitest-plugin-al-posto-di-pool-workers.md).
 
 **Accettazione:** `npm test` verde con i test di questo task; `npx wrangler d1 migrations apply palestra --remote` (con `wrangler.toml` generato da `scripts/render-wrangler.mjs`) applica le migrazioni al database reale; i dati personali del repository privato (misure, profilo, obiettivi, modello settimanale) inseriti in D1 da Claude tramite connettore, ciascuno con riga `audit`.
 

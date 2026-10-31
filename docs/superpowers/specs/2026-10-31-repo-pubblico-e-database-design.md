@@ -88,7 +88,7 @@ Technogym App ─► Mywellness ─► Actions (pubblico, notturno) ─► D1 �
 | Linguaggio | TypeScript `strict`, `noUncheckedIndexedAccess` | type hint + mypy strict |
 | Pacchetti | `npm` con `package-lock.json` committato, `npm ci` in CI | `uv`, `uv.lock` |
 | Lint e formattazione | Biome (un solo strumento) | ruff |
-| Test | Vitest; `@cloudflare/vitest-pool-workers` per Functions e D1 locale; MSW per le chiamate HTTP verso Mywellness e l'API D1 | pytest, respx |
+| Test | Vitest; `@cloudflare/vitest-plugin` (già `@cloudflare/vitest-pool-workers`, rinominato da Cloudflare; scelta dell'utente del 31/10) per Functions e D1 locale; MSW per le chiamate HTTP verso Mywellness e l'API D1 | pytest, respx |
 | HTML Mywellness | `node-html-parser` | selectolax |
 | Validazione input e risposte | `zod` | — |
 | API | `hono` su Pages Functions (routing, middleware Access, client tipizzato `hc`) | Functions scritte a mano |
