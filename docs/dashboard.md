@@ -22,7 +22,7 @@ Le sezioni sulla dashboard (Pages + Functions dietro Cloudflare Access) arrivano
 ### Ripristino
 
 - **Entro 30 giorni**: Time Travel di D1, senza backup: `npx wrangler d1 time-travel restore palestra --timestamp <RFC3339>`.
-- **Oltre i 30 giorni**: dal backup su R2. Il file contiene dati personali: si scarica **fuori dal repository** (`.gitignore` non copre `*.sql`) e si cancella appena finito.
+- **Oltre i 30 giorni**: dal backup su R2. Il file contiene dati personali: si scarica **fuori dal repository** e si cancella appena finito.
 
 Prova su un database separato:
 
