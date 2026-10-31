@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Prova di ripristino del backup mensile di D1 (docs/dashboard.md, «Backup e ripristino»).
+# Prova di ripristino del backup mensile di D1, alternativa in locale al workflow restore-test
+# (docs/dashboard.md, «Backup e ripristino»).
 #
 # Uso, dalla radice del repository, dopo `npm ci` e `npx wrangler login`:
 #   bash scripts/prova-ripristino.sh [AAAA-MM-GG]    (default: la data di oggi a Roma)
@@ -35,7 +36,7 @@ step() {
     echo "Fatto: $what" >&2
   else
     echo "Non riuscito: $what (wrangler exit $?)." \
-      "Vedere docs/dashboard.md, «Se un passo della prova fallisce»." >&2
+      "Vedere docs/dashboard.md, «Alternativa in locale»." >&2
     exit 69
   fi
 }

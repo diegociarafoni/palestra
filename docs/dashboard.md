@@ -40,17 +40,32 @@ rm -r "$dir"
 
 Prova di ripristino su un database separato, `palestra-restore-test`. Il contenuto del backup non passa mai da chat, log o repository: si confrontano solo i conteggi delle righe.
 
-1. **Utente**, in locale dalla radice del repository, dopo `npm ci` e `npx wrangler login` e dopo un run verde del workflow `backup`: `bash scripts/prova-ripristino.sh AAAA-MM-GG`, con la data nel nome del file caricato (senza data, quella di oggi a Roma). Lo script scarica il backup in una cartella temporanea, crea `palestra-restore-test` con giurisdizione EU, vi importa il file e cancella la cartella. Dell'output di wrangler mostra solo l'esito di ogni passo e non usa mai `palestra`. Se `palestra-restore-test` esiste già, la creazione fallisce: il database della prova precedente va cancellato prima, con la conferma dell'utente.
-2. **Claude**, con il connettore Cloudflare in sola lettura: la query di conteggio qui sotto su `palestra-restore-test` e su `palestra`, poi una tabella di confronto con i soli nomi delle tabelle e i numeri. Una differenza va spiegata con le scritture successive al backup: per le tabelle scritte a mano c'è una riga in `audit`; sync e report non scrivono `audit`, quindi per `sessions`, `timeseries`, `planned_sessions`, `metrics` e `reports` contano gli orari dei loro run.
-3. **Utente**: conferma esplicita della cancellazione. Poi Claude, con il connettore dopo aver ricontrollato nome e id, oppure l'utente: `npx wrangler d1 delete palestra-restore-test --skip-confirmation`.
-4. Una riga nel registro in fondo a questa sezione.
+#### Workflow `restore-test` (da GitHub, anche senza computer)
 
-Se un passo della prova fallisce, lo script mostra solo il passo e l'exit code di wrangler:
+1. **Utente**, dopo un run verde del workflow `backup`: Actions → restore-test → Run workflow, con la data nel nome del file caricato (campo vuoto: oggi, ora di Roma).
+2. Il job esegue `npm run restore-test` (`src/cli/restore-test.ts`):
+   - scarica il backup con le chiavi R2 del bucket, in una cartella temporanea cancellata subito dopo l'import;
+   - crea `palestra-restore-test` con giurisdizione EU e vi importa il file, con `CF_TOKEN_D1` (D1 Edit sull'account);
+   - legge l'elenco delle tabelle (escluse `sqlite_*` e `_cf_*`) e il numero di righe di ciascuna, in `palestra-restore-test` e in `palestra`, con sole `SELECT`;
+   - stampa la tabella del confronto e cancella `palestra-restore-test` anche quando un passo fallisce. La cancellazione automatica a fine prova è una scelta dell'utente (31/10).
+3. Exit code: 0 conteggi identici · 64 data non valida · 65 conteggi diversi (righe `DIVERSO`) · 69 backup vuoto, passo di wrangler non riuscito, risposta inattesa o errore di R2 · 75 errore transitorio di R2 · 78 segreti mancanti o rifiutati. L'output di wrangler non si vede mai: per leggere l'errore di un passo si usa l'alternativa in locale.
+4. Una differenza va spiegata con le scritture successive al backup: per le tabelle scritte a mano c'è una riga in `audit`; sync e report non scrivono `audit`, quindi per `sessions`, `timeseries`, `planned_sessions`, `metrics` e `reports` contano gli orari dei loro run.
+5. Una riga nel registro in fondo a questa sezione, con i soli conteggi.
+
+Un job interrotto (timeout, annullamento) può lasciare `palestra-restore-test`, e il run successivo fallisce alla creazione: va cancellato dal dashboard Cloudflare oppure da Claude con il connettore, dopo aver ricontrollato nome e id.
+
+#### Alternativa in locale (`scripts/prova-ripristino.sh`)
+
+1. **Utente**, dalla radice del repository, dopo `npm ci` e `npx wrangler login`: `bash scripts/prova-ripristino.sh AAAA-MM-GG` (senza data, quella di oggi a Roma). Lo script scarica il backup in una cartella temporanea, crea `palestra-restore-test` con giurisdizione EU, vi importa il file e cancella la cartella. Dell'output di wrangler mostra solo l'esito di ogni passo e non usa mai `palestra`.
+2. **Claude**, con il connettore Cloudflare in sola lettura: la query di conteggio qui sotto su `palestra-restore-test` e su `palestra`, poi una tabella di confronto con i soli nomi delle tabelle e i numeri.
+3. **Utente**: conferma esplicita della cancellazione. Poi Claude, con il connettore dopo aver ricontrollato nome e id, oppure l'utente: `npx --no -- wrangler d1 delete palestra-restore-test --skip-confirmation`.
+
+Se un passo dello script fallisce, si vedono solo il passo e l'exit code di wrangler:
 
 - **download o creazione**: l'utente rilancia a mano il comando del passo, per esempio `npx --no -- wrangler d1 create palestra-restore-test --jurisdiction eu`, e legge l'errore: il loro output non contiene righe del backup. Cause tipiche: nessun file con quella data nel bucket, login di wrangler scaduto (`npx wrangler login`), più account (`CLOUDFLARE_ACCOUNT_ID` nella shell), `palestra-restore-test` rimasto da una prova precedente;
-- **import**: `palestra-restore-test` resta, vuoto o parziale. Va cancellato con la conferma dell'utente; poi l'utente ripete a mano i tre passi (`mktemp -d`, `r2 object get`, `d1 create`, `d1 execute … --file … --yes`, `rm -r`) per leggere l'errore. Quell'output può contenere righe del backup: resta nel terminale locale e in chat si riporta solo il tipo di errore.
+- **import**: `palestra-restore-test` resta, vuoto o parziale. Va cancellato con la conferma dell'utente; poi l'utente ripete a mano i passi (`mktemp -d`, `r2 object get`, `d1 create`, `d1 execute … --file … --yes`, `rm -r`) per leggere l'errore. Quell'output può contenere righe del backup: resta nel terminale locale e in chat si riporta solo il tipo di errore.
 
-Query di conteggio, un'unica istruzione valida sia per il connettore sia per `npx wrangler d1 execute <database> --remote --command "…"`. L'elenco delle tabelle va ricontrollato con `SELECT name FROM sqlite_schema WHERE type = 'table'` quando lo schema cambia; `_cf_KV` e `sqlite_sequence` sono interne.
+Query di conteggio per l'alternativa in locale, un'unica istruzione valida sia per il connettore sia per `npx --no -- wrangler d1 execute <database> --remote --command "…"`. L'elenco delle tabelle va ricontrollato con `SELECT name FROM sqlite_schema WHERE type = 'table'` quando lo schema cambia (il workflow lo legge da solo); `_cf_KV` e `sqlite_sequence` sono interne.
 
 ```sql
 SELECT 'audit' AS t, count(*) AS n FROM audit
@@ -70,7 +85,7 @@ UNION ALL SELECT 'timeseries', count(*) FROM timeseries
 L'export contiene le istruzioni `CREATE TABLE` senza `IF NOT EXISTS`: si applica solo a un database vuoto, non al `palestra` reale che ha già le tabelle. Un ripristino reale si pianifica con l'utente quando serve e si fa solo con la sua conferma esplicita:
 
 - entro 30 giorni la prima scelta resta Time Travel;
-- (a) un nuovo database creato dal backup come nella prova sopra, con un nome nuovo e senza cancellarlo; poi `D1_DATABASE_ID`, il binding D1 di Pages, il nome del database usato da `src/cli/backup.ts` e il Progetto Claude (connettore Cloudflare e istruzioni del Progetto, che nominano il database `palestra`) puntano al nuovo database. L'elenco va ricontrollato con l'utente quando si pianifica il ripristino;
+- (a) un nuovo database creato dal backup come nell'alternativa in locale, con un nome nuovo e senza cancellarlo; poi `D1_DATABASE_ID`, il binding D1 di Pages, il nome del database usato da `src/cli/backup.ts` e il Progetto Claude (connettore Cloudflare e istruzioni del Progetto, che nominano il database `palestra`) puntano al nuovo database. L'elenco va ricontrollato con l'utente quando si pianifica il ripristino;
 - (b) svuotare `palestra` (`DROP` delle tabelle, solo con conferma esplicita dell'utente) e importarvi il backup.
 
 ### Registro delle prove di ripristino
