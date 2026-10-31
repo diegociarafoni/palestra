@@ -81,6 +81,27 @@ describe("r2 get", () => {
     expect((error as Error).message).toBe("R2: richiesta non riuscita (rete)");
   });
 
+  it("r2 get: a body cut off mid-download raises TransientError", async () => {
+    server.use(
+      http.get(
+        OBJECT_URL,
+        () =>
+          new HttpResponse(
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode(SQL));
+                controller.error(new Error("connessione chiusa"));
+              },
+            }),
+            { status: 200 },
+          ),
+      ),
+    );
+    const error = await download().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(TransientError);
+    expect((error as Error).message).toBe("R2: download interrotto (rete)");
+  });
+
   it("r2 get: 404 raises SyncError without the response body", async () => {
     server.use(
       http.get(OBJECT_URL, () =>
