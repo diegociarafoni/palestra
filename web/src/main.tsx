@@ -1,3 +1,5 @@
+// Per primo: configura zod prima che qualunque modulo costruisca uno schema.
+import "./zodConfig";
 import Container from "@mui/material/Container";
 import CssBaseline from "@mui/material/CssBaseline";
 import Skeleton from "@mui/material/Skeleton";
