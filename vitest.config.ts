@@ -11,11 +11,12 @@ export default defineConfig({
         test: {
           name: "node",
           include: ["test/**/*.test.ts"],
-          exclude: ["test/store/**"],
+          exclude: ["test/store/**", "test/api/**"],
         },
       },
       {
         // D1 locale di Miniflare con le migrazioni del repository; nessun wrangler.toml.
+        // Vale per test/store e test/api (le rotte del dashboard leggono lo stesso D1).
         plugins: [
           cloudflareTest(async () => ({
             miniflare: {
@@ -29,7 +30,7 @@ export default defineConfig({
         ],
         test: {
           name: "workers",
-          include: ["test/store/**/*.test.ts"],
+          include: ["test/store/**/*.test.ts", "test/api/**/*.test.ts"],
           setupFiles: ["test/store/setup.ts"],
         },
       },
