@@ -15,7 +15,7 @@ Ogni settimana ISO (da lunedì a domenica) il sistema crea uno **slot** per ogni
 | `programmata` | Slot creato, nessuna seduta abbinata |
 | `fatta` | Una seduta cade nella finestra dello slot |
 | `spostata` | Lo slot è stato recuperato nel fine settimana |
-| `da_confermare` | La finestra è finita senza seduta: il calendario chiede "Saltata?" |
+| `da_confermare` | Sono finiti, senza seduta, la finestra e anche il giorno scelto dall'utente se c'è: il calendario chiede "Saltata?" |
 | `saltata` | L'utente ha confermato, con motivo facoltativo (lavoro, stanchezza, fastidio, altro) |
 
 Uno slot è **non fatto** finché non diventa `fatta` o `spostata`: quindi `programmata`, `da_confermare` e `saltata`.
