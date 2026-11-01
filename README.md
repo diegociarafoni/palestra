@@ -15,7 +15,7 @@ Technogym App ─► Mywellness ─► Actions (notturno) ─► D1 ◄─► Da
 
 1. La scheda vive in D1 e viene inserita una volta al mese nella Technogym App, che in sala fa da guida (timer, spunta serie, tutorial, regolazioni macchina).
 2. Gli attrezzi connessi registrano le sedute; il workflow notturno le scarica in D1.
-3. Il 1° del mese il report riassume aderenza, progressione e volume; Claude, nel Progetto, propone la scheda successiva.
+3. Il 1° del mese il report riassume aderenza, progressione e volume, e l'8 lo rigenera con l'ultima settimana chiusa; Claude, nel Progetto, propone la scheda successiva.
 4. La dashboard (React + MUI su Cloudflare Pages, API Hono nelle Functions) legge D1 a ogni richiesta ed è raggiungibile solo dopo il login di Cloudflare Access; l'hostname viene da una variabile, mai dal codice.
 
 ## Documenti

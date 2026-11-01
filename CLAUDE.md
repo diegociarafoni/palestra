@@ -63,7 +63,7 @@ Scheda di allenamento dell'utente (Virgin Active Roma Via Mantova, attrezzi Tech
 
 Quando l'utente chiede la revisione del mese `AAAA-MM`:
 
-1. Leggere da D1 il report del mese (`reports`, tipo `report`, e `metrics`; se manca, le `sessions` del mese), la scheda attiva (`scheda`), `measures`, `recovery`, `feedback` e `profile`; poi le note KB degli esercizi in scheda e dei concetti usati (`kb/indice.md`).
+1. Leggere da D1 il report del mese (`reports`, tipo `report`, e `metrics`; se manca, le `sessions` del mese; se `reports.created_at` precede la sync del lunedì dopo la settimana che contiene l'ultimo giorno del mese (03:17 UTC), rigenerarlo con Actions → report; se quella sync non c'è ancora stata, l'aderenza dell'ultima settimana è provvisoria e va detto), la scheda attiva (`scheda`), `measures`, `recovery`, `feedback` e `profile`; poi le note KB degli esercizi in scheda e dei concetti usati (`kb/indice.md`).
 2. Valutare gli indicatori di `docs/linee-guida-allenamento.md` § 5: aderenza sugli slot programmati, progressione per esercizio, volume per gruppo muscolare, misure, MOVEs, feedback.
 3. Applicare le regole § 3 e § 6 per decidere carichi, ripetizioni ed eventuali sostituzioni; motivare ogni cambiamento in una riga.
 4. Scrivere in D1, ciascuna con riga `audit`: la revisione (`reports`, tipo `revisione`: sintesi in 10 righe + decisioni) e la nuova scheda (`scheda`: `version` = mese successivo, `valid_from`/`valid_to`, `start_load_kg` con gli ultimi carichi noti, `json` e `md` allineati a `scheda/SCHEMA.md`).
