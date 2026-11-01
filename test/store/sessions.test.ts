@@ -216,6 +216,30 @@ describe("store sessions", () => {
     ]);
   });
 
+  it("store: session summaries of the same day in instant order", async () => {
+    // Tre sedute del 4/11 a Roma: 17:00Z, 17:30Z, 18:00Z. Il testo ISO ordina 17:30Z per
+    // prima; inserimento e session_id (crescente e decrescente) danno altri ordini.
+    for (const s of [
+      session("sess-019", "2026-11-04T19:00:00+01:00", 403),
+      session("sess-017", "2026-11-04T17:30:00Z", 402),
+      session("sess-018", "2026-11-04T18:00:00+01:00", 401),
+    ]) {
+      await upsertSession(env.DB, s, {});
+    }
+    const expected = [
+      { date: "2026-11-04", name: "Seduta libera", moves: 401 },
+      { date: "2026-11-04", name: "Seduta libera", moves: 402 },
+      { date: "2026-11-04", name: "Seduta libera", moves: 403 },
+    ];
+    expect(
+      await listSessionSummaries(env.DB, "2026-11-02", "2026-11-08"),
+    ).toEqual(expected);
+    // Nessuno slot: tutte non abbinate, stesso ordine.
+    expect(await listUnmatchedSessionSummaries(env.DB, "2026-11")).toEqual(
+      expected,
+    );
+  });
+
   it.each([
     // Il SyntaxError di V8 cita il testo ("secret-content" is not valid JSON): niente cause.
     { label: "broken JSON", json: "secret-content", cause: undefined },
