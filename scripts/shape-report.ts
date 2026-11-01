@@ -147,13 +147,14 @@ const KEY = /^[A-Za-z_$][A-Za-z0-9_$]{0,63}$/;
 
 /**
  * Un nome (chiave, tag, attributo, valore di `class`…) si stampa com'è solo se ha la forma
- * attesa, nessuna sequenza di 3 o più cifre e nessuna parte che sia parola di un'identità.
+ * attesa, meno di 3 cifre in tutto e nessuna parte che sia parola di un'identità. Le cifre
+ * si contano in tutto, non solo di fila: un id esadecimale può non averne 3 consecutive.
  * Le parti sono le sequenze di lettere, spezzate anche tra minuscola e maiuscola: in
  * `marioRossi` il controllo finale, che cerca le parole tra confini di lettera, non vedrebbe
  * il nome.
  */
 function isPlainName(name: string, shape: RegExp, ctx: ShapeContext): boolean {
-  if (!shape.test(name) || /\d{3}/.test(name)) return false;
+  if (!shape.test(name) || (name.match(/\d/g)?.length ?? 0) >= 3) return false;
   return !name
     .split(/[^\p{L}]+|(?<=\p{Ll})(?=\p{Lu})/u)
     .some((part) => ctx.identityWords.has(fold(part)));

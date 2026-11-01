@@ -210,6 +210,8 @@ describe("shape", () => {
         "2026-10-31": "riposo",
         "123456": "x",
         u123456: "x",
+        // Un id esadecimale può non avere 3 cifre di fila: contano le cifre in tutto.
+        ab1c2d3e4f: "x",
         Rossi: 1,
         marioRossi: 2,
         "user name": 3,
@@ -225,6 +227,7 @@ describe("shape", () => {
       "  hr2: numero 999",
       '«9999-99-99»: "a"',
       '«a999999»: "a"',
+      '«a9a9a9a9a»: "a"',
       "«A»: numero 9",
       "«a»: numero 9",
       "«a a»: numero 9",

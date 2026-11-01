@@ -16,7 +16,7 @@ Il Task 0 prevedeva fixture reali: `scripts/anonymize-fixtures.ts` sostituiva ne
 ## Decisione e motivazione
 - Nessuna risposta reale entra nel repository: i corpi grezzi restano in `probe_out/` sul computer dell'utente e si cancellano dopo l'uso.
 - `scripts/shape-report.ts` scrive il rapporto della forma `docs/mywellness-forma.md`: i nomi di campi, tag e attributi e il formato di ogni valore, con ogni lettera resa `a`/`A` e ogni cifra resa `9`. Il metodo si rovescia: invece di cercare che cosa togliere, lo script tiene solo ciò che sa essere forma, e il resto è mascherato per costruzione. Il rapporto si legge a colpo d'occhio prima del commit.
-- In chiaro restano solo i nomi che ne hanno l'aspetto (senza sequenze di 3 o più cifre né parole delle identità) e le parole di un vocabolario fisso, `VOCAB`: unità, parole della tabella delle serie e dell'interfaccia, tipi di esercizio. Il vocabolario non ha nomi di mesi o di giorni, né parole di una lettera, che sarebbero iniziali.
+- In chiaro restano solo i nomi che ne hanno l'aspetto (con meno di 3 cifre e senza parole delle identità) e le parole di un vocabolario fisso, `VOCAB`: unità, parole della tabella delle serie e dell'interfaccia, tipi di esercizio. Il vocabolario non ha nomi di mesi o di giorni, né parole di una lettera, che sarebbero iniziali.
 - Prima di scrivere, un controllo finale cerca nel rapporto le identità di `identities.json`, i numeri non mascherati e i nomi di mesi e giorni. Se trova qualcosa non scrive nulla (fail closed) e stampa solo `file:riga:tipo`. Con le maschere corrette non trova mai nulla: è la rete per un difetto dello script.
 - Le fixture di `test/fixtures/mywellness/` restano sintetiche: dopo il probe Claude le adegua al rapporto (Task 0, Step 5).
 
