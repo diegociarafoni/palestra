@@ -67,6 +67,12 @@ const yTicks = (chart: HTMLElement) =>
     .map((text) => text.textContent ?? "")
     .filter((text) => /^\d+(,\d+)?$/.test(text));
 
+// Etichette delle tacche dell'asse del tempo: i testi SVG del grafico come "3 nov".
+const xTicks = (chart: HTMLElement) =>
+  [...chart.querySelectorAll("svg text")]
+    .map((text) => text.textContent ?? "")
+    .filter((text) => /^\d+ [a-z]+$/.test(text));
+
 // Celle di una riga del corpo: l'intestazione (il nome dell'esercizio), poi i valori.
 const rowCells = (row: HTMLElement) => [
   within(row).getByRole("rowheader"),
@@ -425,13 +431,20 @@ describe("web", () => {
     await waitFor(() =>
       expect(within(legPress).getByText("3 nov")).toBeTruthy(),
     );
-    expect(within(legPress).getByText("10 nov")).toBeTruthy();
+    expect(xTicks(legPress)).toEqual([
+      "3 nov",
+      "5 nov",
+      "7 nov",
+      "9 nov",
+      "11 nov",
+    ]);
     expect(within(legPress).queryByText(/2026/)).toBeNull();
   });
 
   it("web: esercizi charts share the time axis", async () => {
     // Stesso asse del tempo per tutti i grafici, dalla prima all'ultima seduta del mese (3 e 10
-    // novembre): la sola seduta di Lat Machine (5 novembre) cade nello stesso punto dell'asse.
+    // novembre) con un giorno di margine: la sola seduta di Lat Machine (5 novembre) ha le
+    // stesse tacche di Leg Press, non un asse suo attorno al 5.
     phoneWidth();
     server.use(http.get("/api/exercises", () => HttpResponse.json(EXERCISES)));
     renderConTema(<Esercizi />);
@@ -442,7 +455,15 @@ describe("web", () => {
     await waitFor(() =>
       expect(within(latMachine).getByText("3 nov")).toBeTruthy(),
     );
-    expect(within(latMachine).getByText("10 nov")).toBeTruthy();
+    const legPress = screen.getByRole("region", { name: "Leg Press" });
+    expect(xTicks(latMachine)).toEqual([
+      "3 nov",
+      "5 nov",
+      "7 nov",
+      "9 nov",
+      "11 nov",
+    ]);
+    expect(xTicks(latMachine)).toEqual(xTicks(legPress));
   });
 
   it("web: esercizi chart with a single date", async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   chartDate,
+  dayAxisBounds,
   formatChartDate,
   formatDayAxis,
 } from "../../web/src/utils/date";
@@ -28,5 +29,22 @@ describe("web", () => {
     expect(formatDayAxis(chartDate("2026-03-29"), { location: "tick" })).toBe(
       "29 mar",
     );
+  });
+
+  it("web: day axis keeps a day before and after the points", () => {
+    // Un giorno di margine per lato: il primo e l'ultimo punto non stanno sulle linee degli
+    // assi, e una data sola ha comunque un asse con le sue tacche.
+    const iso = ({ min, max }: { min: Date; max: Date }) => [
+      min.toISOString(),
+      max.toISOString(),
+    ];
+    expect(iso(dayAxisBounds("2026-11-03", "2026-11-10"))).toEqual([
+      "2026-11-02T00:00:00.000Z",
+      "2026-11-11T00:00:00.000Z",
+    ]);
+    expect(iso(dayAxisBounds("2026-11-03", "2026-11-03"))).toEqual([
+      "2026-11-02T00:00:00.000Z",
+      "2026-11-04T00:00:00.000Z",
+    ]);
   });
 });
