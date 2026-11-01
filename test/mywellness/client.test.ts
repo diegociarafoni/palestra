@@ -363,7 +363,103 @@ describe("client", () => {
 
     expect(error).toBeInstanceOf(SyncError);
     expect(error).not.toBeInstanceOf(UpstreamError);
-    expect((error as Error).message).toBe("Mywellness: redirect non ammesso");
+    // Passo, status e solo l'origine della destinazione, mai il percorso.
+    expect((error as Error).message).toBe(
+      "Mywellness: redirect non ammesso (passo login, HTTP 307, verso https://altro-dominio.example)",
+    );
+    expect(exitCodeFor(error)).toBe(70);
+  });
+
+  it("client: refused redirect while listing names step, status and origin only", async () => {
+    useLogin();
+    server.use(
+      http.get(
+        `${SITE}/cloud/Training/LastPerformedWorkoutSession`,
+        () =>
+          new HttpResponse(null, {
+            status: 302,
+            headers: {
+              Location:
+                "https://login.example.com:8443/percorso/privato?sid=segreto-1&ReturnUrl=%2Fcloud",
+            },
+          }),
+      ),
+    );
+    const client = newClient({ today: () => "2026-11-20" });
+    await client.login();
+
+    const error = await client.listSessionIds().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(SyncError);
+    expect((error as Error).message).toBe(
+      "Mywellness: redirect non ammesso (passo elenco, HTTP 302, verso https://login.example.com:8443)",
+    );
+    expect((error as Error).cause).toBeUndefined();
+    for (const secret of [
+      "percorso",
+      "privato",
+      "sid",
+      "segreto-1",
+      "ReturnUrl",
+    ]) {
+      expect(inspect(error)).not.toContain(secret);
+    }
+  });
+
+  it("client: refused redirect on session detail does not reveal the token", async () => {
+    useLogin();
+    server.use(
+      http.get(
+        `${SERVICES}/Training/User/:userId/GetPerformedWorkoutSessionByIdCr`,
+        () =>
+          new HttpResponse(null, {
+            status: 301,
+            headers: {
+              Location:
+                "http://services.example.org/Training?token=synthetic-token-0001",
+            },
+          }),
+      ),
+    );
+    const client = newClient();
+    await client.login();
+
+    const error = await client.getSession("900000001").catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(SyncError);
+    expect((error as Error).message).toBe(
+      "Mywellness: redirect non ammesso (passo dettaglio, HTTP 301, verso http://services.example.org)",
+    );
+    expect(inspect(error)).not.toContain("synthetic-token-0001");
+  });
+
+  it("client: unparseable redirect location is refused without echoing it", async () => {
+    useLogin();
+    server.use(
+      http.get(
+        `${SITE}/cloud/Training/PerformedExerciseDetailById/`,
+        () =>
+          new HttpResponse(null, {
+            status: 302,
+            headers: { Location: "http://[segreto-2" },
+          }),
+      ),
+    );
+    const client = newClient();
+    await client.login();
+
+    const error = await client
+      .getStrengthDetailHtml(
+        "aaaaaaaa-0000-4000-8000-000000000001",
+        "2026-11-26",
+      )
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(SyncError);
+    expect((error as Error).message).toBe(
+      "Mywellness: redirect non ammesso (passo dettaglio, HTTP 302, destinazione non valida)",
+    );
+    expect(inspect(error)).not.toContain("segreto-2");
   });
 
   it("client: list after expired session raises AuthError", async () => {
