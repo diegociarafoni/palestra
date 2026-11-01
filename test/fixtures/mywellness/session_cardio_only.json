@@ -1,0 +1,70 @@
+{
+  "data": {
+    "startedOn": "2026-11-04 10:00:00 +01:00",
+    "displayName": "Seduta libera",
+    "name": "Free session",
+    "displayMoveDoneShort": "870 MOVEs",
+    "physicalActivities": [
+      {
+        "isCardio": true,
+        "analyticsId": "00000000-0000-4000-a000-00000000a101",
+        "physicalActivityName": "Esercizio con obiettivo calorie",
+        "equipmentName": "Skillbike",
+        "displayDurationDoneShort": "14:42 Min",
+        "pictureUrl": "https://example.invalid/skillbike.png",
+        "performedPhysicalActivity": {
+          "id": "00000000-0000-4000-a000-000000000101",
+          "facilityId": "00000000-0000-4000-a000-0000000000f1",
+          "data": {
+            "data": [
+              {
+                "physicalProperty": "Duration",
+                "formattedValue": "14:42 Min",
+                "rawValue": 882
+              },
+              { "physicalProperty": "Calories", "formattedValue": "126 kcal" },
+              {
+                "physicalProperty": "Move",
+                "formattedValue": "260 MOVEs",
+                "rawValue": 260
+              },
+              { "physicalProperty": "HDistance", "formattedValue": "6,00 km" },
+              {
+                "physicalProperty": "ExerciseCompliance",
+                "formattedValue": "100 %",
+                "rawValue": 100
+              },
+              { "physicalProperty": "AvgRpm", "formattedValue": "82 rpm" },
+              { "physicalProperty": "AvgPower", "formattedValue": "135 W" }
+            ]
+          }
+        }
+      },
+      {
+        "isCardio": true,
+        "analyticsId": "00000000-0000-4000-a000-00000000a102",
+        "physicalActivityName": "Camminata in salita",
+        "equipmentName": "Run Artis",
+        "displayDurationDoneShort": "1:02:10",
+        "pictureUrl": "https://example.invalid/run-artis.png",
+        "performedPhysicalActivity": {
+          "id": "00000000-0000-4000-a000-000000000102",
+          "facilityId": "00000000-0000-4000-a000-0000000000f1",
+          "data": {
+            "data": [
+              { "physicalProperty": "Duration", "formattedValue": "1:02:10" },
+              {
+                "physicalProperty": "Calories",
+                "formattedValue": "310 kcal",
+                "rawValue": 310
+              },
+              { "physicalProperty": "Move", "formattedValue": "600 MOVEs" },
+              { "physicalProperty": "AvgHr", "formattedValue": "118 bpm" }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "errors": []
+}

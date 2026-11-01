@@ -1,0 +1,89 @@
+{
+  "data": {
+    "startedOn": "2026-11-06 18:05:30 +01:00",
+    "endedOn": "2026-11-06 18:40:12 +01:00",
+    "displayName": null,
+    "name": "Seduta libera",
+    "physicalActivities": [
+      {
+        "isCardio": true,
+        "analyticsId": "00000000-0000-4000-a000-00000000a201",
+        "physicalActivityName": "Esercizio libero",
+        "equipmentName": "Skillbike",
+        "displayDurationDoneShort": "08:00 Min",
+        "pictureUrl": "https://example.invalid/skillbike.png",
+        "performedPhysicalActivity": {
+          "id": "00000000-0000-4000-a000-000000000201",
+          "facilityId": "00000000-0000-4000-a000-0000000000f1",
+          "data": {
+            "data": [
+              { "physicalProperty": "Duration", "formattedValue": "08:00 Min" },
+              {
+                "physicalProperty": "Calories",
+                "formattedValue": "62 kcal",
+                "rawValue": 62
+              },
+              { "physicalProperty": "Move", "formattedValue": "110 MOVEs" },
+              {
+                "physicalProperty": "HDistance",
+                "formattedValue": "3,21 km",
+                "rawValue": 3.214
+              }
+            ]
+          }
+        }
+      },
+      {
+        "isCardio": false,
+        "physicalActivityName": "Leg Press",
+        "equipmentName": "Selection Leg Press",
+        "displayDurationDoneShort": "06:30 Min",
+        "pictureUrl": "https://example.invalid/leg-press.png",
+        "performedPhysicalActivity": {
+          "id": "00000000-0000-4000-a000-000000000202",
+          "facilityId": "00000000-0000-4000-a000-0000000000f1",
+          "data": {
+            "data": [
+              {
+                "physicalProperty": "Duration",
+                "formattedValue": "06:30 Min",
+                "rawValue": 390
+              },
+              { "physicalProperty": "Calories", "formattedValue": "45 kcal" },
+              {
+                "physicalProperty": "Move",
+                "formattedValue": "130 MOVEs",
+                "rawValue": 130
+              },
+              {
+                "physicalProperty": "ExecutionMode",
+                "formattedValue": "Isotonica"
+              },
+              {
+                "physicalProperty": "ExerciseCompliance",
+                "formattedValue": "95 %"
+              },
+              {
+                "physicalProperty": "TotalIsoWeight",
+                "formattedValue": "2130 kg"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "isCardio": false,
+        "physicalActivityName": "Chest Press",
+        "equipmentName": null,
+        "displayDurationDoneShort": "",
+        "pictureUrl": "https://example.invalid/chest-press.png",
+        "performedPhysicalActivity": {
+          "id": "00000000-0000-4000-a000-000000000203",
+          "facilityId": "00000000-0000-4000-a000-0000000000f1",
+          "data": { "data": [] }
+        }
+      }
+    ]
+  },
+  "errors": []
+}

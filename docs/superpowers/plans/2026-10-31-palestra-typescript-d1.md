@@ -189,9 +189,11 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 - Consumes: `Session`, `StrengthSet` (Task 1b), risposte grezze del client (Task 2).
 - Produces: `normalizeSession(raw: unknown, ctx: { strengthDetails: Record<string, string>; timeseries: Record<string, unknown> }): Session`; `parseStrengthDetail(html: string): StrengthSet[]` (`ParseError` con l'URL o l'id se la tabella serie manca). `romeDate` è prodotto dal Task 1b.
 
-- [ ] **Step 1: Test:** `normalize: cardio only` (`moves` e `distance_m` uguali ai valori letterali della fixture del Task 0, 2 esercizi, il primo `kind "cardio"`, `sets` vuoto); `normalize: strength sets` (`{ n: 1, reps_target: 12, reps_done: 12, load_target_kg: 60, load_done_kg: 60 }`); `normalize: broken html raises ParseError`; `normalize: rome date` (`romeDate("2026-10-29T23:30:00Z") === "2026-10-30"`; `romeDate` esiste dal Task 1b, quindi questo test resta come regressione e passa al primo giro); `normalize: schema keys` (chiavi di primo livello esattamente `session_id, source, started_at, ended_at, name, program, moves, calories_kcal, duration_s, exercises`).
-- [ ] **Step 2:** FAIL → implementare con `node-html-parser` e validazione `zod` della risposta grezza → PASS.
-- [ ] **Step 3: Commit** `feat(sync): normalize mywellness sessions`
+> Nota (2026-10-31): firma reale `normalizeSession(raw: unknown, ctx: { sessionId: string; strengthDetails: Record<string, string>; timeseries: Record<string, unknown> }): Session`, con `strengthDetails` e `timeseries` indicizzati per `performedPhysicalActivity.id`; il Task 4 ri-indicizza le serie temporali da `analyticsId` all'id dell'attività e le passa a `upsertSession` per ordine dell'esercizio (`exercises[].order`). I `ParseError` indicano l'esercizio con l'ordine, mai con id Mywellness. I test sono 7: i 5 sotto più `normalize: unexpected json raises ParseError` e `normalize: unexpected sets table raises ParseError`.
+
+- [x] **Step 1: Test:** `normalize: cardio only` (`moves` e `distance_m` uguali ai valori letterali della fixture del Task 0, 2 esercizi, il primo `kind "cardio"`, `sets` vuoto); `normalize: strength sets` (`{ n: 1, reps_target: 12, reps_done: 12, load_target_kg: 60, load_done_kg: 60 }`); `normalize: broken html raises ParseError`; `normalize: rome date` (`romeDate("2026-10-29T23:30:00Z") === "2026-10-30"`; `romeDate` esiste dal Task 1b, quindi questo test resta come regressione e passa al primo giro); `normalize: schema keys` (chiavi di primo livello esattamente `session_id, source, started_at, ended_at, name, program, moves, calories_kcal, duration_s, exercises`).
+- [x] **Step 2:** FAIL → implementare con `node-html-parser` e validazione `zod` della risposta grezza → PASS.
+- [x] **Step 3: Commit** `feat(sync): normalize mywellness sessions`
 
 ---
 
@@ -393,10 +395,10 @@ Ordine obbligatorio: Step 1–2 prima del primo deploy.
 **Interfaces:**
 - Produces: `main(argv, env): Promise<number>` — esegue `wrangler d1 export palestra --remote --output <tmp>`, carica il file su R2 con l'API S3 (firma con le chiavi del bucket, endpoint della giurisdizione UE `https://<account>.eu.r2.cloudflarestorage.com`, costruito da `CLOUDFLARE_ACCOUNT_ID`; il bucket `palestra-backup` è creato con giurisdizione EU, quindi l'endpoint senza `.eu` risponderebbe "bucket inesistente"), cancella il file locale; exit 78 se mancano variabili.
 
-- [ ] **Step 1: Test:** `backup: exit 78 without r2 keys`; `backup: uploads and deletes local file` (esecuzione di `wrangler` e upload iniettati come funzioni finte).
-- [ ] **Step 2:** FAIL → implementare → PASS.
-- [ ] **Step 3: `backup.yml`:** `schedule` il 2 di ogni mese e `workflow_dispatch`; `permissions: contents: read`; env `CF_TOKEN_D1` (come `CLOUDFLARE_API_TOKEN`), `CLOUDFLARE_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`; nessun artifact.
-- [ ] **Step 4:** run, prova di ripristino, commit `ci: monthly d1 backup to r2`.
+- [x] **Step 1: Test:** `backup: exit 78 without r2 keys`; `backup: uploads and deletes local file` (esecuzione di `wrangler` e upload iniettati come funzioni finte).
+- [x] **Step 2:** FAIL → implementare → PASS.
+- [x] **Step 3: `backup.yml`:** `schedule` il 2 di ogni mese e `workflow_dispatch`; `permissions: contents: read`; env `CF_TOKEN_D1` (come `CLOUDFLARE_API_TOKEN`), `CLOUDFLARE_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`; nessun artifact.
+- [x] **Step 4:** run, prova di ripristino, commit `ci: monthly d1 backup to r2`. (31/10: backup `workflow_dispatch` verde; prova con il workflow `restore-test`, PR #34 e #37; registro in `docs/dashboard.md`.)
 
 ---
 
