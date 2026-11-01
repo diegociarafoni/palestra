@@ -404,6 +404,48 @@ describe("web", () => {
     expect(calendar.requests).toBe(2);
   });
 
+  it("web: feedback of an extra seduta uses its seq", async () => {
+    todayIsThursday();
+    const user = userEvent.setup();
+    // Il 3/11 prima la seduta di W45-1 (`seq` 1), poi una seduta extra (`seq` 2), senza feedback.
+    serveCalendar({
+      ...EMPTY,
+      slots: [{ ...W45_1, session: { date: "2026-11-03", seq: 1 } }],
+      extra: [
+        { date: "2026-11-03", name: "Seduta libera", moves: 120, seq: 2 },
+      ],
+    });
+    const bodies: unknown[] = [];
+    server.use(
+      http.put("/api/feedback", async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json(
+          feedback({ id: 2, date: "2026-11-03", seq: 2 }),
+        );
+      }),
+    );
+    renderConTema(<Calendario />);
+
+    const extra = await screen.findByRole("region", { name: "Sedute extra" });
+    await user.click(
+      within(extra).getByRole("button", { name: "Aggiungi feedback" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Come è andata mar 3 nov?",
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Normale" }));
+    await user.click(within(dialog).getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toEqual({
+      date: "2026-11-03",
+      seq: 2,
+      class: "normale",
+      joint_pain: false,
+      joint_where: null,
+      notes: null,
+    });
+  });
+
   it("web: feedback of other days can be edited", async () => {
     todayIsThursday();
     const user = userEvent.setup();
