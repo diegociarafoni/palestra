@@ -369,6 +369,68 @@ describe("web", () => {
     ).toBe(true);
   });
 
+  it("web: a write stays in progress until the calendar is reloaded", async () => {
+    todayIsThursday();
+    const user = userEvent.setup();
+    // Il calendario ricaricato dopo ciascuna delle due scritture arriva quando lo dice il test.
+    const reloads = [deferred(), deferred()];
+    let requests = 0;
+    server.use(
+      http.get("/api/calendar", async () => {
+        requests += 1;
+        await reloads[requests - 2]?.promise;
+        return HttpResponse.json({
+          ...EMPTY,
+          slots: [
+            {
+              ...W45_1,
+              status: "programmata",
+              session_id: null,
+              session: null,
+            },
+          ],
+        });
+      }),
+      http.put("/api/feedback", () => HttpResponse.json(feedback({}))),
+      http.patch("/api/slots/:id", () =>
+        HttpResponse.json({
+          ...W45_1,
+          status: "programmata",
+          date: "2026-11-04",
+          session_id: null,
+        }),
+      ),
+    );
+    renderConTema(<Calendario />);
+
+    // Feedback salvato: "Salva" resta in caricamento finché il calendario nuovo non arriva.
+    const form = await screen.findByRole("form", {
+      name: "Come è andata oggi?",
+    });
+    await user.click(within(form).getByRole("button", { name: "Buona" }));
+    const save = within(form).getByRole<HTMLButtonElement>("button", {
+      name: "Salva",
+    });
+    await user.click(save);
+    await waitFor(() => expect(requests).toBe(2));
+    expect(save.disabled).toBe(true);
+    expect(within(save).getByRole("progressbar")).toBeTruthy();
+    reloads[0]?.resolve();
+    await waitFor(() => expect(save.disabled).toBe(false));
+
+    // Giorno scelto salvato: la scelta resta bloccata sul giorno nuovo fino al calendario nuovo.
+    const week = screen.getByRole("region", { name: "Settimana 45" });
+    const choice = within(week).getByRole<HTMLSelectElement>("combobox", {
+      name: "Scegli il giorno",
+    });
+    await user.selectOptions(choice, "mer 4 nov");
+    await waitFor(() => expect(requests).toBe(3));
+    expect(choice.disabled).toBe(true);
+    expect(choice.value).toBe("2026-11-04");
+    reloads[1]?.resolve();
+    await waitFor(() => expect(choice.disabled).toBe(false));
+  });
+
   it("web: feedback of a synced seduta uses its seq", async () => {
     todayIsThursday();
     const user = userEvent.setup();

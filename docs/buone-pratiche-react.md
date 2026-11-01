@@ -47,7 +47,8 @@ Riferimenti: [`learn_react-compiler_introduction.md`](riferimenti/react/learn_re
 Riferimenti: [`reference_react_useActionState.md`](riferimenti/react/reference_react_useActionState.md), [`reference_react_useOptimistic.md`](riferimenti/react/reference_react_useOptimistic.md).
 
 - Componenti MUI controllati; validazione con lo schema `zod` condiviso prima dell'invio; errori mostrati sul campo.
-- Pulsante "Salva" disabilitato e in stato di caricamento durante l'invio; aggiornamento ottimistico del calendario, annullato se l'API risponde con errore.
+- Pulsante "Salva" disabilitato e in stato di caricamento durante l'invio e finché il calendario ricaricato non è arrivato: dopo il successo la mutazione (`useMutation`, `web/src/api/scrittura.ts`) invalida calendario e settimane e ne aspetta il nuovo caricamento, così il pulsante esce dal caricamento quando la pagina mostra già il risultato. Se l'API risponde con errore il modulo conserva i valori scritti e mostra l'errore.
+- Niente aggiornamento ottimistico della cache: la dashboard ha un solo utente e una scrittura alla volta, l'attesa è di un giro di rete, e così non servono id o `updated_at` inventati nella cache né un rollback da gestire. Unica eccezione "via interfaccia" (la variabile della mutazione, non la cache): la scelta del giorno mostra subito il giorno scelto durante l'invio e torna al valore del server se il salvataggio fallisce.
 
 ## 7. Struttura dei file
 
