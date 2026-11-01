@@ -21,7 +21,12 @@ import {
   vi,
 } from "vitest";
 import { main } from "../../src/cli/backup";
-import { AuthError, SyncError, TransientError } from "../../src/errors";
+import {
+  AuthError,
+  SyncError,
+  TransientError,
+  UpstreamError,
+} from "../../src/errors";
 
 // Valori fittizi: nessun test tocca wrangler o R2 (export finto, upload finto o MSW).
 const ENV = {
@@ -169,7 +174,9 @@ describe("backup", () => {
 
   it.each([
     { error: new TransientError("R2: HTTP 503"), code: 75 },
-    { error: new SyncError("R2: HTTP 404"), code: 69 },
+    { error: new UpstreamError("R2: HTTP 404"), code: 69 },
+    // exitCodeFor condiviso (src/errors.ts): un SyncError non previsto dà 70.
+    { error: new SyncError("imprevisto"), code: 70 },
   ])(
     "backup: exit $code when upload raises $error.name",
     async ({ error, code }) => {
