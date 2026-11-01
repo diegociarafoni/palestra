@@ -66,7 +66,23 @@ export const theme = createTheme({
     // Aree toccabili di almeno 48 px (docs/buone-pratiche-mui.md § 8).
     MuiButton: { styleOverrides: { root: { minHeight: 48 } } },
     MuiIconButton: { defaultProps: { size: "large" } },
-    MuiToggleButton: { styleOverrides: { root: { minHeight: 48 } } },
+    MuiToggleButton: {
+      styleOverrides: {
+        root: ({ theme }) => ({
+          minHeight: 48,
+          // Scelte scritte come nei testi ("😀 Ottima"): niente maiuscolo dei pulsanti; lo spazio
+          // fra emoji, testo e spunta è il gap (in un flex lo spazio di testo sparisce).
+          textTransform: "none",
+          gap: theme.spacing(1),
+          // Voce scelta a pieno colore (MUI la tinge appena: 1,2:1 sullo sfondo, sotto il 3:1 di
+          // WCAG 1.4.11), anche al passaggio del puntatore.
+          "&.Mui-selected, &.Mui-selected:hover": {
+            color: theme.vars.palette.primary.contrastText,
+            backgroundColor: theme.vars.palette.primary.main,
+          },
+        }),
+      },
+    },
     // 24 px di icona più 12 px per lato (MUI ne mette 9: 42 px).
     MuiCheckbox: { styleOverrides: { root: { padding: 12 } } },
     MuiRadio: { styleOverrides: { root: { padding: 12 } } },

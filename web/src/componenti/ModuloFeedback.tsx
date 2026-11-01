@@ -1,3 +1,4 @@
+import CheckIcon from "@mui/icons-material/Check";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
@@ -117,8 +118,11 @@ export function ModuloFeedback({
         >
           {FeedbackClassSchema.options.map((option) => (
             <ToggleButton key={option} value={option}>
-              <span aria-hidden="true">{testi.feedbackForm.emoji[option]}</span>{" "}
+              {/* Lo spazio fra emoji, testo e spunta è il `gap` del tema. */}
+              <span aria-hidden="true">{testi.feedbackForm.emoji[option]}</span>
               {testi.feedback.classes[option]}
+              {/* La scelta non si dice col solo colore (buone-pratiche-mui § 8). */}
+              {option === feedbackClass && <CheckIcon aria-hidden="true" />}
             </ToggleButton>
           ))}
         </ToggleButtonGroup>

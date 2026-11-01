@@ -96,11 +96,12 @@ describe("web", () => {
         .getAllByRole("button")
         .map((b) => b.textContent),
     ).toEqual([
-      "😀 Ottima",
-      "🙂 Buona",
-      "😐 Normale",
-      "😓 Faticosa",
-      "😣 Pessima",
+      // A schermo "😀 Ottima": lo spazio è il gap del tema, non un carattere.
+      "😀Ottima",
+      "🙂Buona",
+      "😐Normale",
+      "😓Faticosa",
+      "😣Pessima",
     ]);
     await user.click(within(classes).getByRole("button", { name: "Buona" }));
     await user.click(
@@ -173,7 +174,7 @@ describe("web", () => {
       within(classes)
         .getAllByRole("button", { pressed: true })
         .map((b) => b.textContent),
-    ).toEqual(["🙂 Buona"]);
+    ).toEqual(["🙂Buona"]);
     expect(
       within(form).getByRole<HTMLInputElement>("checkbox", {
         name: "Ho sentito un fastidio articolare",
@@ -233,7 +234,7 @@ describe("web", () => {
       within(classes)
         .getAllByRole("button", { pressed: true })
         .map((b) => b.textContent),
-    ).toEqual(["😓 Faticosa"]);
+    ).toEqual(["😓Faticosa"]);
     await user.click(within(form).getByRole("button", { name: "Salva" }));
     await waitFor(() => expect(bodies).toHaveLength(1));
     expect(bodies[0]).toEqual({
@@ -271,6 +272,30 @@ describe("web", () => {
 
     await user.click(within(classes).getByRole("button", { name: "Ottima" }));
     expect(within(form).queryByText("Scegli come è andata.")).toBeNull();
+  });
+
+  it("web: chosen class is marked with a check", async () => {
+    todayIsThursday();
+    const user = userEvent.setup();
+    serveCalendar(EMPTY);
+    renderConTema(<Calendario />);
+
+    const form = await screen.findByRole("form", {
+      name: "Come è andata oggi?",
+    });
+    const classes = within(form).getByRole("group", { name: "Come è andata" });
+    expect(within(classes).queryByTestId("CheckIcon")).toBeNull();
+    await user.click(within(classes).getByRole("button", { name: "Buona" }));
+    // Lo stato non si affida al solo colore: la voce scelta ha anche la spunta, nascosta ai
+    // lettori di schermo (che sentono "premuto"). Una sola spunta.
+    const chosen = within(classes).getByRole("button", { pressed: true });
+    expect(chosen.textContent).toBe("🙂Buona");
+    expect(
+      within(chosen).getByTestId("CheckIcon").getAttribute("aria-hidden"),
+    ).toBe("true");
+    expect(within(classes).getAllByTestId("CheckIcon")).toHaveLength(1);
+    // Il testo resta come è scritto: niente maiuscolo dei pulsanti.
+    expect(getComputedStyle(chosen).textTransform).toBe("none");
   });
 
   it("web: feedback form shows a save error", async () => {
