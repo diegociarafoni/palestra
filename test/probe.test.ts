@@ -171,6 +171,98 @@ describe("probe", () => {
     expect(readdirSync(outDir)).toEqual(["login_form.html"]);
   });
 
+  it("probe: exit 64 with --days 0", async () => {
+    expect(
+      await main(
+        ["--days", "0"],
+        { MYWELLNESS_EMAIL: EMAIL, MYWELLNESS_PASSWORD: PASSWORD },
+        deps(),
+      ),
+    ).toBe(64);
+    expect(stderr.mock.calls).toEqual([
+      [
+        "Uso: MYWELLNESS_EMAIL=… MYWELLNESS_PASSWORD=… npx tsx scripts/probe-mywellness.ts [--days N] (N da 1 a 365)",
+      ],
+    ]);
+    expect(stdout).not.toHaveBeenCalled();
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("probe: exit 65 when the profile has no token", async () => {
+    server.use(
+      http.get(`${SITE}/cloud/User/Login`, () => HttpResponse.html(LOGIN_FORM)),
+      http.post(`${SITE}/cloud/User/Login`, () =>
+        HttpResponse.html("<p>ok</p>"),
+      ),
+      http.get(`${SITE}/cloud/Training`, () =>
+        HttpResponse.html(
+          String.raw`<script>EU.currentUser = JSON.parse('{\"id\":\"${USER_ID}\",\"culture\":\"it-IT\"}');</script>`,
+        ),
+      ),
+    );
+    expect(
+      await main(
+        [],
+        { MYWELLNESS_EMAIL: EMAIL, MYWELLNESS_PASSWORD: PASSWORD },
+        deps(),
+      ),
+    ).toBe(65);
+    expect(stderr.mock.calls).toEqual([
+      ["training: EU.currentUser senza id o token"],
+    ]);
+  });
+
+  it("probe: notes a period without strength sessions", async () => {
+    const cardioOnly = JSON.stringify({
+      data: {
+        startedOn: "2026-11-02 08:00:00 +01:00",
+        physicalActivities: [
+          {
+            isCardio: true,
+            performedPhysicalActivity: {
+              id: "aaaaaaaa-0000-4000-8000-000000000003",
+            },
+          },
+        ],
+      },
+    });
+    server.use(
+      http.get(`${SITE}/cloud/User/Login`, () => HttpResponse.html(LOGIN_FORM)),
+      http.post(`${SITE}/cloud/User/Login`, () =>
+        HttpResponse.html("<p>ok</p>"),
+      ),
+      http.get(`${SITE}/cloud/Training`, () => HttpResponse.html(TRAINING)),
+      http.get(`${SITE}/cloud/Training/LastPerformedWorkoutSession`, () =>
+        HttpResponse.html(
+          '<div><input type="hidden" name="hdSessionIdCR" value="111"><span class="date">20261102</span></div>',
+        ),
+      ),
+      http.get(
+        `${SERVICES}/Training/User/:userId/GetPerformedWorkoutSessionByIdCr`,
+        () => HttpResponse.text(cardioOnly),
+      ),
+      http.post(
+        `${SERVICES}/:facility/biometrics/user/:id/lastbiometricsmeasurements`,
+        () => new HttpResponse(null, { status: 404 }),
+      ),
+      http.post(
+        `${API}/:facility/biometrics/user/:id/lastbiometricsmeasurements`,
+        () => new HttpResponse(null, { status: 404 }),
+      ),
+    );
+    expect(
+      await main(
+        ["--days", "1"],
+        { MYWELLNESS_EMAIL: EMAIL, MYWELLNESS_PASSWORD: PASSWORD },
+        { ...deps(), now: () => new Date("2026-11-02T10:00:00Z") },
+      ),
+    ).toBe(0);
+    expect(stderr.mock.calls).toContainEqual([
+      "Nota: nessuna seduta con esercizi non cardio: niente session_strength.json",
+    ]);
+    expect(readdirSync(outDir)).not.toContain("session_strength.json");
+  });
+
   it("probe: names itself in the User-Agent of every request", async () => {
     server.use(
       http.get(`${SITE}/cloud/User/Login`, () => HttpResponse.html(LOGIN_FORM)),
