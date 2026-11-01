@@ -61,8 +61,8 @@ Se il run viene annullato, va in timeout o fallisce, il `finally` della CLI può
 
 #### Alternativa in locale (`scripts/prova-ripristino.sh`)
 
-1. **Utente**, dalla radice del repository, dopo `npm ci` e `npx wrangler login`: `bash scripts/prova-ripristino.sh AAAA-MM-GG` (senza data, quella di oggi a Roma). Lo script scarica il backup in una cartella temporanea, crea `palestra-restore-test` con giurisdizione EU, vi importa il file e cancella la cartella. Dell'output di wrangler mostra solo l'esito di ogni passo e non usa mai `palestra`.
-2. **Claude**, con il connettore Cloudflare in sola lettura: la query di conteggio qui sotto su `palestra-restore-test` e su `palestra`, poi una tabella di confronto con i soli nomi delle tabelle e i numeri. Il confronto con `palestra` è solo indicativo: dopo il backup sync e report vi scrivono righe nuove, e le differenze si spiegano come al punto 4 del workflow, voce «Colonna `palestra`». Il confronto con il dump c'è per ora solo nel workflow `restore-test` (#40).
+1. **Utente**, dalla radice del repository, dopo `npm ci` e `npx wrangler login`: `bash scripts/prova-ripristino.sh AAAA-MM-GG` (senza data, quella di oggi a Roma). Lo script scarica il backup in una cartella temporanea, conta le righe `INSERT` di ogni tabella del dump con le stesse regole del workflow (exit 65, prima di creare il database, per un nome di tabella che non è un identificatore semplice), crea `palestra-restore-test` con giurisdizione EU, vi importa il file e cancella la cartella. Alla fine stampa la tabella `tabella`/`dump` con i soli nomi e numeri, da incollare in chat. Dell'output di wrangler mostra solo l'esito di ogni passo e non usa mai `palestra`.
+2. **Claude**, con il connettore Cloudflare in sola lettura: la query di conteggio qui sotto su `palestra-restore-test` e su `palestra`, poi la tabella di confronto `dump`/`ripristino`/`palestra` con i soli nomi delle tabelle e i numeri, letta come al punto 4 del workflow. L'esito dipende da `ripristino` uguale a `dump` in ogni tabella; il confronto con `palestra` è solo indicativo, perché dopo il backup sync e report vi scrivono righe nuove.
 3. **Utente**: conferma esplicita della cancellazione. Poi Claude, con il connettore dopo aver ricontrollato nome e id, oppure l'utente: `npx --no -- wrangler d1 delete palestra-restore-test --skip-confirmation`.
 
 Se un passo dello script fallisce, si vedono solo il passo e l'exit code di wrangler:
@@ -70,21 +70,22 @@ Se un passo dello script fallisce, si vedono solo il passo e l'exit code di wran
 - **download o creazione**: l'utente rilancia a mano il comando del passo, per esempio `npx --no -- wrangler d1 create palestra-restore-test --jurisdiction eu`, e legge l'errore: il loro output non contiene righe del backup. Cause tipiche: nessun file con quella data nel bucket, login di wrangler scaduto (`npx wrangler login`), più account (`CLOUDFLARE_ACCOUNT_ID` nella shell), `palestra-restore-test` rimasto da una prova precedente;
 - **import**: `palestra-restore-test` resta, vuoto (l'import remoto è atomico). Va cancellato con la conferma dell'utente; poi l'utente ripete a mano i passi (`mktemp -d`, `r2 object get`, `d1 create`, `d1 execute … --file … --yes`, `rm -r`) per leggere l'errore. Quell'output può contenere righe del backup: resta nel terminale locale e in chat si riporta solo il tipo di errore.
 
-Query di conteggio per l'alternativa in locale, un'unica istruzione valida sia per il connettore sia per `npx --no -- wrangler d1 execute <database> --remote --command "…"`. L'elenco delle tabelle va ricontrollato con `SELECT name FROM sqlite_schema WHERE type = 'table'` quando lo schema cambia (il workflow lo legge da solo); `_cf_KV` e `sqlite_sequence` sono interne.
+Query di conteggio per l'alternativa in locale, un'unica istruzione valida sia per il connettore sia per `npx --no -- wrangler d1 execute <database> --remote --command "…"`: restituisce una sola riga, con una colonna per tabella. Non usa `UNION ALL` perché D1 rifiuta le SELECT composte con più di 5 termini (errore 7500, #36). L'elenco delle tabelle va ricontrollato con `SELECT name FROM sqlite_schema WHERE type = 'table'` quando lo schema cambia (il workflow lo legge da solo); `_cf_KV` e `sqlite_sequence` sono interne.
 
 ```sql
-SELECT 'audit' AS t, count(*) AS n FROM audit
-UNION ALL SELECT 'd1_migrations', count(*) FROM d1_migrations
-UNION ALL SELECT 'feedback', count(*) FROM feedback
-UNION ALL SELECT 'measures', count(*) FROM measures
-UNION ALL SELECT 'metrics', count(*) FROM metrics
-UNION ALL SELECT 'planned_sessions', count(*) FROM planned_sessions
-UNION ALL SELECT 'profile', count(*) FROM profile
-UNION ALL SELECT 'recovery', count(*) FROM recovery
-UNION ALL SELECT 'reports', count(*) FROM reports
-UNION ALL SELECT 'scheda', count(*) FROM scheda
-UNION ALL SELECT 'sessions', count(*) FROM sessions
-UNION ALL SELECT 'timeseries', count(*) FROM timeseries
+SELECT
+  (SELECT count(*) FROM audit) AS audit,
+  (SELECT count(*) FROM d1_migrations) AS d1_migrations,
+  (SELECT count(*) FROM feedback) AS feedback,
+  (SELECT count(*) FROM measures) AS measures,
+  (SELECT count(*) FROM metrics) AS metrics,
+  (SELECT count(*) FROM planned_sessions) AS planned_sessions,
+  (SELECT count(*) FROM profile) AS profile,
+  (SELECT count(*) FROM recovery) AS recovery,
+  (SELECT count(*) FROM reports) AS reports,
+  (SELECT count(*) FROM scheda) AS scheda,
+  (SELECT count(*) FROM sessions) AS sessions,
+  (SELECT count(*) FROM timeseries) AS timeseries
 ```
 
 L'export contiene le istruzioni `CREATE TABLE` senza `IF NOT EXISTS`: si applica solo a un database vuoto, non al `palestra` reale che ha già le tabelle. Un ripristino reale si pianifica con l'utente quando serve e si fa solo con la sua conferma esplicita:
