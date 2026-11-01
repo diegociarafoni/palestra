@@ -19,6 +19,31 @@ const EMAIL_PLACEHOLDER = "utente@example.com";
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^@\s]+@[^@\s]+$/;
 
+/** Un'identità fatta di sole lettere, spazi e `' . -` si tratta come un nome. */
+const NAME_LIKE = /^\p{L}[\p{L} '.-]*$/u;
+/** Identità più corte di così non identificano nessuno e riscriverebbero tutto il testo. */
+const MIN_IDENTITY_LENGTH = 3;
+/** Entità HTML con nome che accettiamo per i caratteri delle identità. */
+const NAMED_ENTITIES: Record<string, string> = {
+  "'": "apos",
+  '"': "quot",
+  "&": "amp",
+  à: "agrave",
+  è: "egrave",
+  é: "eacute",
+  ì: "igrave",
+  ò: "ograve",
+  ù: "ugrave",
+  À: "Agrave",
+  È: "Egrave",
+  É: "Eacute",
+  Ì: "Igrave",
+  Ò: "Ograve",
+  Ù: "Ugrave",
+};
+/** Nel sorgente di un'espressione regolare, una barra rovesciata letterale. */
+const BS = "\\\\";
+
 /** Caratteri sintattici delle espressioni regolari (modalità `u`). */
 function escapeRegExp(text: string): string {
   return text.replace(/[\\^$.*+?()[\]{}|/]/g, "\\$&");
@@ -33,55 +58,107 @@ function placeholderFor(identity: string, n: number): string {
   return `anon-${n}`;
 }
 
-/** Forme in cui un valore compare nelle risposte: testo, URL, form, stringa JSON. */
-const ENCODINGS: ((text: string) => string)[] = [
-  (text) => text,
-  (text) => encodeURIComponent(text),
-  (text) => new URLSearchParams({ v: text }).toString().slice(2),
-  (text) => JSON.stringify(text).slice(1, -1),
-  // I serializzatori .NET scrivono i caratteri non ASCII come \uXXXX.
-  (text) =>
-    JSON.stringify(text)
-      .slice(1, -1)
-      .replace(
-        /[^\x20-\x7e]/g,
-        (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
-      ),
-];
+/** Un carattere nelle sue forme: testo, entità HTML (decimale/esadecimale/nome), escape JS, URL. */
+function charPattern(ch: string): string {
+  const alts = new Set<string>([escapeRegExp(ch)]);
+  const codePoints = new Set<number>();
+  for (const c of new Set([ch, ch.toLowerCase(), ch.toUpperCase()])) {
+    const cp = c.codePointAt(0);
+    if (cp !== undefined) codePoints.add(cp);
+  }
+  for (const cp of codePoints) {
+    alts.add(`&#0*${cp};`); // entità decimale, con zeri iniziali facoltativi
+    alts.add(`&#[xX]0*${cp.toString(16)};`); // entità esadecimale
+    alts.add(`(?:${BS}){1,2}u${cp.toString(16).padStart(4, "0")}`); // \uXXXX e \\uXXXX
+    if (cp < 128) {
+      // Percento anche per i caratteri ASCII che encodeURIComponent lascia (es. `'` → %27).
+      const hex = cp.toString(16).padStart(2, "0");
+      alts.add(`%${hex}`);
+      alts.add(`%25${hex}`);
+    }
+  }
+  const named = NAMED_ENTITIES[ch];
+  if (named) alts.add(`&${named};`);
+  if (ch === "'") alts.add(`${BS}x27`);
+  if (["'", '"', "/", "\\"].includes(ch)) alts.add(`${BS}${escapeRegExp(ch)}`);
+  const enc = encodeURIComponent(ch);
+  if (enc !== ch) {
+    alts.add(escapeRegExp(enc)); // %HH
+    alts.add(escapeRegExp(enc.replace(/%/g, "%25"))); // %25HH (doppia codifica)
+  }
+  if (ch === " ") alts.add("\\+");
+  return `(?:${[...alts].join("|")})`;
+}
 
-/** Identità più corte di così non identificano nessuno e riscriverebbero tutto il testo. */
-const MIN_IDENTITY_LENGTH = 3;
+function corePattern(text: string): string {
+  return [...text].map(charPattern).join("");
+}
+
+type Entry = {
+  core: string;
+  boundary: boolean;
+  placeholder: string;
+  priority: [number, number, number];
+  anchored: RegExp;
+};
+
+function entriesFor(identity: string, index: number): Entry[] {
+  if (identity.length < MIN_IDENTITY_LENGTH) return [];
+  if (EMAIL.test(identity)) return []; // le e-mail le tratta replaceEmails
+  const placeholder = placeholderFor(identity, index);
+  const make = (text: string, boundary: boolean, derived: boolean): Entry => ({
+    core: corePattern(text),
+    boundary,
+    placeholder,
+    priority: [-text.length, derived ? 1 : 0, index],
+    anchored: new RegExp(`^${corePattern(text)}$`, "iu"),
+  });
+  if (GUID.test(identity)) {
+    // Il GUID anche senza trattini; sempre fuori dai confini di parola.
+    return [
+      make(identity, false, false),
+      make(identity.replace(/-/g, ""), false, true),
+    ];
+  }
+  if (NAME_LIKE.test(identity)) {
+    // Nome e sue parole (≥ 3 lettere), solo ai confini di lettera Unicode.
+    const words = identity.match(/\p{L}{3,}/gu) ?? [];
+    return [
+      make(identity, true, false),
+      ...words.filter((w) => w !== identity).map((w) => make(w, true, true)),
+    ];
+  }
+  return [make(identity, false, false)];
+}
 
 function replaceIdentities(input: string, identities: string[]): string {
-  const entries = identities.flatMap((identity, i) => {
-    if (identity.length < MIN_IDENTITY_LENGTH) return [];
-    const placeholder = placeholderFor(identity, i + 1);
-    return ENCODINGS.map((encode) => {
-      const text = encode(identity);
-      return {
-        text,
-        exact: new RegExp(`^${escapeRegExp(text)}$`, "iu"),
-        placeholder: encode(placeholder),
-      };
+  const entries = identities
+    .flatMap((identity, i) => entriesFor(identity, i + 1))
+    // Prima la più lunga; a parità, l'identità diretta prima di una parola derivata.
+    .sort((a, b) => {
+      for (let k = 0; k < 3; k++) {
+        const diff = (a.priority[k] ?? 0) - (b.priority[k] ?? 0);
+        if (diff !== 0) return diff;
+      }
+      return 0;
     });
-  });
   if (entries.length === 0) return input;
-  // Un solo passaggio, la più lunga per prima: un segnaposto non viene mai riletto.
-  const alternatives = [...entries]
-    .sort((a, b) => b.text.length - a.text.length)
-    .map((e) => escapeRegExp(e.text));
-  const any = new RegExp(alternatives.join("|"), "giu");
+  const source = entries
+    .map((e) => (e.boundary ? `(?<!\\p{L})${e.core}(?!\\p{L})` : e.core))
+    .join("|");
+  const any = new RegExp(source, "giu");
   return input.replace(
     any,
-    (match) => entries.find((e) => e.exact.test(match))?.placeholder ?? match,
+    (match) =>
+      entries.find((e) => e.anchored.test(match))?.placeholder ?? match,
   );
 }
 
-/** Ogni altra e-mail, anche codificata in un URL (`%40`), diventa quella finta. */
+/** Ogni altra e-mail (connettore `@`, `%40`, `%2540`, `&#64;`, `&#x40;`) diventa quella finta. */
 function replaceEmails(input: string): string {
   return input.replace(
-    /[A-Za-z0-9._%+-]+(@|%40)[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g,
-    (_match, at: string) => EMAIL_PLACEHOLDER.replace("@", at),
+    /[A-Za-z0-9._%+-]+(@|%40|%2540|&#0*64;|&#[xX]0*40;)[A-Za-z0-9._%+-]*[A-Za-z0-9-]\.[A-Za-z]{2,}/g,
+    (_match, connector: string) => `utente${connector}example.com`,
   );
 }
 
@@ -205,7 +282,8 @@ export function anonymize(
   input: string,
   opts: { identities: string[]; mapDay: MapIso },
 ): string {
-  const text = replaceEmails(replaceIdentities(input, opts.identities));
+  // E-mail prima (tengono il connettore), poi le altre identità, poi le date.
+  const text = replaceIdentities(replaceEmails(input), opts.identities);
   return transformDates(text, opts.mapDay);
 }
 
