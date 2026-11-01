@@ -111,7 +111,7 @@ describe("report", () => {
         "| Indicatore | Valore | Confronto | Stato |",
         "| --- | --- | --- | --- |",
         "| Aderenza | 3/4 sedute (75 %) | — | ! |",
-        "| Tonnellaggio settimanale | 4665 kg | da 8510 kg · -45,2 % · kg per serie 500,6 → 466,5 | ● |",
+        "| Tonnellaggio settimanale | 4665 kg | da 8510 kg · -45,2 % · kg per serie (serie con carico) 500,6 → 466,5 | ● |",
         "| e1RM medio (esercizi tracciati) | +8,4 % | media su 2 esercizi | ✓ |",
         "| Serie registrate | 27 | ~6,3 a settimana | — |",
         "| Peso | 79 kg | da 80 kg · -1 kg | — |",
@@ -139,8 +139,8 @@ describe("report", () => {
     expect(section(renderReport(oneWeek), 1)).toContain(
       "| Tonnellaggio settimanale | 8510 kg | — | — |",
     );
-    // Si confrontano solo le settimane con serie registrate. Ultima settimana di solo cardio
-    // (W47): il confronto resta W45 → W46 (kg per serie 500,6 → 466,5, ●), mai "!".
+    // Si confrontano solo le settimane con tonnellaggio. Ultima settimana di solo cardio (W47):
+    // il confronto resta W45 → W46 (kg per serie con carico 500,6 → 466,5, ●), mai "!".
     const cardioWeek = sessions.find((s) => s.session_id === "sess-r02");
     if (cardioWeek === undefined) throw new Error("fixture mancante");
     const cardioLast = {
@@ -160,15 +160,64 @@ describe("report", () => {
       tonnage_status: "watch",
     });
     expect(section(renderReport(cardioLast), 1)).toContain(
-      "| Tonnellaggio settimanale | 4665 kg | da 8510 kg · -45,2 % · kg per serie 500,6 → 466,5 | ● |",
+      "| Tonnellaggio settimanale | 4665 kg | da 8510 kg · -45,2 % · kg per serie (serie con carico) 500,6 → 466,5 | ● |",
     );
-    // Prima settimana di solo cardio: resta una sola settimana con serie, nessun confronto.
+    // Prima settimana di solo cardio: resta una sola settimana con tonnellaggio, nessun confronto.
     const cardioFirst = { ...input, sessions: only("sess-r02", "sess-r04") };
-    expect(reportMetrics(cardioFirst).kpi.tonnage_status).toBeNull();
+    expect(reportMetrics(cardioFirst).kpi).toMatchObject({
+      tonnage_first_week_kg: 4665,
+      tonnage_last_week_kg: 4665,
+      tonnage_status: null,
+    });
     expect(section(renderReport(cardioFirst), 1)).toContain(
       "| Tonnellaggio settimanale | 4665 kg | — | — |",
     );
-    // Prima settimana con serie ma senza carichi (0 kg per serie): nessuno stato.
+    // Serie senza carico (core, corpo libero) non diluiscono il confronto: kg per serie con
+    // carico 2160 / 3 = 720 in entrambe le settimane (con tutte le serie: 360 → 240, "!").
+    const unloadedSets = {
+      ...input,
+      sessions: [
+        at("sess-t01", "2026-11-03T18:00:00+01:00", [
+          lift(1, "Leg Press", [12, 12, 12], 60),
+          lift(2, "Leg Curl", [12, 12, 12], null),
+        ]),
+        at("sess-t02", "2026-11-10T18:00:00+01:00", [
+          lift(1, "Leg Press", [12, 12, 12], 60),
+          lift(2, "Leg Curl", [12, 12, 12, 12, 12, 12], null),
+        ]),
+      ],
+    };
+    expect(reportMetrics(unloadedSets).kpi).toMatchObject({
+      tonnage_first_week_kg: 2160,
+      tonnage_last_week_kg: 2160,
+      tonnage_status: "ok",
+    });
+    expect(section(renderReport(unloadedSets), 1)).toContain(
+      "| Tonnellaggio settimanale | 2160 kg | da 2160 kg · 0 % · kg per serie (serie con carico) 720 → 720 | ✓ |",
+    );
+    // Ultima settimana (W49, lunedì 30/11) con sole serie senza carico: una sola settimana con
+    // tonnellaggio, nessun confronto (con tutte le serie: 720 → 0, "!").
+    const unloadedLast = {
+      ...input,
+      sessions: [
+        at("sess-t03", "2026-11-03T18:00:00+01:00", [
+          lift(1, "Leg Press", [12, 12, 12], 60),
+        ]),
+        at("sess-t04", "2026-11-30T18:00:00+01:00", [
+          lift(1, "Leg Curl", [12, 12, 12], null),
+        ]),
+      ],
+    };
+    expect(reportMetrics(unloadedLast).kpi).toMatchObject({
+      tonnage_first_week_kg: 2160,
+      tonnage_last_week_kg: 2160,
+      tonnage_status: null,
+    });
+    expect(section(renderReport(unloadedLast), 1)).toContain(
+      "| Tonnellaggio settimanale | 2160 kg | — | — |",
+    );
+    // Prima settimana con serie ma senza carichi (0 kg): non ha tonnellaggio, quindi non è
+    // confrontata e non compare mai un Δ % su una base di 0 kg.
     const noLoad = only("sess-r01", "sess-r04").map((s) =>
       s.session_id !== "sess-r01"
         ? s
@@ -180,9 +229,14 @@ describe("report", () => {
             })),
           },
     );
-    expect(
-      reportMetrics({ ...input, sessions: noLoad }).kpi.tonnage_status,
-    ).toBeNull();
+    expect(reportMetrics({ ...input, sessions: noLoad }).kpi).toMatchObject({
+      tonnage_first_week_kg: 4665,
+      tonnage_last_week_kg: 4665,
+      tonnage_status: null,
+    });
+    expect(section(renderReport({ ...input, sessions: noLoad }), 1)).toContain(
+      "| Tonnellaggio settimanale | 4665 kg | — | — |",
+    );
   });
 
   it("report: statuses on displayed values", () => {
@@ -248,7 +302,7 @@ describe("report", () => {
       ],
     });
     expect(section(perSet, 1)).toContain(
-      "| Tonnellaggio settimanale | 90 kg | da 100 kg · -10 % · kg per serie 100 → 90 | ● |",
+      "| Tonnellaggio settimanale | 90 kg | da 100 kg · -10 % · kg per serie (serie con carico) 100 → 90 | ● |",
     );
     // Rapporti a due decimali: 125/210 = 0,595 → 0,6; 202/201 = 1,005 → 1.
     const balanced = renderReport({

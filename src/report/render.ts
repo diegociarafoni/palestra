@@ -22,6 +22,7 @@ import {
   adherence,
   cardioSummary,
   feedbackSummary,
+  loadedSetsByWeek,
   mean,
   measuresTrend,
   present,
@@ -77,14 +78,21 @@ const SECTIONS = [
   "9. Non riconosciuti",
 ];
 
+// Settimana con tonnellaggio > 0 e i suoi kg per serie con carico (carico > 0).
+type LiftingWeek = {
+  week: string;
+  tonnage_kg: number;
+  kg_per_loaded_set: number;
+};
+
 // Valori derivati dall'input, condivisi da renderReport e reportMetrics.
 type Analysis = {
   unmatched: Execution[];
   strength: StrengthTable;
   series: E1rmSeries;
   weekly: WeeklyVolume;
-  // Settimane con serie registrate: le sole confrontate per il tonnellaggio.
-  lifting: WeeklyVolume;
+  // Settimane con tonnellaggio: le sole confrontate nello stato del tonnellaggio.
+  lifting: LiftingWeek[];
   weeks: number;
   muscles: Record<string, number>;
   patterns: Record<string, number>;
@@ -136,10 +144,24 @@ function analyse(input: ReportInput): Analysis {
   const trend = measuresTrend(input.measures);
   const weeks = weeksInMonth(input.month);
 
-  // Una settimana di solo cardio non entra nel confronto del tonnellaggio.
-  const lifting = weekly.filter((w) => w.sets > 0);
-  const firstKgPerSet = round(lifting[0]?.kg_per_set ?? 0);
-  const lastKgPerSet = round(lifting.at(-1)?.kg_per_set ?? 0);
+  // Tonnellaggio "crescente a parità di serie" (linee guida § 5) riguarda il lavoro con carico:
+  // si confrontano le settimane con tonnellaggio, in kg per serie con carico. Settimane di solo
+  // cardio o di sole serie senza carico (core, corpo libero) non entrano nel confronto.
+  const loaded = loadedSetsByWeek(sessions);
+  // Tonnellaggio > 0 implica almeno una serie con carico: la divisione è sempre definita.
+  const lifting = weekly.flatMap((w): LiftingWeek[] =>
+    w.tonnage_kg > 0
+      ? [
+          {
+            week: w.week,
+            tonnage_kg: w.tonnage_kg,
+            kg_per_loaded_set: w.tonnage_kg / (loaded.get(w.week) ?? 0),
+          },
+        ]
+      : [],
+  );
+  const firstKgPerSet = round(lifting[0]?.kg_per_loaded_set ?? 0);
+  const lastKgPerSet = round(lifting.at(-1)?.kg_per_loaded_set ?? 0);
   const adherencePct = adh.planned > 0 ? (adh.done / adh.planned) * 100 : null;
   const deltas = present(strength.map((r) => r.e1rm_delta_pct));
   const e1rmMean = mean(deltas);
@@ -157,9 +179,8 @@ function analyse(input: ReportInput): Analysis {
         : status("adherence", round(adherencePct) / 100, null),
     tonnage_first_week_kg: lifting[0]?.tonnage_kg ?? null,
     tonnage_last_week_kg: lifting.at(-1)?.tonnage_kg ?? null,
-    // kg per serie, "a parità di serie" (linee guida § 5); una base a 0 renderebbe tutto ✓.
     tonnage_status:
-      lifting.length >= 2 && firstKgPerSet > 0
+      lifting.length >= 2
         ? status("tonnage", lastKgPerSet, firstKgPerSet)
         : null,
     e1rm_mean_delta_pct: e1rmMean,
@@ -307,15 +328,8 @@ function summaryRows(input: ReportInput, a: Analysis): SummaryRow[] {
       compare:
         a.lifting.length < 2 || first === undefined || last === undefined
           ? "—"
-          : [
-              `da ${num(first.tonnage_kg)} kg`,
-              ...(first.tonnage_kg > 0
-                ? [
-                    `${signed(((last.tonnage_kg - first.tonnage_kg) / first.tonnage_kg) * 100)} %`,
-                  ]
-                : []),
-              `kg per serie ${num(first.kg_per_set)} → ${num(last.kg_per_set)}`,
-            ].join(" · "),
+          : // Le settimane confrontate hanno sempre tonnellaggio > 0: il Δ % è definito.
+            `da ${num(first.tonnage_kg)} kg · ${signed(((last.tonnage_kg - first.tonnage_kg) / first.tonnage_kg) * 100)} % · kg per serie (serie con carico) ${num(first.kg_per_loaded_set)} → ${num(last.kg_per_loaded_set)}`,
       status: kpi.tonnage_status,
     },
     {

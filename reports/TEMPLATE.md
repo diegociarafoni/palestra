@@ -11,7 +11,7 @@ Ogni valore è confrontato con l'inizio del mese (o del ciclo). Lo stato è asse
 | Indicatore | Valore | Confronto | Stato |
 | --- | --- | --- | --- |
 | Aderenza | {svolte}/{previste} sedute | — | ✓ / ● / ! |
-| Tonnellaggio settimanale | {kg} kg | da {kg0} · {delta %} · kg per serie {kg0/serie} → {kg/serie} | |
+| Tonnellaggio settimanale | {kg} kg | da {kg0} · {delta %} · kg per serie (serie con carico) {kg0/serie} → {kg/serie} | |
 | e1RM medio (esercizi tracciati) | {delta %} | media su {n} esercizi | |
 | Serie registrate | {n} | ~{n/sett} a settimana | |
 | Peso | {kg} | da {kg0} · {delta} | |

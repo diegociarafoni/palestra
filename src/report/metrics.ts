@@ -50,6 +50,22 @@ export function weeklyVolume(sessions: Session[]): WeeklyVolume {
     }));
 }
 
+/**
+ * Serie registrate con carico (> 0) per settimana ISO: la base dei kg per serie nello stato del
+ * tonnellaggio. Le serie senza carico (core, corpo libero) contano nel volume, non qui.
+ */
+export function loadedSetsByWeek(sessions: Session[]): Map<string, number> {
+  const weeks = new Map<string, number>();
+  for (const session of sessions) {
+    const week = isoWeek(romeDate(session.started_at));
+    const loaded = session.exercises
+      .flatMap(registeredSets)
+      .filter((s) => s.load_done_kg !== null && s.load_done_kg > 0).length;
+    weeks.set(week, (weeks.get(week) ?? 0) + loaded);
+  }
+  return weeks;
+}
+
 // Serie registrate del mese per un esercizio della scheda.
 const monthSets = (executions: Execution[] | undefined): number =>
   (executions ?? []).reduce((n, e) => n + registeredSets(e).length, 0);

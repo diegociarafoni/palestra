@@ -107,12 +107,13 @@ export const KpiSchema = z.object({
   sessions: z.int(),
   adherence_pct: nullableNumber,
   adherence_status: nullableStatus,
-  // Prima e ultima settimana con serie registrate (una settimana di solo cardio non conta).
+  // Prima e ultima settimana con tonnellaggio > 0 (settimane di solo cardio o di sole serie
+  // senza carico non contano).
   tonnage_first_week_kg: nullableNumber,
   tonnage_last_week_kg: nullableNumber,
-  // Su kg per serie di quelle due settimane, non sul tonnellaggio grezzo: linee guida § 5
-  // "crescente a parità di serie". Null con meno di due settimane con serie o se la prima ha
-  // 0 kg per serie.
+  // Su kg per serie con carico (tonnellaggio / serie con carico > 0) di quelle due settimane:
+  // linee guida § 5 "crescente a parità di serie", sul lavoro con carico. Null con meno di due
+  // settimane con tonnellaggio.
   tonnage_status: nullableStatus,
   e1rm_mean_delta_pct: nullableNumber,
   e1rm_exercises: z.int(),
