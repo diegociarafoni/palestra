@@ -9,14 +9,15 @@
 // serve solo al controllo finale: prima di scrivere cerca nel rapporto identità, numeri e nomi
 // di mesi o giorni; se ne trova non scrive nulla e stampa solo `file:riga: tipo`.
 // Exit code: 0 ok · 64 argomenti · 65 identities.json non interpretabile o controllo finale
-// fallito (nessun file scritto) · 78 identities.json mancante.
+// fallito (nessun file scritto) · 70 errore imprevisto (solo un messaggio fisso e il codice
+// dell'errore del file system) · 78 identities.json mancante.
 import { existsSync } from "node:fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { HTMLElement, type Node, NodeType, parse } from "node-html-parser";
 import { z } from "zod";
-import { ParseError } from "../src/errors";
+import { exitCodeFor, ParseError } from "../src/errors";
 import { readCurrentUser } from "./probe-mywellness";
 
 /**
@@ -768,15 +769,32 @@ function render(sections: Section[]): string {
   return `${parts.join("\n\n")}\n`;
 }
 
-export async function main(
-  argv: string[],
-  deps: Partial<{ vocab: readonly string[] }> = {},
-): Promise<number> {
+type Deps = Partial<{ vocab: readonly string[] }>;
+
+export async function main(argv: string[], deps: Deps = {}): Promise<number> {
   const [src, dest] = argv;
   if (argv.length !== 2 || !src || !dest) {
     console.error(USAGE);
     return 64;
   }
+  try {
+    return await report(src, dest, deps);
+  } catch (error) {
+    // Un messaggio fisso, mai quello originale né la traccia: potrebbero citare un dato. Degli
+    // errori del file system solo il codice (es. EACCES).
+    const code =
+      error instanceof Error &&
+      "code" in error &&
+      typeof error.code === "string" &&
+      /^E[A-Z]+$/.test(error.code)
+        ? `: ${error.code}`
+        : "";
+    console.error(`errore imprevisto${code}`);
+    return exitCodeFor(error);
+  }
+}
+
+async function report(src: string, dest: string, deps: Deps): Promise<number> {
   if (!existsSync(join(src, IDENTITIES_FILE))) {
     console.error(
       `${IDENTITIES_FILE} mancante in ${src}: eseguire prima il probe`,

@@ -731,6 +731,22 @@ describe("shape", () => {
     expect(error instanceof ParseError && error.cause).toBeUndefined();
   });
 
+  it("shape: unexpected errors print only a fixed message", async () => {
+    const src = probeOut({ "login_ok.html": "<p>Kg</p>" });
+    const dest = join(dir, "forma.md");
+    // Una cartella al posto di un file del probe: readFile fallisce con EISDIR.
+    mkdirSync(join(src, "strength_detail.html"));
+    expect(await main([src, dest])).toBe(70);
+    expect(stderr.mock.calls).toEqual([["errore imprevisto: EISDIR"]]);
+    expect(existsSync(dest)).toBe(false);
+    stderr.mockClear();
+    // Una destinazione in una cartella che non esiste.
+    rmSync(join(src, "strength_detail.html"), { recursive: true });
+    expect(await main([src, join(dir, "manca", "forma.md")])).toBe(70);
+    expect(stderr.mock.calls).toEqual([["errore imprevisto: ENOENT"]]);
+    expect(stdout).not.toHaveBeenCalled();
+  });
+
   it("shape: cli", async () => {
     const usage =
       "Uso: npx tsx scripts/shape-report.ts <cartella_probe> <file_md>";
