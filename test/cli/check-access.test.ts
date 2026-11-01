@@ -375,14 +375,28 @@ describe("check-access", () => {
     ]);
   });
 
-  it("check-access: an unexpected error is not reported as a network error", async () => {
+  it("check-access: exit 70 on an unexpected error, printing only its name", async () => {
+    // Il messaggio potrebbe contenere l'URL: nel log pubblico va solo il nome dell'errore.
     const buggyFetch = async (): Promise<Response> => {
-      throw new RangeError("errore inatteso");
+      throw new RangeError(`valore inatteso per https://${HOST}/`);
     };
-    await expect(main([], ENV, { fetch: buggyFetch })).rejects.toThrow(
-      "errore inatteso",
-    );
-    expect(stderr).not.toHaveBeenCalled();
+    expect(await main([], ENV, { fetch: buggyFetch })).toBe(70);
+    expect(stderr.mock.calls).toEqual([
+      ["Controllo di Access non riuscito: errore inatteso (RangeError)"],
+    ]);
+    expect(output()).not.toContain(HOST);
+  });
+
+  it("check-access: a TypeError without a cause is not a network error (exit 70)", async () => {
+    // Un errore di programmazione nel fetch iniettato: undici, per la rete, mette sempre la causa.
+    const buggyFetch = async (): Promise<Response> => {
+      throw new TypeError(`undefined is not a function (https://${HOST}/)`);
+    };
+    expect(await main([], ENV, { fetch: buggyFetch })).toBe(70);
+    expect(stderr.mock.calls).toEqual([
+      ["Controllo di Access non riuscito: errore inatteso (TypeError)"],
+    ]);
+    expect(output()).not.toContain(HOST);
   });
 
   it("check-access: exit 75 when the request errors (MSW network error)", async () => {

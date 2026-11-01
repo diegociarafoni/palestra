@@ -6,8 +6,9 @@
 // Uso: DASHBOARD_HOSTNAME=<nome host> npx --no -- tsx src/cli/check-access.ts [--after-deploy]
 // Su stderr solo percorsi, stati HTTP ed esito: mai l'hostname, gli URL o il Location (il log
 // delle Actions è pubblico).
-// Exit code (docs/buone-pratiche.md § 8): 0 ok · 64 argomenti · 75 errore di rete o timeout
-// (rilanciare) · 78 DASHBOARD_HOSTNAME mancante o non valido, Access non attivo o non come previsto.
+// Exit code (docs/buone-pratiche.md § 8, `exitCodeFor`): 0 ok · 64 argomenti · 70 errore inatteso
+// (solo il nome) · 75 errore di rete o timeout (rilanciare) · 78 DASHBOARD_HOSTNAME mancante o
+// non valido, Access non attivo o non come previsto.
 import { pathToFileURL } from "node:url";
 import { exitCodeFor, TransientError } from "../errors";
 
@@ -37,10 +38,14 @@ function redirectsToAccess(response: Response, url: string): boolean {
   );
 }
 
-/** Errori che fetch lancia per la rete, per un abort o per il timeout del segnale. */
+/**
+ * Errori che fetch lancia per la rete, per un abort o per il timeout del segnale. Per la rete
+ * undici lancia un `TypeError` con la causa («fetch failed»); un `TypeError` senza causa è un
+ * errore di programmazione.
+ */
 function isNetworkError(error: unknown): boolean {
   return (
-    error instanceof TypeError ||
+    (error instanceof TypeError && error.cause !== undefined) ||
     (error instanceof DOMException &&
       (error.name === "AbortError" || error.name === "TimeoutError"))
   );
@@ -140,9 +145,13 @@ export async function main(
   try {
     return await check(deps.fetch ?? fetch, host, afterDeploy);
   } catch (error) {
-    if (!(error instanceof TransientError)) throw error;
-    // Solo il messaggio: la causa (l'errore di fetch) nomina l'host.
-    console.error(error.message);
+    // Solo il messaggio del TransientError, che non nomina l'host (la causa sì); di un errore
+    // inatteso solo il nome, perché il suo messaggio può contenere l'URL.
+    console.error(
+      error instanceof TransientError
+        ? error.message
+        : `Controllo di Access non riuscito: errore inatteso (${error instanceof Error ? error.name : typeof error})`,
+    );
     return exitCodeFor(error);
   }
 }
