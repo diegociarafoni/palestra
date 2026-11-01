@@ -111,6 +111,7 @@ Inventario per zona e verifiche aperte: [docs/attrezzi-via-mantova.md](../docs/a
 - 2026-11-01 · [Nel frontend zod gira senza JIT, perché la CSP della dashboard non ammette 'unsafe-eval'](decisioni/2026-11-01-zod-senza-jit-nel-frontend.md)
 - 2026-11-01 · [Il report mensile gira in un workflow proprio il 1° e l'8 del mese; D1_DATABASE_ID è un Secret](decisioni/2026-11-01-report-il-1-e-l-8-del-mese.md)
 - 2026-11-01 · [La dashboard si pubblica solo a mano, e il workflow si ferma se Access non la protegge](decisioni/2026-11-01-pubblicazione-manuale-con-guardia-access.md)
+- 2026-11-01 · [Nella dashboard un feedback va con la seduta dello stesso giorno e dello stesso numero nel giorno](decisioni/2026-11-01-feedback-abbinato-per-giorno-e-ordine.md)
 
 ## Documenti di processo
 - [Specifica](../docs/superpowers/specs/2026-10-30-palestra-technogym-design.md) · [Specifica repository pubblico e D1](../docs/superpowers/specs/2026-10-31-repo-pubblico-e-database-design.md) · [Piano](../docs/superpowers/plans/2026-10-31-palestra-typescript-d1.md) · [Flusso di lavoro](../docs/flusso-di-lavoro.md) · [Buone pratiche](../docs/buone-pratiche.md)

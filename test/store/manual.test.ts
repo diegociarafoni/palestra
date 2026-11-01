@@ -331,6 +331,26 @@ function measure(date: string, weight: number): Measure {
 }
 
 describe("store manual data", () => {
+  it("store: list feedback by month and other days", async () => {
+    // Ottobre più domenica 1/11 (giorno di una seduta di uno slot di ottobre); non il 3/11.
+    const insert = env.DB.prepare(
+      `INSERT INTO feedback (id, date, seq, class, joint_pain, updated_at)
+       VALUES (?1, ?2, ?3, ?4, 0, ?5)`,
+    );
+    await env.DB.batch([
+      insert.bind(1, "2026-11-03", 1, "ottima", "2026-11-03T19:00:00.000Z"),
+      insert.bind(2, "2026-11-01", 2, "buona", "2026-11-01T19:00:00.000Z"),
+      insert.bind(3, "2026-10-28", 1, "normale", "2026-10-28T19:00:00.000Z"),
+      insert.bind(4, "2026-11-01", 1, "faticosa", "2026-11-01T12:00:00.000Z"),
+    ]);
+    const feedback = await listFeedback(env.DB, "2026-10", ["2026-11-01"]);
+    expect(feedback.map((f) => [f.id, f.date, f.seq])).toEqual([
+      [3, "2026-10-28", 1],
+      [4, "2026-11-01", 1],
+      [2, "2026-11-01", 2],
+    ]);
+  });
+
   it("store: measures in date range", async () => {
     const m1 = measure("2026-11-10", 1);
     const m2 = measure("2026-11-03", 2);
