@@ -14,6 +14,8 @@ type AzioniSlotProps = {
   feedback: Feedback | undefined;
   /** Giorni della settimana non disponibili nel modello. */
   unavailable: Weekday[];
+  /** Quando parte una scelta. */
+  onSaving: () => void;
   /** Dopo una scelta salvata, con il calendario già ricaricato: il testo dell'esito. */
   onSaved: (message: string) => void;
 };
@@ -26,6 +28,7 @@ export function AzioniSlot({
   slot,
   feedback,
   unavailable,
+  onSaving,
   onSaved,
 }: AzioniSlotProps) {
   const [skipping, setSkipping] = useState(false);
@@ -53,6 +56,7 @@ export function AzioniSlot({
           slot={slot}
           open={skipping}
           onClose={() => setSkipping(false)}
+          onSaving={onSaving}
           onSaved={() => onSaved(testi.skip.saved)}
         />
       </>
@@ -63,6 +67,7 @@ export function AzioniSlot({
       <SceltaGiorno
         slot={slot}
         unavailable={unavailable}
+        onSaving={onSaving}
         onSaved={() => onSaved(testi.chooseDay.saved)}
       />
     );

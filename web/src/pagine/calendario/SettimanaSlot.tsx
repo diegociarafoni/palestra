@@ -1,6 +1,6 @@
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { useId, useRef, useState } from "react";
+import { useId } from "react";
 import type { DashboardSlot } from "../../../../src/domain/dashboard";
 import type { Weekday } from "../../../../src/domain/planning";
 import type { Feedback } from "../../../../src/domain/types";
@@ -8,6 +8,7 @@ import { Elenco } from "../../componenti/Elenco";
 import { VoceSlot } from "../../componenti/VoceSlot";
 import { testi } from "../../testi";
 import { isoWeekNumber } from "../../utils/date";
+import { useEsito } from "../../utils/esito";
 import { AzioniSlot } from "./AzioniSlot";
 
 export type SlotWithFeedback = {
@@ -33,24 +34,19 @@ export function SettimanaSlot({
   unavailable,
 }: SettimanaSlotProps) {
   const titleId = useId();
-  const titleRef = useRef<HTMLHeadingElement>(null);
-  const [status, setStatus] = useState("");
-  const saved = (message: string) => {
-    titleRef.current?.focus();
-    setStatus(message);
-  };
+  const esito = useEsito();
   return (
     <Stack component="section" aria-labelledby={titleId} spacing={1}>
       <Typography
         id={titleId}
-        ref={titleRef}
+        ref={esito.titleRef}
         tabIndex={-1}
         variant="subtitle1"
         component="h3"
       >
         {testi.calendar.week(isoWeekNumber(week))}
       </Typography>
-      <Typography role="status">{status}</Typography>
+      <Typography role="status">{esito.text}</Typography>
       <Elenco>
         {slots.map(({ slot, feedback }) => (
           <VoceSlot key={slot.id} slot={slot}>
@@ -58,7 +54,8 @@ export function SettimanaSlot({
               slot={slot}
               feedback={feedback}
               unavailable={unavailable}
-              onSaved={saved}
+              onSaving={esito.start}
+              onSaved={esito.done}
             />
           </VoceSlot>
         ))}

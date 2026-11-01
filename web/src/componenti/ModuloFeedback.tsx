@@ -30,6 +30,8 @@ type ModuloFeedbackProps = {
   anotherSeq?: number;
   /** Id del titolo, per chi contiene il modulo (il `Dialog` che lo nomina). */
   titleId?: string;
+  /** Quando parte un salvataggio (il modulo è valido). */
+  onSaving?: () => void;
   /** Dopo un salvataggio riuscito, con il calendario già ricaricato. */
   onSaved?: () => void;
   /** Con questa funzione il modulo ha anche "Annulla". */
@@ -47,6 +49,7 @@ export function ModuloFeedback({
   feedback,
   anotherSeq,
   titleId: givenTitleId,
+  onSaving,
   onSaved,
   onCancel,
 }: ModuloFeedbackProps) {
@@ -86,6 +89,7 @@ export function ModuloFeedback({
       setAttempted(true);
       return;
     }
+    onSaving?.();
     mutation.mutate(parsed.data, { onSuccess: onSaved });
   }
 

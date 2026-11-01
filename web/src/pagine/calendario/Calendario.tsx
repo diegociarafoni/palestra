@@ -2,7 +2,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useQuery } from "@tanstack/react-query";
-import { useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import type { Feedback } from "../../../../src/domain/types";
 import { getCalendar } from "../../api/client";
 import { queryKeys } from "../../api/keys";
@@ -10,6 +10,7 @@ import { ModuloFeedback } from "../../componenti/ModuloFeedback";
 import { SelettoreMese } from "../../componenti/SelettoreMese";
 import { StatoQuery } from "../../componenti/StatoQuery";
 import { testi } from "../../testi";
+import { useEsito } from "../../utils/esito";
 import { useToday } from "../../utils/oggi";
 import { MeseCalendario } from "./MeseCalendario";
 
@@ -55,8 +56,7 @@ export default function Calendario() {
   // Il titolo del modulo di oggi sta fuori dal modulo, che si rimonta dopo ogni salvataggio: il
   // focus ci torna e l'esito si annuncia (il pulsante premuto sparisce con il modulo vecchio).
   const titleId = useId();
-  const titleRef = useRef<HTMLHeadingElement>(null);
-  const [status, setStatus] = useState("");
+  const esito = useEsito();
   return (
     <Stack spacing={3}>
       <Typography variant="h5" component="h1">
@@ -72,7 +72,7 @@ export default function Calendario() {
           <Stack spacing={2}>
             <Typography
               id={titleId}
-              ref={titleRef}
+              ref={esito.titleRef}
               tabIndex={-1}
               variant="h6"
               component="h2"
@@ -87,12 +87,10 @@ export default function Calendario() {
               seq={last?.seq ?? 1}
               feedback={last ?? undefined}
               anotherSeq={last === null ? undefined : last.seq + 1}
-              onSaved={() => {
-                titleRef.current?.focus();
-                setStatus(testi.feedbackForm.saved);
-              }}
+              onSaving={esito.start}
+              onSaved={() => esito.done(testi.feedbackForm.saved)}
             />
-            <Typography role="status">{status}</Typography>
+            <Typography role="status">{esito.text}</Typography>
           </Stack>
         </Paper>
       )}

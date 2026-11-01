@@ -29,6 +29,8 @@ type DialogoSlotSaltatoProps = {
   slot: PlannedSlot;
   open: boolean;
   onClose: () => void;
+  /** Quando parte la conferma. */
+  onSaving: () => void;
   /** Dopo la conferma salvata, a dialogo chiuso e con il calendario già ricaricato. */
   onSaved: () => void;
 };
@@ -41,6 +43,7 @@ export function DialogoSlotSaltato({
   slot,
   open,
   onClose,
+  onSaving,
   onSaved,
 }: DialogoSlotSaltatoProps) {
   const titleId = useId();
@@ -103,7 +106,8 @@ export function DialogoSlotSaltato({
         <Button
           variant="contained"
           loading={mutation.isPending}
-          onClick={() =>
+          onClick={() => {
+            onSaving();
             mutation.mutate(
               { status: "saltata", reason },
               {
@@ -114,8 +118,8 @@ export function DialogoSlotSaltato({
                   onSaved();
                 },
               },
-            )
-          }
+            );
+          }}
         >
           {testi.skip.confirm}
         </Button>

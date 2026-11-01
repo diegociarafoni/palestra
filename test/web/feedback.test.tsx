@@ -2,6 +2,7 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
+import { FeedbackBodySchema } from "../../src/domain/dashboard";
 import { queryKeys } from "../../web/src/api/keys";
 import Calendario from "../../web/src/pagine/calendario/Calendario";
 import slots from "../fixtures/dashboard/slots.json";
@@ -894,6 +895,7 @@ describe("web", () => {
     // W45-1 da confermare, W45-2 programmato per giovedì 5/11; ogni scrittura cambia il calendario.
     let first = { ...W45_1, status: "da_confermare", session_id: null };
     let second = { ...slots[2], session_id: null };
+    let days = 0;
     server.use(
       http.get("/api/calendar", () =>
         HttpResponse.json({
@@ -908,7 +910,12 @@ describe("web", () => {
         first = { ...first, status: "saltata", reason: null };
         return HttpResponse.json(first);
       }),
+      // La prima scelta del giorno riesce, la seconda no.
       http.patch("/api/slots/2026-W45-2", () => {
+        days += 1;
+        if (days > 1) {
+          return HttpResponse.json({ error: "internal" }, { status: 500 });
+        }
         second = { ...second, date: "2026-11-07" };
         return HttpResponse.json(second);
       }),
@@ -945,5 +952,74 @@ describe("web", () => {
       ),
     );
     expect(document.activeElement).toBe(title);
+
+    // Una scrittura nuova svuota l'esito di quella prima: se fallisce, resta solo l'errore.
+    await user.selectOptions(
+      within(week).getByRole("combobox", { name: "Scegli il giorno" }),
+      "dom 8 nov",
+    );
+    expect((await within(week).findByRole("alert")).textContent).toBe(
+      "Salvataggio non riuscito. Riprova.",
+    );
+    expect(within(week).getByRole("status").textContent).toBe("");
+  });
+
+  it("web: save result belongs to its write and its day", async () => {
+    todayIsThursday();
+    const user = userEvent.setup();
+    // Il calendario dopo ogni salvataggio riuscito ha i feedback salvati; il terzo invio fallisce.
+    const stored: object[] = [];
+    let puts = 0;
+    server.use(
+      http.get("/api/calendar", () =>
+        HttpResponse.json({ ...EMPTY, feedback: stored }),
+      ),
+      http.put("/api/feedback", async ({ request }) => {
+        puts += 1;
+        if (puts === 3) {
+          return HttpResponse.json({ error: "internal" }, { status: 500 });
+        }
+        const body = FeedbackBodySchema.parse(await request.json());
+        const saved = feedback({
+          ...body,
+          id: puts,
+          updated_at: `2026-11-05T18:0${puts}:00.000Z`,
+        });
+        stored.push(saved);
+        return HttpResponse.json(saved);
+      }),
+    );
+    renderConTema(<Calendario />);
+
+    const form = await screen.findByRole("form", {
+      name: "Come è andata oggi?",
+    });
+    await user.click(within(form).getByRole("button", { name: "Buona" }));
+    await user.click(within(form).getByRole("button", { name: "Salva" }));
+    expect(await screen.findByText("Feedback salvato.")).toBeTruthy();
+
+    // Venerdì 6/11, tornando sulla pagina: il modulo del giorno nuovo, senza l'esito di ieri.
+    vi.setSystemTime(new Date("2026-11-06T18:00:00Z"));
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() =>
+      expect(screen.queryByText("Feedback salvato.")).toBeNull(),
+    );
+    const friday = screen.getByRole("form", { name: "Come è andata oggi?" });
+    expect(within(friday).queryByRole("button", { pressed: true })).toBeNull();
+
+    // Salvato, poi un secondo invio che fallisce: l'esito del primo non resta.
+    await user.click(within(friday).getByRole("button", { name: "Ottima" }));
+    await user.click(within(friday).getByRole("button", { name: "Salva" }));
+    expect(await screen.findByText("Feedback salvato.")).toBeTruthy();
+    const again = screen.getByRole("form", { name: "Come è andata oggi?" });
+    await user.click(
+      within(again).getByRole("button", { name: "Un'altra seduta oggi" }),
+    );
+    expect((await within(again).findByRole("alert")).textContent).toBe(
+      "Salvataggio non riuscito. Riprova.",
+    );
+    expect(screen.queryByText("Feedback salvato.")).toBeNull();
   });
 });
