@@ -151,7 +151,8 @@ const isOpen = (s: PlannedSlot): boolean =>
  * della seduta diventa `fatta` se il giorno è nella sua finestra, `spostata` se è sabato o
  * domenica. Poi il primo slot non fatto (in ordine di numero) la cui finestra contiene `date`
  * diventa `fatta`; altrimenti, di sabato o domenica, il primo slot non fatto diventa `spostata`
- * (recupero); altrimenti la seduta è `extra`.
+ * (recupero), saltando quelli con un giorno scelto più avanti se ce n'è un altro; altrimenti la
+ * seduta è `extra`.
  * Le finestre stanno nei giorni feriali (il fine settimana non si propone mai): di sabato o
  * domenica tutte le finestre della settimana sono già finite.
  * `_t` resta per la firma del piano (Task 4): nessuna regola della spec usa il modello.
@@ -176,7 +177,10 @@ export function matchSession(
   const inWindow = ordered.find((s) => isOpen(s) && s.window.includes(date));
   if (inWindow) return { kind: "slot", id: inWindow.id, status: "fatta" };
   if (weekend) {
-    const missed = ordered.find(isOpen);
+    // Uno slot spostato a un giorno dopo questo lo aspetta: si recupera prima un altro.
+    const missed =
+      ordered.find((s) => isOpen(s) && (s.date === null || s.date <= date)) ??
+      ordered.find(isOpen);
     if (missed) return { kind: "slot", id: missed.id, status: "spostata" };
   }
   return { kind: "extra" };

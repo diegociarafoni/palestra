@@ -211,4 +211,24 @@ describe("planning", () => {
       matchSession("2026-11-07", w45("fatta", "da_confermare"), tpl),
     ).toEqual({ kind: "slot", id: "2026-W45-2", status: "spostata" });
   });
+
+  it("planning: saturday recovery leaves the slot chosen for sunday", () => {
+    // Slot 1 spostato a domenica 8/11, slot 2 (giovedì 5/11) mancato: la seduta di sabato 7/11
+    // recupera lo slot 2, e la domenica resta allo slot 1.
+    const sunday = { ...slot1, date: "2026-11-08" };
+    const missed = { ...slot2, status: "da_confermare" as const };
+    expect(matchSession("2026-11-07", [sunday, missed], tpl)).toEqual({
+      kind: "slot",
+      id: "2026-W45-2",
+      status: "spostata",
+    });
+    // Nessun altro slot aperto: il sabato recupera comunque lo slot 1.
+    expect(
+      matchSession(
+        "2026-11-07",
+        [sunday, { ...slot2, status: "fatta", session_id: "sess-d05" }],
+        tpl,
+      ),
+    ).toEqual({ kind: "slot", id: "2026-W45-1", status: "spostata" });
+  });
 });

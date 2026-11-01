@@ -35,7 +35,7 @@ La data della seduta è quella di Roma (una seduta delle 23:30 UTC di giovedì i
 
 0. Il primo slot non fatto il cui giorno scelto dall'utente è la data della seduta la prende: `fatta` se il giorno è nella sua finestra, `spostata` se è sabato o domenica ([decisione del 2026-11-01](../decisioni/2026-11-01-giorno-scelto-nell-abbinamento.md)).
 1. Il primo slot non fatto la cui finestra contiene la data diventa `fatta`. Vale anche per uno slot già `da_confermare` (seduta arrivata in ritardo da Mywellness) o `saltata`: la seduta reale prevale sulla conferma.
-2. Di sabato o di domenica, il primo slot non fatto della settimana (in ordine di numero) diventa `spostata`: è il recupero ([decisione del 2026-10-31](../decisioni/2026-10-31-recupero-nel-fine-settimana.md)).
+2. Di sabato o di domenica, il primo slot non fatto della settimana (in ordine di numero) diventa `spostata`: è il recupero ([decisione del 2026-10-31](../decisioni/2026-10-31-recupero-nel-fine-settimana.md)). Uno slot che l'utente ha spostato a un giorno successivo (alla domenica, per una seduta del sabato) si salta se c'è un altro slot non fatto; se non c'è, il recupero prende anche lui.
 3. In tutti gli altri casi la seduta è **extra**. È extra anche una seconda seduta nella finestra di uno slot già fatto.
 
 Le sedute non ancora abbinate si abbinano una alla volta, in ordine di data, e ogni abbinamento aggiorna lo stato degli slot prima del successivo: con due slot mancati il sabato recupera lo slot 1 e la domenica lo slot 2.
@@ -63,6 +63,7 @@ Esempio con un modello fittizio (slot 1 martedì o mercoledì, giorno A; slot 2 
 | Martedì, giovedì e sabato | Slot 1 e 2 `fatta`, sabato extra |
 | Venerdì | Extra, slot 1 e 2 `da_confermare` |
 | Sabato, con lo slot 2 spostato dall'utente a sabato | Slot 2 `spostata`, slot 1 `da_confermare` |
+| Sabato, con lo slot 1 spostato dall'utente a domenica e lo slot 2 mancato | Slot 2 `spostata` (sabato); lo slot 1 aspetta la domenica |
 
 ## Aderenza
 
