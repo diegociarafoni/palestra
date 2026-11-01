@@ -2,7 +2,7 @@ import type { Db } from "../db/types";
 import type { SessionSummary } from "../domain/dashboard";
 import { romeDate } from "../domain/dates";
 import { type Session, SessionSchema } from "../domain/types";
-import { parseJsonColumn } from "./json";
+import { parseJsonColumn, parseStored } from "./json";
 
 /** Scrive seduta e serie temporali in un solo batch; ripeterla non duplica righe. */
 export async function upsertSession(
@@ -43,6 +43,33 @@ export async function knownSessionIds(
     .bind(sinceDate)
     .all<{ session_id: string }>();
   return new Set(results.map((r) => r.session_id));
+}
+
+const SessionStartSchema = SessionSchema.pick({
+  session_id: true,
+  started_at: true,
+});
+
+/**
+ * Id e inizio delle sedute con data (Europe/Rome) uguale o successiva a `sinceDate`, in ordine
+ * cronologico (sola lettura, per l'abbinamento agli slot).
+ */
+export async function listSessionStarts(
+  db: Db,
+  sinceDate: string,
+): Promise<Pick<Session, "session_id" | "started_at">[]> {
+  // julianday() confronta gli istanti anche con offset diversi (+01:00, +02:00, Z).
+  const { results } = await db
+    .prepare(
+      `SELECT rowid, session_id, started_at FROM sessions WHERE date >= ?1
+       ORDER BY julianday(started_at), session_id`,
+    )
+    .bind(sinceDate)
+    .all<{ rowid: number; session_id: string; started_at: string }>();
+  // Nel messaggio d'errore il rowid, mai session_id o date (finirebbero nei log).
+  return results.map(({ rowid, ...row }) =>
+    parseStored(SessionStartSchema, row, "sessions", `rowid ${rowid}`),
+  );
 }
 
 /** Sedute del mese `YYYY-MM` (data Europe/Rome), in ordine cronologico. */
