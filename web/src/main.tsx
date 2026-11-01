@@ -36,7 +36,14 @@ const queryClient = new QueryClient({ defaultOptions: queryDefaults });
 const root = document.getElementById("root");
 if (root === null) throw new Error("elemento #root mancante in index.html");
 
-createRoot(root).render(
+// React 19 scrive su console.error ogni errore di render, anche quelli presi dagli ErrorBoundary:
+// i messaggi possono contenere dati (docs/buone-pratiche-react.md § 5), quindi nessun log.
+const silent = () => {};
+
+createRoot(root, {
+  onCaughtError: silent,
+  onUncaughtError: silent,
+}).render(
   <StrictMode>
     <ThemeProvider theme={theme} noSsr>
       <CssBaseline />
