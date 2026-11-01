@@ -625,11 +625,26 @@ describe("shape", () => {
       "userId: numero 9",
       "«a_a»: numero 9",
     ]);
-    // Il probe raccoglie nome e cognome anche in campi separati: le iniziali vengono anche dalle
-    // coppie di identità di una parola sola (qui solo "Mario" e "Rossi", in `ctx`).
+  });
+
+  it("shape: initials in any case and order are masked", () => {
+    // Il probe raccoglie nome e cognome anche in campi separati: le iniziali vengono dai nomi
+    // interi ("Giulia Bianchi") e dalle coppie di nomi di una parola ("Mario", "Rossi"), in
+    // entrambi gli ordini e senza distinguere maiuscole e minuscole.
+    const names = shapeContext([...IDENTITIES, "Giulia Bianchi"]);
     expect(
-      shapeOfHtml('<span class="initials-MR"></span><b class="RM"></b>', ctx),
-    ).toEqual(["span[class=«a-A»]", "b[class=«A»]"]);
+      shapeOfJson({ mr: 1, Mr: "x", RM: true, bg: null, Gb: [] }, names),
+    ).toEqual([
+      '«A»: "a"',
+      "«A»: []",
+      "«A»: booleano",
+      "«a»: null",
+      "«a»: numero 9",
+    ]);
+    // Anche quando le iniziali sono parti di una lettera, unite.
+    expect(
+      shapeOfHtml('<input name="M.R" type="m-r" method="x_M_R">', names),
+    ).toEqual(["input[name=«A.A», type=«a-a», method=«a_A_A»]"]);
   });
 
   it("shape: keeps the property names the parser reads", () => {

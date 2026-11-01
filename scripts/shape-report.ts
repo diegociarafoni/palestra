@@ -162,8 +162,9 @@ function identityWordsOf(identities: readonly string[]): Set<string> {
 }
 
 /**
- * Le iniziali: le prime lettere delle prime due parole di ogni nome tra le identità e, poiché il
- * probe raccoglie nome e cognome anche in campi separati, di ogni coppia di nomi di una parola.
+ * Le iniziali, in entrambi gli ordini: le prime lettere delle prime due parole di ogni nome tra
+ * le identità e, poiché il probe raccoglie nome e cognome anche in campi separati, di ogni
+ * coppia di nomi di una parola.
  */
 function initialsOf(identities: readonly string[]): Set<string> {
   const names = identities.map(fold).filter((name) => NAME_LIKE.test(name));
@@ -174,7 +175,7 @@ function initialsOf(identities: readonly string[]): Set<string> {
   return new Set([
     ...names.flatMap((name) => {
       const match = /^[^\p{L}]*(\p{L})\S*\s+[^\p{L}]*(\p{L})/u.exec(name);
-      return match ? [`${match[1]}${match[2]}`] : [];
+      return match ? [`${match[1]}${match[2]}`, `${match[2]}${match[1]}`] : [];
     }),
     ...single.flatMap((a, i) =>
       single.flatMap((b, j) => (i === j ? [] : [`${a}${b}`])),
@@ -263,10 +264,18 @@ function plainName(
       return (
         ctx.identityWords.has(word) ||
         (dateParts && DATE_PART_SET.has(word)) ||
-        (/^\p{Lu}{2}$/u.test(part) && ctx.initials.has(word))
+        ([...part].length === 2 && ctx.initials.has(word))
       );
     })
   ) {
+    return undefined;
+  }
+  // Le parti di una lettera, unite: `M.R`, `m-r`.
+  const singles = parts
+    .filter((part) => [...part].length === 1)
+    .map(fold)
+    .join("");
+  if ([...ctx.initials].some((initials) => singles.includes(initials))) {
     return undefined;
   }
   const letters = (fold(name).match(/\p{L}+/gu) ?? []).join("");
