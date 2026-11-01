@@ -1,16 +1,15 @@
 import { screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
-import { retryQuery, SessionError } from "../../web/src/api/session";
+import { browser, retryQuery, SessionError } from "../../web/src/api/session";
 import Misure from "../../web/src/pagine/misure/Misure";
 import measures from "../fixtures/dashboard/measures.json";
 import { renderConTema } from "./render";
 import { server } from "./setup";
 
 // Sessione di Cloudflare Access: come il client chiede le risposte e come reagisce a 401/403.
-// L'ultima ricarica sta in sessionStorage (solo un numero); jsdom non permette di osservare
-// `location.reload()` (scrive solo "Not implemented: navigation…" sullo stderr del processo),
-// quindi si guardano la pagina e quel numero.
+// L'ultima ricarica sta in sessionStorage (solo un numero). jsdom non ricarica la pagina: la
+// ricarica passa da `browser.reload`, che qui è sostituita da una spia.
 const RELOAD_KEY = "palestra:lastReload";
 const NOW = new Date("2026-11-03T08:00:00Z"); // 1793692800000
 
@@ -22,6 +21,7 @@ function expiredSession(status: number) {
       HttpResponse.json({ error: "unauthorized" }, { status }),
     ),
   );
+  return vi.spyOn(browser, "reload").mockImplementation(() => {});
 }
 
 describe("web", () => {
@@ -42,24 +42,22 @@ describe("web", () => {
   });
 
   it("web: expired session reloads the page", async () => {
-    expiredSession(401);
+    const reload = expiredSession(401);
     renderConTema(<Misure />);
 
-    await waitFor(() =>
-      expect(sessionStorage.getItem(RELOAD_KEY)).toBe("1793692800000"),
-    );
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+    expect(sessionStorage.getItem(RELOAD_KEY)).toBe("1793692800000");
     expect(screen.getByRole("status", { name: "Caricamento" })).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("web: expired session reloads again after 60 s", async () => {
     sessionStorage.setItem(RELOAD_KEY, "1793692739000"); // 61 s prima
-    expiredSession(401);
+    const reload = expiredSession(401);
     renderConTema(<Misure />);
 
-    await waitFor(() =>
-      expect(sessionStorage.getItem(RELOAD_KEY)).toBe("1793692800000"),
-    );
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+    expect(sessionStorage.getItem(RELOAD_KEY)).toBe("1793692800000");
     expect(screen.getByRole("status", { name: "Caricamento" })).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
@@ -68,7 +66,7 @@ describe("web", () => {
     "web: session still invalid after a reload shows message (%i)",
     async (status) => {
       sessionStorage.setItem(RELOAD_KEY, "1793692770000"); // 30 s prima
-      expiredSession(status);
+      const reload = expiredSession(status);
       renderConTema(<Misure />);
 
       const alert = await screen.findByRole("alert");
@@ -77,6 +75,7 @@ describe("web", () => {
       );
       expect(alert.textContent).not.toContain("Impossibile caricare i dati.");
       expect(sessionStorage.getItem(RELOAD_KEY)).toBe("1793692770000");
+      expect(reload).not.toHaveBeenCalled();
     },
   );
 

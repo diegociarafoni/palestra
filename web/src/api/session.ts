@@ -8,3 +8,6 @@ export class SessionError extends Error {}
 export function retryQuery(failureCount: number, error: Error): boolean {
   return !(error instanceof SessionError) && failureCount < 3;
 }
+
+/** Ricarica della pagina, dietro un oggetto che i test possono sostituire (jsdom non ricarica). */
+export const browser = { reload: () => window.location.reload() };

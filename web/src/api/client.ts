@@ -6,7 +6,7 @@ import {
   ReportsResponseSchema,
   SchedaResponseSchema,
 } from "../../../src/domain/dashboard";
-import { SessionError } from "./session";
+import { browser, SessionError } from "./session";
 
 // Unico client dell'API (docs/buone-pratiche-react.md § 5): percorsi e tipi arrivano da `AppType`,
 // le risposte si validano con gli schemi zod di src/domain/dashboard.ts. Con `X-Requested-With`
@@ -41,7 +41,7 @@ async function read<T>(
       );
     }
     sessionStorage.setItem(RELOAD_KEY, String(now));
-    window.location.reload();
+    browser.reload();
     // La richiesta resta in corso fino alla ricarica: nessun errore tecnico da mostrare.
     return new Promise<never>(() => {});
   }
