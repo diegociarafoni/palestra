@@ -195,6 +195,61 @@ describe("report", () => {
     expect(section(renderReport(unloadedSets), 1)).toContain(
       "| Tonnellaggio settimanale | 2160 kg | da 2160 kg · 0 % · kg per serie (serie con carico) 720 → 720 | ✓ |",
     );
+    // Serie a 0 kg (corpo libero, core) come quelle senza carico: non sono serie con carico.
+    const zeroKg = {
+      ...input,
+      sessions: [
+        at("sess-t07", "2026-11-03T18:00:00+01:00", [
+          lift(1, "Leg Press", [12, 12, 12], 60),
+          lift(2, "Crunch", [12, 12, 12], 0),
+        ]),
+        at("sess-t08", "2026-11-10T18:00:00+01:00", [
+          lift(1, "Leg Press", [12, 12, 12], 60),
+          lift(2, "Crunch", [12, 12, 12, 12, 12, 12], 0),
+        ]),
+      ],
+    };
+    expect(reportMetrics(zeroKg).kpi.tonnage_status).toBe("ok");
+    expect(section(renderReport(zeroKg), 1)).toContain(
+      "| Tonnellaggio settimanale | 2160 kg | da 2160 kg · 0 % · kg per serie (serie con carico) 720 → 720 | ✓ |",
+    );
+    // Solo serie registrate (ripetizioni > 0): una serie con ripetizioni null o 0 a 60 kg non
+    // è una serie con carico.
+    const pressed = lift(1, "Leg Press", [12, 12, 12], 60);
+    const empty = (n: number, reps: number | null) => ({
+      n,
+      reps_target: 12,
+      reps_done: reps,
+      load_target_kg: 60,
+      load_done_kg: 60,
+    });
+    const unregistered = {
+      ...input,
+      sessions: [
+        at("sess-t09", "2026-11-03T18:00:00+01:00", [pressed]),
+        at("sess-t10", "2026-11-10T18:00:00+01:00", [
+          { ...pressed, sets: [...pressed.sets, empty(4, null), empty(5, 0)] },
+        ]),
+      ],
+    };
+    expect(section(renderReport(unregistered), 1)).toContain(
+      "| Tonnellaggio settimanale | 2160 kg | da 2160 kg · 0 % · kg per serie (serie con carico) 720 → 720 | ✓ |",
+    );
+    // Δ % positivo: 1800 → 2160 kg, kg per serie con carico 600 → 720.
+    const rising = {
+      ...input,
+      sessions: [
+        at("sess-t11", "2026-11-03T18:00:00+01:00", [
+          lift(1, "Leg Press", [12, 12, 12], 50),
+        ]),
+        at("sess-t12", "2026-11-10T18:00:00+01:00", [
+          lift(1, "Leg Press", [12, 12, 12], 60),
+        ]),
+      ],
+    };
+    expect(section(renderReport(rising), 1)).toContain(
+      "| Tonnellaggio settimanale | 2160 kg | da 1800 kg · +20 % · kg per serie (serie con carico) 600 → 720 | ✓ |",
+    );
     // Carichi minimi: kg per serie con carico mostrati 0 → 0 e tonnellaggio iniziale "0 kg".
     // Nessuno stato (una base 0 renderebbe tutto ✓) e nessun Δ % su 0 kg.
     const tiny = {
