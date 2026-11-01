@@ -2,6 +2,15 @@
 
 Le sezioni sulla dashboard (Pages + Functions dietro Cloudflare Access) arrivano con i Task 10–11.
 
+## Report mensile
+
+- Il workflow `.github/workflows/report.yml` gira il 1° di ogni mese alle 05:37 UTC, dopo la sync notturna delle 03:17 UTC, ed esegue `npm run report -- --month <mese precedente, ora di Roma>` (`src/cli/report.ts`). Salva in D1 il Markdown del mese (`reports`, tipo `report`) e le metriche (`metrics`, 9 chiavi). Un nuovo salvataggio dello stesso mese sostituisce il precedente.
+- A mano: Actions → report → Run workflow, con il mese `AAAA-MM`. Con il campo vuoto prende il mese precedente. Serve a rigenerare un mese dopo una sync recuperata o una correzione dei dati manuali.
+- Variabili: i secret `CLOUDFLARE_ACCOUNT_ID` e `CF_TOKEN_D1` e la variabile del repository `D1_DATABASE_ID`. Sono le stesse della sync.
+- Log: solo `report salvato` oppure una riga `Report non generato: …`, con il messaggio dei soli errori del progetto. Di un errore inatteso compare solo il nome, perché il messaggio potrebbe contenere dati. Il contenuto del report non compare mai.
+- Exit code: 0 report salvato · 64 mese non valido · 65 dati in D1 o metriche non conformi allo schema · 69 servizio esterno non disponibile · 70 errore inatteso, compresa una risposta HTTP di D1 non prevista · 75 errore transitorio di D1 (429, 5xx, rete) ancora presente dopo i retry · 78 variabili mancanti o credenziali rifiutate.
+- Il report è una bozza algoritmica: la revisione del mese la legge da D1 e la conferma o corregge (procedura in `CLAUDE.md`, «Revisione mensile»).
+
 ## Backup e ripristino
 
 ### Cosa fa
