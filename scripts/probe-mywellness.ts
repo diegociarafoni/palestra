@@ -29,6 +29,8 @@ const API = "https://api.mywellness.com";
 // AppId pubblico del sito web (non è una credenziale).
 const APP_ID = "ec1d38d7-d359-48d0-a60c-d8c0b8fb9df9";
 const MIN_INTERVAL_MS = 1000;
+// Una richiesta senza risposta completa entro 30 s è un errore transitorio (exit 75).
+const REQUEST_TIMEOUT_MS = 30_000;
 // Identificabile come il client della sync (src/mywellness/client.ts), con un nome proprio.
 const USER_AGENT = `palestra-probe/${VERSION}`;
 const MAX_REDIRECTS = 10;
@@ -116,6 +118,7 @@ class Http {
           headers,
           body,
           redirect: "manual",
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         });
         bytes = new Uint8Array(await response.arrayBuffer());
       } catch (error) {

@@ -198,6 +198,25 @@ describe("probe", () => {
     ]);
   });
 
+  it("probe: a request without an answer in 30 s is a transient error", async () => {
+    // Il segnale di AbortSignal.timeout scade dopo 30 s: qui il fetch fallisce come farebbe allora.
+    const signals: (AbortSignal | null | undefined)[] = [];
+    const timingOut: typeof fetch = async (_input, init) => {
+      signals.push(init?.signal);
+      throw new DOMException("signal timed out", "TimeoutError");
+    };
+    expect(
+      await main(
+        [],
+        { MYWELLNESS_EMAIL: EMAIL, MYWELLNESS_PASSWORD: PASSWORD },
+        { ...deps(), fetch: timingOut },
+      ),
+    ).toBe(75);
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toBeInstanceOf(AbortSignal);
+    expect(stderr.mock.calls).toEqual([["login form: errore di rete"]]);
+  });
+
   it("probe: saves the raw bodies and picks strength, cardio and biometrics", async () => {
     const training = TRAINING;
     // In elenco la seduta di forza più vecchia (333) viene prima: conta startedOn.
