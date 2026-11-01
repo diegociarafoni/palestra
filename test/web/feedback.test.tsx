@@ -363,6 +363,11 @@ describe("web", () => {
     renderConTema(<Calendario />);
     await screen.findByRole("form", { name: "Come è andata oggi?" });
     expect(screen.getByText("ottobre 2026")).toBeTruthy();
+    // Andata e ritorno: tornati al mese di oggi, la pagina lo segue di nuovo.
+    await user.click(screen.getByRole("button", { name: "Mese precedente" }));
+    await screen.findByText("settembre 2026");
+    await user.click(screen.getByRole("button", { name: "Mese successivo" }));
+    await screen.findByRole("form", { name: "Come è andata oggi?" });
 
     // Domenica 1/11 alle 0:30: tornando sulla pagina, il mese di oggi e il suo modulo.
     vi.setSystemTime(new Date("2026-10-31T23:30:00Z"));
@@ -373,7 +378,7 @@ describe("web", () => {
     const form = await screen.findByRole("form", {
       name: "Come è andata oggi?",
     });
-    expect(months).toEqual(["2026-10", "2026-11"]);
+    expect(months.at(-1)).toBe("2026-11");
     await user.click(within(form).getByRole("button", { name: "Ottima" }));
     await user.click(within(form).getByRole("button", { name: "Salva" }));
     await waitFor(() => expect(bodies).toHaveLength(1));

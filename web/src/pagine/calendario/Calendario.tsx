@@ -62,7 +62,11 @@ export default function Calendario() {
       <Typography variant="h5" component="h1">
         {testi.nav.calendar}
       </Typography>
-      <SelettoreMese month={month} onChange={setChosenMonth} />
+      <SelettoreMese
+        month={month}
+        // Tornati al mese di oggi, non è più una scelta: la pagina segue di nuovo il giorno.
+        onChange={(m) => setChosenMonth(m === today.slice(0, 7) ? null : m)}
+      />
       {month === today.slice(0, 7) && todays.isSuccess && (
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Stack spacing={2}>
