@@ -66,6 +66,10 @@ export const theme = createTheme({
     // Aree toccabili di almeno 48 px (docs/buone-pratiche-mui.md § 8).
     MuiButton: { styleOverrides: { root: { minHeight: 48 } } },
     MuiIconButton: { defaultProps: { size: "large" } },
+    MuiToggleButton: { styleOverrides: { root: { minHeight: 48 } } },
+    // 24 px di icona più 12 px per lato (MUI ne mette 9: 42 px).
+    MuiCheckbox: { styleOverrides: { root: { padding: 12 } } },
+    MuiRadio: { styleOverrides: { root: { padding: 12 } } },
     // Cinque voci in basso a 360 px: senza la larghezza minima di MUI (80 px) ognuna ha 72 px.
     MuiBottomNavigationAction: { styleOverrides: { root: { minWidth: 0 } } },
     // Testo di base almeno 16 px anche nelle tabelle (MUI usa body2, 14 px); il peso resta quello di MUI.
