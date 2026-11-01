@@ -4,4 +4,5 @@ export const queryKeys = {
   scheda: ["scheda"],
   report: (month: string) => ["reports", month],
   week: (date: string) => ["week", date],
+  exercises: (month: string) => ["exercises", month],
 };

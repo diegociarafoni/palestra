@@ -2,6 +2,7 @@ import { hc } from "hono/client";
 import type { z } from "zod";
 import type { AppType } from "../../../src/api/app";
 import {
+  ExercisesResponseSchema,
   MeasuresResponseSchema,
   ReportsResponseSchema,
   SchedaResponseSchema,
@@ -89,4 +90,12 @@ export function getReport(month: string) {
 /** Slot e sedute della settimana ISO che contiene `date` (`AAAA-MM-GG`). */
 export function getWeek(date: string) {
   return read(api.week.$get({ query: { date } }), WeekResponseSchema);
+}
+
+/** Tabella della forza e serie dell'e1RM del mese (`AAAA-MM`), dalle metriche del report. */
+export function getExercises(month: string) {
+  return read(
+    api.exercises.$get({ query: { month } }),
+    ExercisesResponseSchema,
+  );
 }

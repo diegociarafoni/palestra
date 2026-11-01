@@ -1,4 +1,7 @@
+import type { StrengthTable } from "../../src/domain/metrics";
 import type { SlotStatus } from "../../src/domain/planning";
+
+type StrengthRow = StrengthTable[number];
 
 // Tutte le stringhe dell'interfaccia (docs/buone-pratiche-react.md § 7).
 
@@ -71,6 +74,40 @@ export const testi = {
       da_confermare: "Da confermare",
       saltata: "Saltata",
     } satisfies Record<SlotStatus, string>,
+  },
+  exercises: {
+    chartTitle: "e1RM per esercizio",
+    chartLimit: (count: number) =>
+      `Il grafico mostra i primi ${count} esercizi: tutti sono nella tabella.`,
+    kg: "kg",
+    e1rmValue: (kg: string) => `${kg} kg`,
+    tableTitle: "Forza per esercizio",
+    columns: {
+      name: "Esercizio",
+      sessions: "Sedute",
+      sets: "Prima → ultima serie",
+      e1rm: "e1RM inizio → fine (kg)",
+      change: "Variazione e1RM",
+      reliability: "Affidabilità",
+      next: "Prossimo passo",
+    },
+    set: (load: string, reps: number) => `${load} kg × ${reps}`,
+    range: (from: string, to: string) => `${from} → ${to}`,
+    reliability: {
+      confermato: "Confermato",
+      da_rivedere: "Da rivedere",
+      bloccato: "Bloccato",
+    } satisfies Record<NonNullable<StrengthRow["reliability"]>, string>,
+    // Stesse parole della proposta nel report (src/report/render.ts).
+    actions: {
+      increase: "Aumenta",
+      decrease: "Riduci",
+      hold: "Mantieni",
+      calibrate: "Tara",
+    } satisfies Record<StrengthRow["next"]["action"], string>,
+    // Senza carico noto lo step non ha un valore in kg: si dicono solo le ripetizioni.
+    step: "di uno step",
+    reps: (reps: number) => `× ${reps}`,
   },
   week: {
     slotsTitle: "Sedute programmate",
