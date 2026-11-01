@@ -1,0 +1,57 @@
+name: publish
+
+# Pubblicazione della dashboard su Cloudflare Pages (docs/dashboard.md, «Pubblicazione»), solo a
+# mano. Prima del deploy controlla che Cloudflare Access protegga l'hostname della dashboard e,
+# se non lo protegge, si ferma senza pubblicare; dopo il deploy ripete il controllo e verifica
+# che l'API risponda 401 alle richieste con X-Requested-With senza sessione.
+# Log: solo esiti ed exit code, mai l'hostname, gli URL o l'output di wrangler.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Unica fonte dell'hostname, mai stampato (GitHub maschera i segreti nei log). Per una
+      # GitHub Variable basta cambiare questa riga in `vars.DASHBOARD_HOSTNAME`.
+      DASHBOARD_HOSTNAME: ${{ secrets.DASHBOARD_HOSTNAME }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:web
+      # Mai pubblicare senza Access attivo (CLAUDE.md): exit 78 qui ferma il job prima del deploy.
+      - name: Check that Cloudflare Access protects the dashboard
+        timeout-minutes: 2
+        run: npx --no -- tsx src/cli/check-access.ts
+      # Output di wrangler scartato: contiene gli URL del progetto e degli alias. Binding e
+      # variabili delle Functions vengono dalle impostazioni del progetto Pages (nessun wrangler.toml).
+      - name: Deploy site/ and functions/ to Cloudflare Pages
+        timeout-minutes: 5
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_TOKEN_PAGES }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: "false"
+          WRANGLER_WRITE_LOGS: "false"
+        run: |
+          if npx --no -- wrangler pages deploy site --project-name palestra --branch main </dev/null >/dev/null 2>&1; then
+            echo "Deploy riuscito"
+          else
+            code=$?
+            echo "Deploy non riuscito (wrangler exit $code)"
+            exit "$code"
+          fi
+      - name: Check Access again and the 401 for API requests
+        timeout-minutes: 2
+        run: npx --no -- tsx src/cli/check-access.ts --after-deploy
