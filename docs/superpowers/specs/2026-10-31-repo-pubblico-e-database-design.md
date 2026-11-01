@@ -118,6 +118,7 @@ Comandi ammessi (sostituiscono quelli `uv` in `CLAUDE.md`): `npm ci`, `npm test`
   - hook `pre-push` versionato (`.githooks/`, attivato con `git config core.hooksPath .githooks`) con gitleaks e con la scansione degli identificativi personali letti da un file **fuori dal repository** (`~/.config/palestra/identificativi.txt`, sul computer dell'utente);
   - rete di sicurezza: job notturno `pii-scan` (trigger `schedule`, unico Secret `PII_PATTERNS`, sola lettura) che scansiona `main` e fallisce senza stampare le corrispondenze, solo il percorso del file; GitHub avvisa l'utente via e-mail.
 - Fixture: lo script di anonimizzazione sostituisce identificativi, e-mail, nomi, token e sposta tutte le date di un offset casuale; i valori numerici (carichi, tempi) restano. L'utente controlla le fixture prima di committarle.
+  - Aggiornamento: proposta (2026-11-01), in attesa della scelta dell'utente. Nessuna fixture reale; il probe produce solo il rapporto della forma e le fixture restano sintetiche (vedi `kb/decisioni/2026-11-01-forma-dei-dati-al-posto-delle-fixture-reali.md`; come eseguirlo: `docs/probe-mywellness.md` § 2).
 - Il client dell'API privata Mywellness diventa pubblico: rischio accettato (esiste già gymexport); `User-Agent` identificabile, una run per notte.
 
 ## 7. Migrazione

@@ -1,6 +1,6 @@
 # Fixture Mywellness
 
-Queste fixture sono **sintetiche**: ricostruite dalla struttura documentata delle risposte (dettaglio seduta in JSON, pagina HTML del dettaglio forza, serie temporale cardio; vedi `docs/mywellness-api.md`), con identificativi, date e valori inventati. Non contengono dati personali.
+Queste fixture sono **sintetiche**: ricostruite dalla struttura documentata delle risposte (dettaglio seduta in JSON, pagina HTML del dettaglio forza, serie temporale cardio; vedi `docs/mywellness-api.md` e i parametri da gymexport in `docs/probe-mywellness.md` § 1), con identificativi, date e valori inventati. Non contengono dati personali.
 
 I nomi dei campi e la forma delle risposte sono fatti di interoperabilità ricavati dal progetto pubblico [lcanis/gymexport](https://github.com/lcanis/gymexport) (licenza GPL-3.0): non ne è stato copiato codice.
 
@@ -15,9 +15,9 @@ I nomi dei campi e la forma delle risposte sono fatti di interoperabilità ricav
 | `login_ok.html` | Pagina Training con `EU.currentUser = JSON.parse('…')` (id, token, culture); in `client.test.ts` ne dipendono `USER_ID`, il token `synthetic-token-0001` e `_c` = `it-IT` negli URL e nei parametri attesi; in `test/cli/sync.test.ts` il token |
 | `last_sessions.html` | Elenco sedute con tre righe `hdSessionIdCR` di novembre 2026; in `client.test.ts` ne dipendono gli id `900000003`, `900000002`, `900000001` (in quest'ordine) e l'intervallo che parte dal `19/11/2026` |
 
-Le fixture reali anonimizzate catturate nel Task 0 (Step 4) le sostituiranno con gli stessi nomi di file; nella stessa PR vanno aggiornati i valori letterali attesi in `test/mywellness/normalize.test.ts`, `test/mywellness/client.test.ts`, `test/sync/sync.test.ts` e `test/cli/sync.test.ts`.
+Le fixture restano sintetiche anche dopo il Task 0: nessuna risposta reale entra nel repository (vedi [la decisione](../../../kb/decisioni/2026-11-01-forma-dei-dati-al-posto-delle-fixture-reali.md)). Dopo il probe Claude le adegua al rapporto della forma `docs/mywellness-forma.md` (Task 0, Step 5): stessi nomi di file, campi, tag e formati del rapporto, valori sempre inventati. Nella stessa PR vanno aggiornati a mano i valori letterali attesi in `test/mywellness/normalize.test.ts`, `test/mywellness/client.test.ts`, `test/sync/sync.test.ts` e `test/cli/sync.test.ts`.
 
-## Da verificare con le fixture reali
+## Da verificare con il rapporto della forma
 
 - Separatore delle migliaia nei `formattedValue` (es. `1.234 MOVEs`): oggi non è gestito.
 - Unità di `HDistance`, sia `rawValue` sia `formattedValue` (km o m): oggi si assume km.
@@ -25,4 +25,4 @@ Le fixture reali anonimizzate catturate nel Task 0 (Step 4) le sostituiranno con
 - Un campo con il programma della Technogym App (oggi `program` è sempre `null`).
 - Dove stanno le serie degli esercizi registrati a mano.
 - Quali esercizi hanno una pagina di dettaglio o una serie temporale: la sync scarica il dettaglio solo per gli esercizi di forza con dati dell'attrezzo (`performedPhysicalActivity.data.data` non vuoto; vuoto = registrato a mano, come la Chest Press della fixture) e la serie solo per i cardio con `analyticsId` e `facilityId`.
-- Ordine delle colonne della tabella delle serie e testo delle intestazioni.
+- Ordine delle colonne della tabella delle serie e testo delle intestazioni: nel rapporto restano nell'ordine delle colonne (al massimo 12) le sole celle di una riga d'intestazione di `th` con una parola delle serie e testi diversi di `VOCAB`, stampate con il solo testo; le righe di dati sono raggruppate come gli altri fratelli.
