@@ -30,3 +30,11 @@ export const ReportsResponseSchema = z.object({
   revisione: z.string().nullable(),
 });
 export type ReportsResponse = z.infer<typeof ReportsResponseSchema>;
+
+/** Riassunto di una seduta: data di calendario (Europe/Rome), nome e MOVEs. */
+export const SessionSummarySchema = z.object({
+  date: z.iso.date(),
+  name: z.string(),
+  moves: z.number().nullable(),
+});
+export type SessionSummary = z.infer<typeof SessionSummarySchema>;

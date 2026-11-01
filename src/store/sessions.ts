@@ -1,4 +1,5 @@
 import type { Db } from "../db/types";
+import type { SessionSummary } from "../domain/dashboard";
 import { romeDate } from "../domain/dates";
 import { type Session, SessionSchema } from "../domain/types";
 import { parseJsonColumn } from "./json";
@@ -61,4 +62,56 @@ export async function listSessionsByMonth(
   return results.map((r) =>
     parseJsonColumn(SessionSchema, r.json, "sessions", `rowid ${r.rowid}`),
   );
+}
+
+type SummaryRow = { rowid: number; date: string; json: string };
+
+// Nel messaggio d'errore il rowid, mai session_id o date (finirebbero nei log).
+function toSummary(r: SummaryRow): SessionSummary {
+  const { name, moves } = parseJsonColumn(
+    SessionSchema,
+    r.json,
+    "sessions",
+    `rowid ${r.rowid}`,
+  );
+  return { date: r.date, name, moves };
+}
+
+/** Riassunti delle sedute tra `from` e `to` inclusi (date Europe/Rome), in ordine cronologico. */
+export async function listSessionSummaries(
+  db: Db,
+  from: string,
+  to: string,
+): Promise<SessionSummary[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT rowid, date, json FROM sessions WHERE date BETWEEN ?1 AND ?2
+       ORDER BY julianday(started_at), session_id`,
+    )
+    .bind(from, to)
+    .all<SummaryRow>();
+  return results.map(toSummary);
+}
+
+/**
+ * Riassunti delle sedute del mese `YYYY-MM` (data Europe/Rome) che nessuno slot cita, in ordine
+ * cronologico. Contano tutti gli slot, non solo quelli del mese: una seduta di inizio mese può
+ * recuperare uno slot la cui finestra è nel mese precedente.
+ */
+export async function listUnmatchedSessionSummaries(
+  db: Db,
+  month: string,
+): Promise<SessionSummary[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT rowid, date, json FROM sessions WHERE substr(date, 1, 7) = ?1
+         AND NOT EXISTS (
+           SELECT 1 FROM planned_sessions
+           WHERE planned_sessions.session_id = sessions.session_id
+         )
+       ORDER BY julianday(started_at), session_id`,
+    )
+    .bind(month)
+    .all<SummaryRow>();
+  return results.map(toSummary);
 }
