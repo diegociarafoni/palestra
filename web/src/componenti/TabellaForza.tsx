@@ -76,7 +76,12 @@ export function TabellaForza({ rows }: TabellaForzaProps) {
           </TableHead>
           <TableBody>
             {rows.map((r) => (
-              <TableRow key={r.slug}>
+              <TableRow
+                key={r.slug}
+                // Sul telefono la tabella scorre in orizzontale: i valori restano su una riga,
+                // solo il nome dell'esercizio va a capo.
+                sx={{ "& > td + td": { whiteSpace: "nowrap" } }}
+              >
                 <TableCell>{r.name}</TableCell>
                 <TableCell align="right">{r.sessions}</TableCell>
                 <TableCell>{range(r.first, r.last, formatSet)}</TableCell>

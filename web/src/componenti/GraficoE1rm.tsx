@@ -73,6 +73,8 @@ export function GraficoE1rm({ series }: GraficoE1rmProps) {
               (date) => s.points.find((p) => p.date === date)?.e1rm_kg ?? null,
             ),
             connectNulls: true,
+            // Un segno per seduta: una seduta sola nel mese è un punto, senza linea.
+            showMark: true,
             valueFormatter: (value: number | null) =>
               value === null
                 ? null

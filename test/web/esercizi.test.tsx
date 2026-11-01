@@ -33,6 +33,34 @@ const EXERCISES = {
   ],
 };
 
+// jsdom non calcola il layout: il grafico legge la sua larghezza da getComputedStyle e, a 0 px,
+// scarta i punti fuori dall'area di disegno. Qui ogni elemento risulta largo 360 px (un telefono).
+function phoneWidth() {
+  const real = window.getComputedStyle.bind(window);
+  vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
+    const style = real(element, pseudo);
+    return new Proxy(style, {
+      get: (target, property) => {
+        if (property === "width") return "360px";
+        const value = Reflect.get(target, property, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+  });
+}
+
+// Elementi del grafico con il colore `slot` della palette, fuori dalla legenda: le linee non
+// hanno riempimento, i segni dei punti sì.
+const marks = (chart: HTMLElement, slot: number) =>
+  [
+    ...chart.querySelectorAll(
+      `svg [stroke="var(--mui-palette-grafici-serie${slot})"]`,
+    ),
+  ].filter(
+    (element) =>
+      element.closest("li") === null && element.getAttribute("fill") !== "none",
+  );
+
 const cells = (row: HTMLElement) =>
   within(row)
     .getAllByRole("cell")
@@ -153,9 +181,9 @@ describe("web", () => {
         .map((item) => item.textContent),
     ).toEqual(["Leg Press", "Lat Machine"]);
     // Un path SVG non ha ruolo (eccezione di docs/buone-pratiche-mui.md § 9): le linee sono i path
-    // fuori dalla legenda. Il colore segue la posizione dell'esercizio nella lista (Lat Machine è
-    // il terzo), non quella tra le linee disegnate.
-    const strokes = [...chart.querySelectorAll("svg path")]
+    // senza riempimento fuori dalla legenda. Il colore segue la posizione dell'esercizio nella
+    // lista (Lat Machine è il terzo), non quella tra le linee disegnate.
+    const strokes = [...chart.querySelectorAll('svg path[fill="none"]')]
       .filter((path) => path.closest("li") === null)
       .map((path) => path.getAttribute("stroke"));
     expect(strokes).toEqual([
@@ -247,5 +275,44 @@ describe("web", () => {
     const chart = screen.getByRole("region", { name: "e1RM per esercizio" });
     expect(within(chart).getByText("Nessun dato")).toBeTruthy();
     expect(chart.querySelector("svg")).toBeNull();
+  });
+
+  it("web: esercizi chart marks every session", async () => {
+    // Lat Machine ha una sola seduta: una linea di un punto non si vede, il segno sì.
+    phoneWidth();
+    server.use(http.get("/api/exercises", () => HttpResponse.json(EXERCISES)));
+    renderConTema(<Esercizi />);
+
+    const chart = await screen.findByRole("region", {
+      name: "e1RM per esercizio",
+    });
+    await waitFor(() => expect(marks(chart, 1)).toHaveLength(2));
+    expect(marks(chart, 3)).toHaveLength(1);
+  });
+
+  it("web: esercizi table readable on a phone", async () => {
+    // A 360 px la tabella scorre in orizzontale: i valori restano su una riga ("60 kg × 12 → 65
+    // kg × 10" non va a capo in quattro righe); solo il nome dell'esercizio può andare a capo.
+    server.use(http.get("/api/exercises", () => HttpResponse.json(EXERCISES)));
+    renderConTema(<Esercizi />);
+
+    const table = await screen.findByRole("table", {
+      name: "Forza per esercizio",
+    });
+    const [, legPress] = within(table).getAllByRole("row");
+    if (!legPress) throw new Error("riga mancante");
+    expect(
+      within(legPress)
+        .getAllByRole("cell")
+        .map((cell) => getComputedStyle(cell).whiteSpace),
+    ).toEqual([
+      "normal",
+      "nowrap",
+      "nowrap",
+      "nowrap",
+      "nowrap",
+      "nowrap",
+      "nowrap",
+    ]);
   });
 });
