@@ -19,7 +19,7 @@ git config core.hooksPath .githooks
 
 ## Checklist
 
-1. [ ] (Utente) Creare il repository pubblico vuoto; su Cloudflare il database D1 `palestra`, il bucket R2 `palestra-backup` (ciclo di vita 365 giorni), i token `CF_TOKEN_D1` (D1 Edit) e `CF_TOKEN_PAGES` (Pages Edit), le chiavi R2 limitate al bucket; inserirli nei Secrets del nuovo repository con `MYWELLNESS_EMAIL`, `MYWELLNESS_PASSWORD`, `CLOUDFLARE_ACCOUNT_ID`, `PII_PATTERNS`; variabile `D1_DATABASE_ID`.
+1. [ ] (Utente) Creare il repository pubblico vuoto; su Cloudflare il database D1 `palestra`, il bucket R2 `palestra-backup` (ciclo di vita 365 giorni), i token `CF_TOKEN_D1` (D1 Edit) e `CF_TOKEN_PAGES` (Pages Edit), le chiavi R2 limitate al bucket; inserirli nei Secrets del nuovo repository con `MYWELLNESS_EMAIL`, `MYWELLNESS_PASSWORD`, `CLOUDFLARE_ACCOUNT_ID`, `PII_PATTERNS`; secret `D1_DATABASE_ID` (un Secret, non una Variable: i workflow lo leggono da `secrets.`).
 2. [x] Script di verifica e hook `pre-push`.
 3. [x] Regole nuove in `CLAUDE.md`, `docs/buone-pratiche.md`, `.claude/settings.json`.
 4. [x] Anonimizzazione e cancellazioni nel ramo: `data/`, `kb/profilo.md`, sezioni "Storico carichi" delle note esercizio; nome → "l'utente", hostname → `<DASHBOARD_HOSTNAME>`.

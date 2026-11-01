@@ -106,9 +106,10 @@ Inventario per zona e verifiche aperte: [docs/attrezzi-via-mantova.md](../docs/a
 - 2026-10-31 · [Il backup mensile di D1 va su R2 con chiavi S3 limitate al bucket, senza mai mostrare l'output di wrangler](decisioni/2026-10-31-backup-d1-su-r2.md)
 - 2026-10-31 · [La prova di ripristino del backup gira come workflow manuale che stampa solo i conteggi e cancella il database di prova](decisioni/2026-10-31-prova-ripristino-in-workflow.md) (superata)
 - 2026-10-31 · [La prova di ripristino confronta le righe ripristinate con le INSERT del dump; palestra resta solo informativo](decisioni/2026-10-31-prova-ripristino-confronto-col-dump.md)
-- 2026-11-01 · [Il report mensile gira in un workflow proprio, il 1° del mese dopo la sync](decisioni/2026-11-01-report-mensile-in-workflow-separato.md)
+- 2026-11-01 · [Il report mensile gira in un workflow proprio, il 1° del mese dopo la sync](decisioni/2026-11-01-report-mensile-in-workflow-separato.md) (superata)
 - 2026-11-01 · [Con la sessione di Access scaduta la dashboard ricarica la pagina al massimo una volta al minuto](decisioni/2026-11-01-sessione-access-scaduta.md)
 - 2026-11-01 · [Nel frontend zod gira senza JIT, perché la CSP della dashboard non ammette 'unsafe-eval'](decisioni/2026-11-01-zod-senza-jit-nel-frontend.md)
+- 2026-11-01 · [Il report mensile gira in un workflow proprio il 1° e l'8 del mese; D1_DATABASE_ID è un Secret](decisioni/2026-11-01-report-il-1-e-l-8-del-mese.md)
 
 ## Documenti di processo
 - [Specifica](../docs/superpowers/specs/2026-10-30-palestra-technogym-design.md) · [Specifica repository pubblico e D1](../docs/superpowers/specs/2026-10-31-repo-pubblico-e-database-design.md) · [Piano](../docs/superpowers/plans/2026-10-31-palestra-typescript-d1.md) · [Flusso di lavoro](../docs/flusso-di-lavoro.md) · [Buone pratiche](../docs/buone-pratiche.md)
