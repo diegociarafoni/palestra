@@ -44,6 +44,8 @@ export function GraficoPeso({ measures }: GraficoPesoProps) {
               data: points.map((m) => m.weight_kg),
               label: testi.measures.weight,
               color: theme.vars.palette.grafici.serie1,
+              // Un segno per misura: si vede anche una misura sola e dove cadono le date.
+              showMark: true,
             },
           ]}
         />

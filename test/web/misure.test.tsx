@@ -15,6 +15,23 @@ const vertexXs = (d: string) =>
     .filter(Boolean)
     .map((command) => Number(command.split(",").at(-2)));
 
+// jsdom non calcola il layout: il contenitore del grafico (larghezza 100%) prende la larghezza di
+// un telefono, così x-charts disegna i punti dentro l'area del grafico.
+function chartAt360px() {
+  const original = window.getComputedStyle.bind(window);
+  vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
+    const style = original(element, pseudo);
+    if (style.width !== "100%") return style;
+    return new Proxy(style, {
+      get: (target, key) => {
+        if (key === "width") return "360px";
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+  });
+}
+
 const cells = (row: HTMLElement) =>
   within(row)
     .getAllByRole("cell")
@@ -187,6 +204,22 @@ describe("web", () => {
       throw new Error("punti della linea mancanti");
     }
     expect((x1 - x0) / (x2 - x0)).toBeCloseTo(2 / 21, 3);
+  });
+
+  it("web: weight chart marks a single measure", async () => {
+    // Una sola misura in protocollo: senza segno il grafico mostrerebbe solo gli assi.
+    const [base] = measures;
+    server.use(
+      http.get("/api/measures", () => HttpResponse.json({ measures: [base] })),
+    );
+    chartAt360px();
+    renderConTema(<Misure />);
+
+    const chart = await screen.findByRole("region", {
+      name: "Peso in protocollo",
+    });
+    // Un segno SVG non ha ruolo (eccezione di docs/buone-pratiche-mui.md § 9).
+    expect(chart.querySelector("svg circle")).not.toBeNull();
   });
 
   it("web: api error shows retry", async () => {
