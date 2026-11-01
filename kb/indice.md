@@ -87,6 +87,7 @@ Inventario per zona e verifiche aperte: [docs/attrezzi-via-mantova.md](../docs/a
 - [Schemi di movimento e distribuzione del lavoro](concetti/schemi-di-movimento.md)
 - [MOVEs (Technogym)](concetti/moves.md)
 - [Sedute programmate, slot e abbinamento delle sedute](concetti/sedute-programmate.md)
+- [Come il report mensile calcola gli indicatori](concetti/report-mensile.md)
 
 ## Decisioni
 - 2026-10-30 · [La scheda vive nella Technogym App, non in un'app propria](decisioni/2026-10-30-scheda-nella-technogym-app.md)
@@ -103,6 +104,8 @@ Inventario per zona e verifiche aperte: [docs/attrezzi-via-mantova.md](../docs/a
 - 2026-10-31 · [Lo schema del D1 reale si applica via connettore, registrando la migrazione come wrangler](decisioni/2026-10-31-schema-d1-applicato-via-connettore.md)
 - 2026-10-31 · [Nel fine settimana si recupera il primo slot non fatto della settimana](decisioni/2026-10-31-recupero-nel-fine-settimana.md)
 - 2026-10-31 · [Il backup mensile di D1 va su R2 con chiavi S3 limitate al bucket, senza mai mostrare l'output di wrangler](decisioni/2026-10-31-backup-d1-su-r2.md)
+- 2026-10-31 · [La prova di ripristino del backup gira come workflow manuale che stampa solo i conteggi e cancella il database di prova](decisioni/2026-10-31-prova-ripristino-in-workflow.md) (superata)
+- 2026-10-31 · [La prova di ripristino confronta le righe ripristinate con le INSERT del dump; palestra resta solo informativo](decisioni/2026-10-31-prova-ripristino-confronto-col-dump.md)
 - 2026-11-01 · [Con la sessione di Access scaduta la dashboard ricarica la pagina al massimo una volta al minuto](decisioni/2026-11-01-sessione-access-scaduta.md)
 - 2026-11-01 · [Nel frontend zod gira senza JIT, perché la CSP della dashboard non ammette 'unsafe-eval'](decisioni/2026-11-01-zod-senza-jit-nel-frontend.md)
 

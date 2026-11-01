@@ -1,0 +1,27 @@
+# Fixture Mywellness
+
+Queste fixture sono **sintetiche**: ricostruite dalla struttura documentata delle risposte (dettaglio seduta in JSON, pagina HTML del dettaglio forza, serie temporale cardio; vedi `docs/mywellness-api.md`), con identificativi, date e valori inventati. Non contengono dati personali.
+
+I nomi dei campi e la forma delle risposte sono fatti di interoperabilità ricavati dal progetto pubblico [lcanis/gymexport](https://github.com/lcanis/gymexport) (licenza GPL-3.0): non ne è stato copiato codice.
+
+| File | Contenuto |
+| --- | --- |
+| `session_cardio_only.json` | Seduta con due esercizi cardio; la distanza del secondo arriva solo dalla serie temporale |
+| `session_strength.json` | Seduta con un cardio connesso, un esercizio di forza con pagina di dettaglio e uno senza |
+| `strength_detail.html` | Pagina di dettaglio forza con la tabella delle serie |
+| `strength_detail_broken.html` | Pagina di dettaglio senza la tabella delle serie |
+| `cardio_timeseries.json` | Serie temporale (CardioLog) del secondo esercizio di `session_cardio_only.json` |
+| `login_form.html` | Pagina di login con il form `UserBinder.*`; in `client.test.ts` fa da pagina di login, da login fallito e da sessione scaduta: conta solo il campo `UserBinder.Password`, nessun valore letterale |
+| `login_ok.html` | Pagina Training con `EU.currentUser = JSON.parse('…')` (id, token, culture); in `client.test.ts` ne dipendono `USER_ID`, il token `synthetic-token-0001` e `_c` = `it-IT` negli URL e nei parametri attesi |
+| `last_sessions.html` | Elenco sedute con tre righe `hdSessionIdCR` di novembre 2026; in `client.test.ts` ne dipendono gli id `900000003`, `900000002`, `900000001` (in quest'ordine) e l'intervallo che parte dal `19/11/2026` |
+
+Le fixture reali anonimizzate catturate nel Task 0 (Step 4) le sostituiranno con gli stessi nomi di file; nella stessa PR vanno aggiornati i valori letterali attesi in `test/mywellness/normalize.test.ts` e `test/mywellness/client.test.ts`.
+
+## Da verificare con le fixture reali
+
+- Separatore delle migliaia nei `formattedValue` (es. `1.234 MOVEs`): oggi non è gestito.
+- Unità di `HDistance`, sia `rawValue` sia `formattedValue` (km o m): oggi si assume km.
+- Presenza di `endedOn` nel dettaglio seduta.
+- Un campo con il programma della Technogym App (oggi `program` è sempre `null`).
+- Dove stanno le serie degli esercizi registrati a mano.
+- Ordine delle colonne della tabella delle serie e testo delle intestazioni.

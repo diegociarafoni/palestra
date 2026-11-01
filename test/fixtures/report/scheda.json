@@ -1,0 +1,121 @@
+{
+  "version": "2026-11",
+  "valid_from": "2026-11-01",
+  "valid_to": "2026-11-30",
+  "goal": "ricomposizione",
+  "sessions_per_week": 2,
+  "cycle": { "number": 1, "block": 1, "weeks": 4, "phase": "avvio" },
+  "goals": [
+    {
+      "slug": "leg-press",
+      "today": "da tarare",
+      "target": "3 × 12",
+      "criterion": "3 serie da 12 ripetizioni con lo stesso carico",
+      "priority": 2
+    },
+    {
+      "slug": "aderenza",
+      "today": 6,
+      "target": 8,
+      "criterion": "slot svolti nel mese",
+      "priority": 1
+    }
+  ],
+  "days": [
+    {
+      "id": "A",
+      "name": "Giorno A",
+      "blocks": [
+        {
+          "type": "warmup",
+          "exercises": [
+            {
+              "slug": "skillbike-warmup",
+              "technogym_name": "Skillbike",
+              "equipment": "Skillbike",
+              "duration_min": 8,
+              "tracking": "auto"
+            }
+          ]
+        },
+        {
+          "type": "strength",
+          "exercises": [
+            {
+              "slug": "leg-press",
+              "technogym_name": "Leg Press",
+              "equipment": "Selection Leg Press",
+              "muscle_groups": ["quadricipiti", "glutei"],
+              "indirect_muscles": ["femorali", "polpacci"],
+              "movement_pattern": "squat",
+              "sets": 3,
+              "reps_min": 10,
+              "reps_max": 12,
+              "rest_s": 90,
+              "start_load_kg": null,
+              "step_kg": 5,
+              "tracking": "auto-if-900"
+            },
+            {
+              "slug": "chest-press",
+              "technogym_name": "Chest Press",
+              "equipment": "Selection Chest Press",
+              "muscle_groups": ["petto"],
+              "indirect_muscles": ["tricipiti", "spalle"],
+              "movement_pattern": "spinta-orizzontale",
+              "sets": 3,
+              "reps_min": 10,
+              "reps_max": 12,
+              "rest_s": 90,
+              "start_load_kg": null,
+              "step_kg": 5,
+              "tracking": "auto-if-900"
+            },
+            {
+              "slug": "lat-machine",
+              "technogym_name": "Lat Machine",
+              "equipment": "Selection Lat Machine",
+              "muscle_groups": ["dorsali"],
+              "indirect_muscles": ["bicipiti"],
+              "movement_pattern": "tirata-verticale",
+              "sets": 3,
+              "reps_min": 10,
+              "reps_max": 12,
+              "rest_s": 90,
+              "start_load_kg": null,
+              "step_kg": 5,
+              "tracking": "auto-if-900"
+            },
+            {
+              "slug": "leg-curl",
+              "technogym_name": "Leg Curl",
+              "equipment": "Selection Leg Curl",
+              "muscle_groups": ["femorali"],
+              "indirect_muscles": ["glutei"],
+              "movement_pattern": "flessione-ginocchio",
+              "sets": 3,
+              "reps_min": 10,
+              "reps_max": 12,
+              "rest_s": 90,
+              "start_load_kg": null,
+              "step_kg": 5,
+              "tracking": "auto-if-900"
+            }
+          ]
+        },
+        {
+          "type": "cardio",
+          "exercises": [
+            {
+              "slug": "run-artis-incline-walk",
+              "technogym_name": "Run Artis",
+              "equipment": "Run Artis",
+              "duration_min": 12,
+              "tracking": "auto"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -164,17 +164,19 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 
 **Files:**
 - Create: `src/mywellness/client.ts`, `test/mywellness/client.test.ts`, `test/msw.ts` (server MSW e lettura fixture)
-- Modify: `src/errors.ts` (creato nel Task 1b: aggiungere `UpstreamError` ed `exitCodeFor`)
+- `src/errors.ts`: `UpstreamError` ed `exitCodeFor` esistono già (aggiunti dal Task 6 per la regola di proprietà dell'utente del 2026-10-31); il Task 2 li usa soltanto.
 
 **Interfaces:**
 - Consumes: fixture del Task 0; endpoint di `docs/mywellness-api.md` § 2.
 - Produces:
-  - `src/errors.ts`: `class SyncError extends Error`, `AuthError`, `ParseError`, `UpstreamError`, `TransientError` (tutte `extends SyncError`), `exitCodeFor(e: unknown): number` (Auth 78, Parse 65, Upstream 69, Transient 75, altro 70).
+  - `src/errors.ts` (già presente, dal Task 1b e dal Task 6): `class SyncError extends Error`, `AuthError`, `ParseError`, `UpstreamError`, `TransientError` (tutte `extends SyncError`), `exitCodeFor(e: unknown): number` (Auth 78, Parse 65, Upstream 69, Transient 75, altro 70).
   - `class MywellnessClient`: `constructor(opts: { email: string; password: string; baseUrl?: string; servicesUrl?: string; minIntervalMs?: number; fetch?: typeof fetch })`; `login(): Promise<void>`; `get userId(): string`; `listSessionIds(opts?: { since?: string }): Promise<string[]>`; `getSession(id: string): Promise<unknown>`; `getStrengthDetailHtml(exerciseId: string): Promise<string>`; `getCardioTimeseries(analyticsId: string): Promise<unknown>`. Default `baseUrl` `https://www.mywellness.com`, `servicesUrl` `https://services.mywellness.com`, `minIntervalMs` 1000.
 
-- [ ] **Step 1: Test:** `client: login sets user id` (valore della fixture); `client: login failure` (pagina con il form di login → `AuthError`, il messaggio non contiene la password); `client: lists session ids` (id della fixture nell'ordine); `client: retries once on 502`; `client: no retry on 401` (una sola chiamata, `AuthError`).
-- [ ] **Step 2:** FAIL → implementare (cookie di sessione gestiti a mano dagli header `set-cookie`; limitatore con `minIntervalMs`, iniettabile per i test) → PASS.
-- [ ] **Step 3: Commit** `feat(sync): mywellness client`
+> Nota (2026-10-31): firme adattate ai parametri degli endpoint reali (protocollo descritto in gymexport): il costruttore accetta anche `sleep?: (ms: number) => Promise<void>` e `today?: () => string` (data di oggi a Roma, iniettabili nei test); `listSessionIds(opts?: { since?: string; until?: string })` con date `YYYY-MM-DD` (default: da oggi meno 14 giorni a oggi, una richiesta per mese di calendario); `getStrengthDetailHtml(activityId: string, day: string)`; `getCardioTimeseries(analyticsId: string, facilityId: string)`. `UpstreamError` ed `exitCodeFor` in `src/errors.ts` li crea il Task 6: il Task 2 non modifica `src/errors.ts` e, fino a quel merge, gli errori HTTP non ritentabili sono `SyncError`.
+
+- [x] **Step 1: Test:** `client: login sets user id` (valore della fixture); `client: login failure` (pagina con il form di login → `AuthError`, il messaggio non contiene la password); `client: lists session ids` (id della fixture nell'ordine); `client: retries once on 502`; `client: no retry on 401` (una sola chiamata, `AuthError`).
+- [x] **Step 2:** FAIL → implementare (cookie di sessione gestiti a mano dagli header `set-cookie`; limitatore con `minIntervalMs`, iniettabile per i test) → PASS.
+- [x] **Step 3: Commit** `feat(sync): mywellness client`
 
 ---
 
@@ -189,9 +191,11 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 - Consumes: `Session`, `StrengthSet` (Task 1b), risposte grezze del client (Task 2).
 - Produces: `normalizeSession(raw: unknown, ctx: { strengthDetails: Record<string, string>; timeseries: Record<string, unknown> }): Session`; `parseStrengthDetail(html: string): StrengthSet[]` (`ParseError` con l'URL o l'id se la tabella serie manca). `romeDate` è prodotto dal Task 1b.
 
-- [ ] **Step 1: Test:** `normalize: cardio only` (`moves` e `distance_m` uguali ai valori letterali della fixture del Task 0, 2 esercizi, il primo `kind "cardio"`, `sets` vuoto); `normalize: strength sets` (`{ n: 1, reps_target: 12, reps_done: 12, load_target_kg: 60, load_done_kg: 60 }`); `normalize: broken html raises ParseError`; `normalize: rome date` (`romeDate("2026-10-29T23:30:00Z") === "2026-10-30"`; `romeDate` esiste dal Task 1b, quindi questo test resta come regressione e passa al primo giro); `normalize: schema keys` (chiavi di primo livello esattamente `session_id, source, started_at, ended_at, name, program, moves, calories_kcal, duration_s, exercises`).
-- [ ] **Step 2:** FAIL → implementare con `node-html-parser` e validazione `zod` della risposta grezza → PASS.
-- [ ] **Step 3: Commit** `feat(sync): normalize mywellness sessions`
+> Nota (2026-10-31): firma reale `normalizeSession(raw: unknown, ctx: { sessionId: string; strengthDetails: Record<string, string>; timeseries: Record<string, unknown> }): Session`, con `strengthDetails` e `timeseries` indicizzati per `performedPhysicalActivity.id`; il Task 4 ri-indicizza le serie temporali da `analyticsId` all'id dell'attività e le passa a `upsertSession` per ordine dell'esercizio (`exercises[].order`). I `ParseError` indicano l'esercizio con l'ordine, mai con id Mywellness. I test sono 7: i 5 sotto più `normalize: unexpected json raises ParseError` e `normalize: unexpected sets table raises ParseError`.
+
+- [x] **Step 1: Test:** `normalize: cardio only` (`moves` e `distance_m` uguali ai valori letterali della fixture del Task 0, 2 esercizi, il primo `kind "cardio"`, `sets` vuoto); `normalize: strength sets` (`{ n: 1, reps_target: 12, reps_done: 12, load_target_kg: 60, load_done_kg: 60 }`); `normalize: broken html raises ParseError`; `normalize: rome date` (`romeDate("2026-10-29T23:30:00Z") === "2026-10-30"`; `romeDate` esiste dal Task 1b, quindi questo test resta come regressione e passa al primo giro); `normalize: schema keys` (chiavi di primo livello esattamente `session_id, source, started_at, ended_at, name, program, moves, calories_kcal, duration_s, exercises`).
+- [x] **Step 2:** FAIL → implementare con `node-html-parser` e validazione `zod` della risposta grezza → PASS.
+- [x] **Step 3: Commit** `feat(sync): normalize mywellness sessions`
 
 ---
 
@@ -229,7 +233,8 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 **Accettazione:** `npm test` verde, compresi i test di questo task; l'output di `npm run sync` contiene solo righe del tipo `sedute nuove: N`, `slot aggiornati: N`.
 
 **Files:**
-- Create: `src/sync/sync.ts`, `src/cli/sync.ts`, `src/store/planning.ts`, `test/sync/sync.test.ts`, `test/cli/sync.test.ts`
+- Create: `src/sync/sync.ts`, `src/cli/sync.ts`, `test/sync/sync.test.ts`, `test/cli/sync.test.ts`
+- Modify: `src/store/planning.ts` (esiste dal Task 6 con `listSlotsByMonth` e `listSlotsByWeek`: aggiungere `ensureWeekSlots` e `updateSlot`)
 
 **Interfaces:**
 - Consumes: `MywellnessClient` (2), `normalizeSession` (3), `romeDate` (1b), `Db`, `knownSessionIds`, `upsertSession`, `getProfile` (1b), `weekSlots`, `matchSession`, `overdue` (4b); store degli slot: `ensureWeekSlots(db, week, tpl)`, `updateSlot(db, id, patch)` da aggiungere in `src/store/planning.ts`. La sync abbina le sedute nuove una alla volta in ordine crescente di `started_at`, applicando ogni esito agli slot prima della chiamata successiva, e chiama `overdue` dopo gli abbinamenti.
@@ -269,8 +274,8 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 **Accettazione:** test di questo task verdi; il report di un mese di fixture (in Markdown) allegato alla PR con tutte le sezioni di `reports/TEMPLATE.md`; nessun file scritto su disco.
 
 **Files:**
-- Create: `src/report/metrics.ts`, `src/report/strength.ts`, `src/report/progression.ts`, `src/report/render.ts`, `src/report/run.ts`, `src/cli/report.ts`, `test/report/*.test.ts`, `test/fixtures/report/` (scheda minima e 3–4 sedute sintetiche, almeno una di forza, misure, recupero, feedback, slot)
-- Modify: `reports/TEMPLATE.md` (§ 2 aderenza sugli slot programmati, con saltate e motivi; § 7 "Recupero e sensazioni" con distribuzione dei feedback e fastidi articolari)
+- Create: `src/report/metrics.ts`, `src/report/strength.ts`, `src/report/progression.ts`, `src/report/render.ts`, `src/report/run.ts`, `src/cli/report.ts`, `test/report/*.test.ts`, `test/fixtures/report/` (scheda minima e 3–4 sedute sintetiche, almeno una di forza, misure, recupero, feedback, slot); per la regola di proprietà dell'utente del 2026-10-31 anche `src/domain/metrics.ts` (`MetricsSchema` e gli schemi delle 9 chiavi di `metrics`), `src/store/planning.ts` (sola lettura: `listSlotsByMonth`, `listSlotsByWeek`), `test/store/planning.test.ts`, `test/cli/report.test.ts`, `test/errors.test.ts`, `kb/concetti/report-mensile.md`
+- Modify: `reports/TEMPLATE.md` (§ 2 aderenza sugli slot programmati, con saltate e motivi; § 7 "Recupero e sensazioni" con distribuzione dei feedback e fastidi articolari); `src/domain/dates.ts` (`isoWeek`, `lastDayOfMonth`), `src/domain/planning.ts` (`PlannedSlotSchema`), `src/errors.ts` (`UpstreamError`, `exitCodeFor`), `vitest.config.ts` (`test/report/run.test.ts` nel progetto workers), `test/domain/dates.test.ts`, `kb/indice.md`
 
 **Interfaces:**
 - Consumes: `store` (1b), `PlannedSlot` (4b).
@@ -283,7 +288,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
   - `runReport(db: Db, month: string): Promise<void>` → `saveReport(…, "report", md)` e `saveMetrics(…)` con le chiavi usate dalla dashboard: `kpi`, `weekly_volume`, `strength_table`, `e1rm_series`, `volume_by_muscle`, `ratios`, `measures_trend`, `feedback_summary`, `adherence`.
   - `main(argv, env): Promise<number>` — `--month AAAA-MM` obbligatorio (altrimenti 64).
 
-- [ ] **Step 1: Test** (valori del piano Python):
+- [x] **Step 1: Test** (valori del piano Python):
   - `progression: increase` — 3×12 a 60 kg, `reps_max 12`, `step_kg 5` → `{ load_kg: 65, reps_target: 10, action: "increase" }`.
   - `progression: decrease` — `[8, 9, 10]`, `reps_min 10` → `load_kg 55`, `"decrease"`; `progression: hold` — `[11, 11, 10]` → `60`, `11`, `"hold"`; `progression: calibrate without history`.
   - `metrics: e1rm epley` — `e1rm(60, 10) === 80`; `e1rm(70, 10)` ≈ `93.33` (±0.01).
@@ -296,8 +301,8 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
   - `report: unmatched exercise listed` — "Lat Pulldown" in "Non riconosciuti".
   - `report: feedback summary` — feedback `buona`, `buona`, `faticosa` con un fastidio → `{ buona: 2, faticosa: 1, …, joint_pain_days: 1 }`.
   - `cli report: saves report and metrics` — D1 locale → righe in `reports` (`month "2026-11"`, contiene "# Report novembre 2026") e in `metrics` con tutte le chiavi elencate; `main` senza `--month` → `64`.
-- [ ] **Step 2:** FAIL → implementare → PASS.
-- [ ] **Step 3: Commit** `feat(report): monthly report and metrics in d1`
+- [x] **Step 2:** FAIL → implementare → PASS.
+- [x] **Step 3: Commit** `feat(report): monthly report and metrics in d1`
 
 ---
 
@@ -395,7 +400,7 @@ Ordine obbligatorio: Step 1–2 prima del primo deploy.
 - [x] **Step 1: Test:** `backup: exit 78 without r2 keys`; `backup: uploads and deletes local file` (esecuzione di `wrangler` e upload iniettati come funzioni finte).
 - [x] **Step 2:** FAIL → implementare → PASS.
 - [x] **Step 3: `backup.yml`:** `schedule` il 2 di ogni mese e `workflow_dispatch`; `permissions: contents: read`; env `CF_TOKEN_D1` (come `CLOUDFLARE_API_TOKEN`), `CLOUDFLARE_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`; nessun artifact.
-- [ ] **Step 4:** run, prova di ripristino, commit `ci: monthly d1 backup to r2`.
+- [x] **Step 4:** run, prova di ripristino, commit `ci: monthly d1 backup to r2`. (31/10: backup `workflow_dispatch` verde; prova con il workflow `restore-test`, PR #34 e #37; registro in `docs/dashboard.md`.)
 
 ---
 

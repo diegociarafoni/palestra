@@ -13,6 +13,7 @@
     "sync": "tsx src/cli/sync.ts",
     "report": "tsx src/cli/report.ts",
     "backup": "tsx src/cli/backup.ts",
+    "restore-test": "tsx src/cli/restore-test.ts",
     "build:web": "vite build web --outDir ../site --emptyOutDir"
   },
   "devDependencies": {
@@ -44,6 +45,7 @@
     "@tanstack/react-query": "^5.105.0",
     "hono": "^4.13.14",
     "jose": "^6.2.14",
+    "node-html-parser": "^9.0.6",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-markdown": "^10.1.0",

@@ -67,17 +67,24 @@ export function signV4(req: {
   return `AWS4-HMAC-SHA256 Credential=${req.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 }
 
-/** Carica un oggetto nel bucket R2 (giurisdizione UE) con una sola PUT firmata. */
-export async function putObject(opts: {
+export type R2Object = {
   accountId: string;
   accessKeyId: string;
   secretAccessKey: string;
   bucket: string;
   key: string;
-  body: Uint8Array;
   now?: Date;
   fetch?: typeof fetch;
-}): Promise<void> {
+};
+
+/**
+ * Una richiesta S3 firmata su un oggetto del bucket R2 (giurisdizione UE), senza retry.
+ * Restituisce la risposta 2xx; negli altri casi scarta il corpo e lancia un errore con il
+ * solo codice HTTP.
+ */
+export async function r2Request(
+  opts: R2Object & { method: "GET" | "PUT"; body?: Uint8Array },
+): Promise<Response> {
   // Messaggi fissi, senza valore né cause: una chiave rifiutata da fetch finirebbe nei log.
   if (!ID_PATTERN.test(opts.accountId)) {
     throw new AuthError("R2: account id non valido");
@@ -97,9 +104,9 @@ export async function putObject(opts: {
     .toISOString()
     .replace(/[-:]/g, "")
     .replace(/\.\d{3}/, "");
-  const payloadHash = sha256Hex(opts.body);
+  const payloadHash = sha256Hex(opts.body ?? "");
   const authorization = signV4({
-    method: "PUT",
+    method: opts.method,
     host,
     path,
     headers: { "x-amz-content-sha256": payloadHash },
@@ -113,27 +120,37 @@ export async function putObject(opts: {
   let response: Response;
   try {
     response = await (opts.fetch ?? fetch)(`https://${host}${path}`, {
-      method: "PUT",
+      method: opts.method,
       headers: {
         "x-amz-content-sha256": payloadHash,
         "x-amz-date": amzDate,
         authorization,
       },
-      body: opts.body,
+      ...(opts.body ? { body: opts.body } : {}),
     });
   } catch (error) {
     throw new TransientError("R2: richiesta non riuscita (rete)", {
       cause: error,
     });
   }
-  // Il corpo della risposta non serve (e non va nei messaggi): si scarta.
+  if (response.ok) return response;
+  // Il corpo di una risposta d'errore non serve (e non va nei messaggi): si scarta.
   void response.body?.cancel().catch(() => undefined);
   if (response.status === 401 || response.status === 403) {
     throw new AuthError(`R2: accesso negato (HTTP ${response.status})`);
   }
-  // Nessun retry (un backup al mese): il workflow si rilancia a mano.
+  // Nessun retry (un job al mese): il workflow si rilancia a mano.
   if (response.status === 429 || response.status >= 500) {
     throw new TransientError(`R2: HTTP ${response.status}`);
   }
-  if (!response.ok) throw new SyncError(`R2: HTTP ${response.status}`);
+  throw new SyncError(`R2: HTTP ${response.status}`);
+}
+
+/** Carica un oggetto nel bucket R2 (giurisdizione UE) con una sola PUT firmata. */
+export async function putObject(
+  opts: R2Object & { body: Uint8Array },
+): Promise<void> {
+  const response = await r2Request({ ...opts, method: "PUT" });
+  // Il corpo della risposta non serve: si scarta.
+  void response.body?.cancel().catch(() => undefined);
 }

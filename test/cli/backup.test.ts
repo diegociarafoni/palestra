@@ -292,18 +292,18 @@ describe("backup", () => {
     expect(result.stderr).toContain("CLOUDFLARE_API_TOKEN");
   });
 
-  it("backup: wrangler output never reaches the logs", () => {
-    // `npx` finto, primo nel PATH: registra gli argomenti e WRANGLER_WRITE_LOGS, scrive
+  it("backup: wrangler output never reaches the logs and wrangler never sees the R2 keys", () => {
+    // `npx` finto, primo nel PATH: registra gli argomenti e il proprio ambiente, scrive
     // l'export e stampa un link firmato su stdout e stderr, come wrangler.
     fakeDir = mkdtempSync(join(tmpdir(), "backup-fake-npx-"));
     const argsFile = join(fakeDir, "args.txt");
-    const writeLogsFile = join(fakeDir, "write-logs.txt");
+    const envFile = join(fakeDir, "env.txt");
     writeFileSync(
       join(fakeDir, "npx"),
       [
         "#!/bin/sh",
         `printf '%s\\n' "$@" > '${argsFile}'`,
-        `printf '%s' "\${WRANGLER_WRITE_LOGS-unset}" > '${writeLogsFile}'`,
+        `printf '%s\\n' "\${WRANGLER_WRITE_LOGS-unset}" "\${WRANGLER_SEND_METRICS-unset}" "\${R2_ACCESS_KEY_ID-unset}" "\${R2_SECRET_ACCESS_KEY-unset}" > '${envFile}'`,
         'prev=""',
         'for a in "$@"; do',
         '  if [ "$prev" = "--output" ]; then printf \'CREATE TABLE t(x);\\n\' > "$a"; fi',
@@ -346,8 +346,9 @@ describe("backup", () => {
     expect(basename(dirname(output))).toMatch(/^palestra-backup-.{6}$/);
     expect(basename(output)).toMatch(/^palestra-\d{4}-\d{2}-\d{2}\.sql$/);
     expect(existsSync(dirname(output))).toBe(false);
-    // Wrangler scrive ogni riga di log, link firmato compreso, anche in un file su disco.
-    expect(readFileSync(writeLogsFile, "utf8")).toBe("false");
+    // Wrangler scrive ogni riga di log, link firmato compreso, anche in un file su disco;
+    // niente telemetria; le chiavi R2 servono solo all'upload, non a wrangler.
+    expect(readFileSync(envFile, "utf8")).toBe("false\nfalse\nunset\nunset\n");
   });
 
   it("backup: exit 69 when npx cannot be started", () => {
