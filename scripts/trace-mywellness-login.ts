@@ -301,6 +301,10 @@ function headerProtection(status: number, headers: Headers): string[] {
   if (BLOCK_STATUSES.has(status) && /^akamai/i.test(server)) {
     found.push("blocco Akamai");
   }
+  // Pagina «Request blocked» di CloudFront: di solito una regola AWS WAF.
+  if (BLOCK_STATUSES.has(status) && /^cloudfront$/i.test(server)) {
+    found.push("blocco CloudFront (AWS WAF)");
+  }
   return found;
 }
 

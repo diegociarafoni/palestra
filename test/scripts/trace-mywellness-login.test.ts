@@ -505,10 +505,11 @@ describe("trace-mywellness-login: chain", () => {
       http.get(`${MW}/h4`, respond(403, { Server: "AkamaiGHost" })),
       http.get(`${MW}/h5`, respond(200, { Server: "cloudflare" })),
       http.get(`${MW}/h6`, respond(200, { "Content-Type": "segreto strano" })),
+      http.get(`${MW}/h7`, respond(403, { Server: "CloudFront" })),
     );
 
     const result = await traceLogin({
-      starts: ["h1", "h2", "h3", "h4", "h5", "h6"].map(
+      starts: ["h1", "h2", "h3", "h4", "h5", "h6", "h7"].map(
         (path) => new URL(`${MW}/${path}?q=valore-query-segreto`),
       ),
       sleep: noSleep,
@@ -527,6 +528,8 @@ describe("trace-mywellness-login: chain", () => {
       "  Protezione: nessun segno",
       "  1. GET https://www.mywellness.com/h6 → 200 <tipo> · cookie: nessuno",
       "  Protezione: nessun segno",
+      "  1. GET https://www.mywellness.com/h7 → 403 senza tipo · cookie: nessuno",
+      "  Protezione: blocco CloudFront (AWS WAF)",
     ]);
     expect(result.secrets).toContain("valore-query-segreto");
   });
