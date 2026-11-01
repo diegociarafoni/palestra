@@ -135,7 +135,8 @@ describe("web", () => {
     const chart = await screen.findByRole("region", {
       name: "Peso in protocollo",
     });
-    const line = chart.querySelector(".MuiLineChart-linePlot path");
+    // Un path SVG non ha ruolo (eccezione di docs/buone-pratiche-mui.md § 9): la linea è l'unico path.
+    const line = chart.querySelector("svg path");
     const [x0, x1, x2] = vertexXs(line?.getAttribute("d") ?? "");
     if (x0 === undefined || x1 === undefined || x2 === undefined) {
       throw new Error("punti della linea mancanti");
