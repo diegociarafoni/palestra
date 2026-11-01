@@ -732,6 +732,28 @@ describe("shape", () => {
     expect(error instanceof ParseError && error.cause).toBeUndefined();
   });
 
+  it("shape: invalid JSON is named, never shown", async () => {
+    expect(
+      shapeOfHtml(
+        "<script>EU.currentUser = JSON.parse('{rotto');</script>",
+        ctx,
+      ),
+    ).toEqual(["script", "  EU.currentUser:", "    (JSON non valido)"]);
+    const src = probeOut({ "session_strength.json": "{rotto" });
+    const dest = join(dir, "forma.md");
+    expect(await main([src, dest])).toBe(0);
+    expect(readFileSync(dest, "utf8")).toContain(
+      [
+        "## session_strength.json",
+        "",
+        "```text",
+        "(JSON non valido)",
+        "```",
+        "",
+      ].join("\n"),
+    );
+  });
+
   it("shape: unexpected errors print only a fixed message", async () => {
     const src = probeOut({ "login_ok.html": "<p>Kg</p>" });
     const dest = join(dir, "forma.md");
