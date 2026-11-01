@@ -84,8 +84,10 @@ export function TabellaMisure({ measures }: TabellaMisureProps) {
             </TableRow>
           </TableHead>
           <TableBody>
-            {measures.map((m) => (
-              <TableRow key={`${m.date} ${m.time ?? ""} ${m.source}`}>
+            {measures.map((m, index) => (
+              // Due misure dello stesso giorno e della stessa fonte senza ora coincidono nei campi:
+              // l'indice le distingue (l'elenco arriva ordinato dall'API e qui non si riordina).
+              <TableRow key={`${m.date} ${m.time ?? ""} ${m.source} ${index}`}>
                 {columns.map((column) => (
                   <TableCell
                     key={column.label}

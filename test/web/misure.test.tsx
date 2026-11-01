@@ -1,7 +1,7 @@
 import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { queryKeys } from "../../web/src/api/keys";
 import Misure from "../../web/src/pagine/misure/Misure";
 import measures from "../fixtures/dashboard/measures.json";
@@ -108,6 +108,28 @@ describe("web", () => {
     // Data e ora su una riga: a 360 px la tabella scorre in orizzontale.
     const date = within(table).getByRole("cell", { name: "3 nov 2026, 08:00" });
     expect(getComputedStyle(date).whiteSpace).toBe("nowrap");
+  });
+
+  it("web: same-day measures without time get their own rows", async () => {
+    // Due misure dello stesso giorno, dalla stessa fonte e senza ora: chiavi di riga distinte.
+    const [base] = measures;
+    const sameDay = [80, 80.4].map((weight_kg) => ({
+      ...base,
+      time: null,
+      weight_kg,
+    }));
+    server.use(
+      http.get("/api/measures", () => HttpResponse.json({ measures: sameDay })),
+    );
+    const error = vi.spyOn(console, "error");
+    renderConTema(<Misure />);
+
+    const table = await screen.findByRole("table", { name: "Tutte le misure" });
+    const [, first, second] = within(table).getAllByRole("row");
+    if (!first || !second) throw new Error("righe mancanti");
+    expect(cells(first).slice(0, 2)).toEqual(["3 nov 2026", "80"]);
+    expect(cells(second).slice(0, 2)).toEqual(["3 nov 2026", "80,4"]);
+    expect(error).not.toHaveBeenCalled();
   });
 
   it("web: misure empty state", async () => {
