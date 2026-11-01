@@ -21,6 +21,7 @@ import {
   TransientError,
   UpstreamError,
 } from "../src/errors";
+import { VERSION } from "../src/index";
 
 const SITE = "https://www.mywellness.com";
 const SERVICES = "https://services.mywellness.com";
@@ -28,6 +29,8 @@ const API = "https://api.mywellness.com";
 // AppId pubblico del sito web (non è una credenziale).
 const APP_ID = "ec1d38d7-d359-48d0-a60c-d8c0b8fb9df9";
 const MIN_INTERVAL_MS = 1000;
+// Identificabile come il client della sync (src/mywellness/client.ts), con un nome proprio.
+const USER_AGENT = `palestra-probe/${VERSION}`;
 const MAX_REDIRECTS = 10;
 const MAX_SESSIONS = 10;
 const MAX_DETAILS = 8;
@@ -97,7 +100,10 @@ class Http {
     for (let hop = 0; ; hop++) {
       if (this.sent > 0) await this.sleep(MIN_INTERVAL_MS);
       this.sent++;
-      const headers: Record<string, string> = { ...init.headers };
+      const headers: Record<string, string> = {
+        ...init.headers,
+        "User-Agent": USER_AGENT,
+      };
       if (body === undefined) delete headers["Content-Type"];
       const cookie = this.cookieHeader(current);
       if (cookie) headers.Cookie = cookie;

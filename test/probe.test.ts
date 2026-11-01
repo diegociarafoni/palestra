@@ -171,6 +171,33 @@ describe("probe", () => {
     expect(readdirSync(outDir)).toEqual(["login_form.html"]);
   });
 
+  it("probe: names itself in the User-Agent of every request", async () => {
+    server.use(
+      http.get(`${SITE}/cloud/User/Login`, () => HttpResponse.html(LOGIN_FORM)),
+      http.post(`${SITE}/cloud/User/Login`, () =>
+        HttpResponse.html(LOGIN_FORM),
+      ),
+      http.get(`${SITE}/cloud/Training`, () => HttpResponse.html(LOGIN_FORM)),
+    );
+    const agents: (string | null)[] = [];
+    const recordingFetch: typeof fetch = (input, init) => {
+      agents.push(new Headers(init?.headers).get("user-agent"));
+      return fetch(input, init);
+    };
+    expect(
+      await main(
+        [],
+        { MYWELLNESS_EMAIL: EMAIL, MYWELLNESS_PASSWORD: PASSWORD },
+        { ...deps(), fetch: recordingFetch },
+      ),
+    ).toBe(78);
+    expect(agents).toEqual([
+      "palestra-probe/0.1.0",
+      "palestra-probe/0.1.0",
+      "palestra-probe/0.1.0",
+    ]);
+  });
+
   it("probe: saves the raw bodies and picks strength, cardio and biometrics", async () => {
     const training = TRAINING;
     // In elenco la seduta di forza più vecchia (333) viene prima: conta startedOn.
