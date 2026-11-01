@@ -6,8 +6,8 @@ import { MywellnessClient } from "../mywellness/client";
 import { type SyncClient, sync } from "../sync/sync";
 
 // CLI della sync notturna: `npm run sync [-- --lookback-days N]`.
-// I log finiscono nelle Actions pubbliche: su stdout solo i conteggi, mai id, date, e-mail,
-// password o token.
+// I log finiscono nelle Actions pubbliche: su stdout solo i conteggi (nelle run pianificate
+// neanche quelli), mai id, date, e-mail, password o token.
 
 /** Client della CLI: i metodi della sync più il login e il token di sessione. */
 export type CliClient = SyncClient & Pick<MywellnessClient, "login" | "token">;
@@ -99,8 +99,15 @@ export async function main(
       console.log(`::add-mask::${client.token}`);
     }
     const result = await sync(client, db, { lookbackDays });
-    console.log(`sedute nuove: ${result.newSessions}`);
-    console.log(`slot aggiornati: ${result.slotsUpdated}`);
+    // Run pianificata: il log pubblico di ogni notte direbbe in quali giorni l'utente si
+    // allena (docs/buone-pratiche.md: mai date di sedute nei log). I conteggi restano per le
+    // run manuali e locali.
+    if (env.GITHUB_ACTIONS === "true" && env.GITHUB_EVENT_NAME === "schedule") {
+      console.log("sync completata");
+    } else {
+      console.log(`sedute nuove: ${result.newSessions}`);
+      console.log(`slot aggiornati: ${result.slotsUpdated}`);
+    }
   } catch (e) {
     console.error(failureMessage(e));
     return exitCodeFor(e);
