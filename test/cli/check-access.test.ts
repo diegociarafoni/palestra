@@ -3,12 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { main } from "../../src/cli/check-access";
 import { setupMswServer } from "../msw";
 
-// Valori fittizi: hostname della dashboard e team di Access inventati, nessuna rete (MSW).
+// Valori fittizi: hostname della dashboard, dominio pages.dev del progetto e team di Access
+// inventati, nessuna rete (MSW).
 const HOST = "dashboard.example.com";
-const ENV = { DASHBOARD_HOSTNAME: HOST };
+const PAGES_DEV = "progetto-di-prova.pages.dev";
+const ENV = { DASHBOARD_HOSTNAME: HOST, PAGES_HOSTNAME: PAGES_DEV };
 const LOGIN = `https://esempio.cloudflareaccess.com/cdn-cgi/access/login/${HOST}?kid=aud-di-prova&redirect_url=%2F`;
-// Il dominio pages.dev del progetto (pubblico nel repository: il nome del progetto è `palestra`).
-const PAGES_DEV = "palestra.pages.dev";
 
 /** Risposta di Access a una richiesta senza sessione: redirect alla pagina di login del team. */
 const toAccessLogin = () =>
@@ -290,16 +290,28 @@ describe("check-access", () => {
     },
   );
 
-  it.each([
-    { label: "missing", env: {} },
+  it.each<{ label: string; env: Record<string, string> }>([
+    { label: "missing", env: { PAGES_HOSTNAME: PAGES_DEV } },
     // GitHub Actions passa un segreto non definito come stringa vuota.
-    { label: "empty", env: { DASHBOARD_HOSTNAME: "" } },
-    { label: "a url", env: { DASHBOARD_HOSTNAME: `https://${HOST}` } },
-    { label: "with a path", env: { DASHBOARD_HOSTNAME: `${HOST}/api` } },
-    { label: "with a trailing slash", env: { DASHBOARD_HOSTNAME: `${HOST}/` } },
-    { label: "with a port", env: { DASHBOARD_HOSTNAME: `${HOST}:8443` } },
-    { label: "with http://", env: { DASHBOARD_HOSTNAME: `http://${HOST}` } },
-    { label: "with spaces", env: { DASHBOARD_HOSTNAME: ` ${HOST}\n` } },
+    { label: "empty", env: { ...ENV, DASHBOARD_HOSTNAME: "" } },
+    { label: "a url", env: { ...ENV, DASHBOARD_HOSTNAME: `https://${HOST}` } },
+    {
+      label: "with a path",
+      env: { ...ENV, DASHBOARD_HOSTNAME: `${HOST}/api` },
+    },
+    {
+      label: "with a trailing slash",
+      env: { ...ENV, DASHBOARD_HOSTNAME: `${HOST}/` },
+    },
+    {
+      label: "with a port",
+      env: { ...ENV, DASHBOARD_HOSTNAME: `${HOST}:8443` },
+    },
+    {
+      label: "with http://",
+      env: { ...ENV, DASHBOARD_HOSTNAME: `http://${HOST}` },
+    },
+    { label: "with spaces", env: { ...ENV, DASHBOARD_HOSTNAME: ` ${HOST}\n` } },
   ])(
     "check-access: exit 78 when DASHBOARD_HOSTNAME is $label",
     async ({ env }) => {
@@ -313,6 +325,49 @@ describe("check-access", () => {
       expect(output()).not.toContain(HOST);
     },
   );
+
+  it.each<{ label: string; env: Record<string, string> }>([
+    { label: "missing", env: { DASHBOARD_HOSTNAME: HOST } },
+    { label: "empty", env: { ...ENV, PAGES_HOSTNAME: "" } },
+    { label: "a url", env: { ...ENV, PAGES_HOSTNAME: `https://${PAGES_DEV}` } },
+    {
+      label: "with a trailing slash",
+      env: { ...ENV, PAGES_HOSTNAME: `${PAGES_DEV}/` },
+    },
+    {
+      label: "with spaces",
+      env: { ...ENV, PAGES_HOSTNAME: ` ${PAGES_DEV}\n` },
+    },
+    {
+      label: "not on pages.dev",
+      env: { ...ENV, PAGES_HOSTNAME: "progetto-di-prova.example.net" },
+    },
+    { label: "pages.dev itself", env: { ...ENV, PAGES_HOSTNAME: "pages.dev" } },
+    {
+      label: "a look-alike",
+      env: { ...ENV, PAGES_HOSTNAME: `${PAGES_DEV}.example.net` },
+    },
+    {
+      label: "without the dot",
+      env: { ...ENV, PAGES_HOSTNAME: "progetto-di-provapages.dev" },
+    },
+    // Un alias di anteprima passa dall'applicazione Access delle anteprime, non da quella di
+    // produzione: il controllo non direbbe nulla sul dominio di produzione.
+    {
+      label: "a preview alias",
+      env: { ...ENV, PAGES_HOSTNAME: `abc123.${PAGES_DEV}` },
+    },
+  ])("check-access: exit 78 when PAGES_HOSTNAME is $label", async ({ env }) => {
+    // Nessun handler per l'host della dashboard: nessuna richiesta deve partire.
+    expect(await main([], env)).toBe(78);
+    expect(stderr.mock.calls).toEqual([
+      [
+        "PAGES_HOSTNAME mancante o non valido: serve il solo nome host <sottodominio>.pages.dev del progetto, senza https://, percorso o spazi",
+      ],
+    ]);
+    expect(output()).not.toContain("progetto-di-prova");
+    expect(output()).not.toContain(HOST);
+  });
 
   it("check-access: exit 75 on a network error, without printing it", async () => {
     // Come l'errore di undici con un DNS che non risponde: messaggio e causa nominano l'host.

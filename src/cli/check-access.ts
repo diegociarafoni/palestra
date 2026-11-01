@@ -1,29 +1,29 @@
 // Controllo che Cloudflare Access protegga la dashboard (workflow publish.yml, docs/dashboard.md,
 // «Pubblicazione»): `/` e `/api/measures` devono rispondere con un redirect verso la pagina di
 // login di Access (`https://<team>.cloudflareaccess.com/…`), sia sull'hostname della dashboard sia
-// su `palestra.pages.dev`, dove si apre anche il deploy di produzione. Con `--after-deploy`, in più,
-// `GET /api/measures` con `X-Requested-With: XMLHttpRequest` e senza cookie deve rispondere 401.
-// Uso: DASHBOARD_HOSTNAME=<nome host> npx --no -- tsx src/cli/check-access.ts [--after-deploy]
-// Su stderr solo percorsi, stati HTTP ed esito: mai l'hostname, gli URL o il Location (il log
+// sul dominio `<sottodominio>.pages.dev` del progetto, dove si apre anche il deploy di produzione.
+// Con `--after-deploy`, in più, `GET /api/measures` sull'hostname con `X-Requested-With:
+// XMLHttpRequest` e senza cookie deve rispondere 401.
+// Uso: DASHBOARD_HOSTNAME=<nome host> PAGES_HOSTNAME=<sottodominio>.pages.dev \
+//        npx --no -- tsx src/cli/check-access.ts [--after-deploy]
+// Su stderr solo percorsi, stati HTTP ed esito: mai i due host, gli URL o il Location (il log
 // delle Actions è pubblico).
 // Exit code (docs/buone-pratiche.md § 8, `exitCodeFor`): 0 ok · 64 argomenti · 70 errore inatteso
-// (solo il nome) · 75 errore di rete o timeout (rilanciare) · 78 DASHBOARD_HOSTNAME mancante o
-// non valido, Access non attivo o non come previsto.
+// (solo il nome) · 75 errore di rete o timeout (rilanciare) · 78 DASHBOARD_HOSTNAME o
+// PAGES_HOSTNAME mancante o non valido, Access non attivo o non come previsto.
 import { pathToFileURL } from "node:url";
 import { exitCodeFor, TransientError } from "../errors";
 
 const PATHS = ["/", "/api/measures"] as const;
-// Il deploy di produzione si apre anche dal dominio pages.dev del progetto, che l'applicazione
-// Access dell'hostname non copre (docs/dashboard.md, «Configurazione», passo 6). Il nome del
-// progetto è già pubblico nel repository; se Cloudflare ha assegnato un altro sottodominio
-// (i nomi pages.dev sono globali) la guardia si ferma e questa costante va cambiata.
-const PAGES_DEV_HOST = "palestra.pages.dev";
 // Timeout di ogni richiesta: quelli di undici per intestazioni e corpo (300 s) supererebbero il
 // timeout del passo nel workflow, e il 75 promesso per il timeout non arriverebbe mai.
 const TIMEOUT_MS = 15_000;
 // Solo un nome host (etichette DNS separate da punti): niente schema, percorso, porta o spazi.
 const HOSTNAME =
   /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i;
+// Il dominio di produzione del progetto: una sola etichetta prima di `.pages.dev`. Un alias di
+// anteprima (`<hash>.<sottodominio>.pages.dev`) passa da un'altra applicazione Access.
+const PAGES_HOSTNAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?\.pages\.dev$/i;
 
 /** Vero se la risposta è un redirect verso il login di Access (`https://*.cloudflareaccess.com`). */
 function redirectsToAccess(response: Response, url: string): boolean {
@@ -84,12 +84,15 @@ async function get(
 async function check(
   fetchFn: typeof fetch,
   host: string,
+  pagesHost: string,
   afterDeploy: boolean,
 ): Promise<number> {
   const dashboard: Target = { host, label: "" };
+  // Il deploy di produzione si apre anche da pages.dev, che l'applicazione Access dell'hostname
+  // non copre (docs/dashboard.md, «Configurazione», passo 6).
   const targets: Target[] = [
     dashboard,
-    { host: PAGES_DEV_HOST, label: "pages.dev" },
+    { host: pagesHost, label: "pages.dev" },
   ];
   // Solo percorsi e stati nei messaggi: l'hostname e il Location (che lo contiene) mai.
   for (const target of targets) {
@@ -142,8 +145,16 @@ export async function main(
     );
     return 78;
   }
+  // Un Secret come l'hostname: il sottodominio pages.dev non va nel repository pubblico.
+  const pagesHost = env.PAGES_HOSTNAME;
+  if (!pagesHost || !PAGES_HOSTNAME.test(pagesHost)) {
+    console.error(
+      "PAGES_HOSTNAME mancante o non valido: serve il solo nome host <sottodominio>.pages.dev del progetto, senza https://, percorso o spazi",
+    );
+    return 78;
+  }
   try {
-    return await check(deps.fetch ?? fetch, host, afterDeploy);
+    return await check(deps.fetch ?? fetch, host, pagesHost, afterDeploy);
   } catch (error) {
     // Solo il messaggio del TransientError, che non nomina l'host (la causa sì); di un errore
     // inatteso solo il nome, perché il suo messaggio può contenere l'URL.
