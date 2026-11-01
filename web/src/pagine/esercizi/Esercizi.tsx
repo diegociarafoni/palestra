@@ -2,7 +2,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { testi } from "../../testi";
 
-/** Segnaposto: la pagina Esercizi arriva con il sotto-task 10.4. */
+/** Segnaposto: la pagina Esercizi arriva con la parte 2 del Task 10. */
 export default function Esercizi() {
   return (
     <Stack spacing={3}>

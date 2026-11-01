@@ -24,7 +24,7 @@ Ogni richiesta del frontend a `/api/*` porta l'intestazione `X-Requested-With: X
 - Ricarica senza limite: ciclo infinito con una configurazione sbagliata.
 
 ## Limiti noti
-- Costo se sbagliata: se Access rispondesse con un redirect anche con l'intestazione, la pagina mostrerebbe "Impossibile caricare i dati." e l'utente dovrebbe ricaricare a mano. Il comportamento va verificato con Access vero (sotto-task 10.5).
+- Costo se sbagliata: se Access rispondesse con un redirect anche con l'intestazione, la pagina mostrerebbe "Impossibile caricare i dati." e l'utente dovrebbe ricaricare a mano. Il comportamento va verificato con Access vero nel Task 11, dopo il primo deploy: `curl -sI -H 'X-Requested-With: XMLHttpRequest' https://<DASHBOARD_HOSTNAME>/api/measures`, senza cookie, deve rispondere `401` e non `302`.
 - Una configurazione sbagliata di Access (AUD, e-mail ammesse) si presenta come messaggio di sessione dopo una ricarica, non come errore di configurazione: la causa va cercata nei log di Access e delle Functions.
 - Un 401/403 durante un aggiornamento in background, con dati già a schermo, lascia i dati visibili senza messaggio fino al caricamento successivo.
 
