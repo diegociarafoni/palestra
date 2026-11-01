@@ -62,7 +62,19 @@ export function TabellaForza({ rows }: TabellaForzaProps) {
         {testi.exercises.tableTitle}
       </Typography>
       <TableContainer component={Paper} variant="outlined">
-        <Table size="small" aria-labelledby={titleId}>
+        <Table
+          size="small"
+          aria-labelledby={titleId}
+          // Sul telefono la tabella scorre in orizzontale: la colonna dell'esercizio resta ferma a
+          // sinistra, con lo sfondo del foglio sotto cui scorrono i valori.
+          sx={{
+            "& tr > :first-child": {
+              position: "sticky",
+              left: 0,
+              bgcolor: "background.paper",
+            },
+          }}
+        >
           <TableHead>
             <TableRow>
               <TableCell>{columns.name}</TableCell>
@@ -80,9 +92,11 @@ export function TabellaForza({ rows }: TabellaForzaProps) {
                 key={r.slug}
                 // Sul telefono la tabella scorre in orizzontale: i valori restano su una riga,
                 // solo il nome dell'esercizio va a capo.
-                sx={{ "& > td + td": { whiteSpace: "nowrap" } }}
+                sx={{ "& > td": { whiteSpace: "nowrap" } }}
               >
-                <TableCell>{r.name}</TableCell>
+                <TableCell component="th" scope="row">
+                  {r.name}
+                </TableCell>
                 <TableCell align="right">{r.sessions}</TableCell>
                 <TableCell>{range(r.first, r.last, formatSet)}</TableCell>
                 <TableCell>

@@ -61,10 +61,13 @@ const marks = (chart: HTMLElement, slot: number) =>
       element.closest("li") === null && element.getAttribute("fill") !== "none",
   );
 
+// Celle di una riga del corpo: l'intestazione (il nome dell'esercizio), poi i valori.
+const rowCells = (row: HTMLElement) => [
+  within(row).getByRole("rowheader"),
+  ...within(row).getAllByRole("cell"),
+];
 const cells = (row: HTMLElement) =>
-  within(row)
-    .getAllByRole("cell")
-    .map((cell) => cell.textContent);
+  rowCells(row).map((cell) => cell.textContent);
 
 describe("web", () => {
   it("web: esercizi empty state", async () => {
@@ -390,6 +393,46 @@ describe("web", () => {
     expect(within(latMachine).getByText("10 nov")).toBeTruthy();
   });
 
+  it("web: esercizi table rows headed by exercise", async () => {
+    // Il nome dell'esercizio è l'intestazione della sua riga: un lettore di schermo lo ripete
+    // davanti a ogni valore.
+    server.use(http.get("/api/exercises", () => HttpResponse.json(EXERCISES)));
+    renderConTema(<Esercizi />);
+
+    const table = await screen.findByRole("table", {
+      name: "Forza per esercizio",
+    });
+    expect(
+      within(table)
+        .getAllByRole("rowheader")
+        .map((header) => header.textContent),
+    ).toEqual(["Leg Press", "Chest Press", "Lat Machine"]);
+  });
+
+  it("web: esercizi table keeps the exercise in view", async () => {
+    // A 360 px la tabella scorre in orizzontale: la colonna dell'esercizio resta ferma a sinistra,
+    // con lo sfondo del foglio perché i valori le scorrono sotto (anche nell'intestazione).
+    server.use(http.get("/api/exercises", () => HttpResponse.json(EXERCISES)));
+    renderConTema(<Esercizi />);
+
+    const table = await screen.findByRole("table", {
+      name: "Forza per esercizio",
+    });
+    const first = [
+      within(table).getByRole("columnheader", { name: "Esercizio" }),
+      ...within(table).getAllByRole("rowheader"),
+    ];
+    expect(first).toHaveLength(4);
+    for (const cell of first) {
+      const style = getComputedStyle(cell);
+      expect([style.position, style.left, style.backgroundColor]).toEqual([
+        "sticky",
+        "0px",
+        "var(--mui-palette-background-paper)",
+      ]);
+    }
+  });
+
   it("web: esercizi table readable on a phone", async () => {
     // A 360 px la tabella scorre in orizzontale: i valori restano su una riga ("60 kg × 12 → 65
     // kg × 10" non va a capo in quattro righe); solo il nome dell'esercizio può andare a capo.
@@ -402,9 +445,7 @@ describe("web", () => {
     const [, legPress] = within(table).getAllByRole("row");
     if (!legPress) throw new Error("riga mancante");
     expect(
-      within(legPress)
-        .getAllByRole("cell")
-        .map((cell) => getComputedStyle(cell).whiteSpace),
+      rowCells(legPress).map((cell) => getComputedStyle(cell).whiteSpace),
     ).toEqual([
       "normal",
       "nowrap",
