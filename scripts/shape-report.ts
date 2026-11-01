@@ -349,6 +349,65 @@ export function shapeOfJson(value: unknown, ctx: ShapeContext): string[] {
 
 const TAG = /^[a-z][a-z0-9-]{0,30}$/;
 const ATTRIBUTE = /^[a-z_:][a-z0-9_.:-]{0,40}$/i;
+/**
+ * I soli nomi di attributo che si stampano, oltre a `data-…` e `aria-…`: su un valore senza
+ * virgolette il parser fa nascere attributi dal testo della pagina (`value=Mario Rossi` dà
+ * l'attributo `rossi`).
+ */
+export const HTML_ATTRIBUTES: ReadonlySet<string> = new Set([
+  ...[
+    "id",
+    "class",
+    "name",
+    "type",
+    "value",
+    "href",
+    "src",
+    "action",
+    "method",
+  ],
+  ...["for", "role", "rel", "title", "alt", "lang", "dir", "style", "width"],
+  ...["height", "colspan", "rowspan", "scope", "placeholder", "target"],
+  ...["content", "charset", "http-equiv", "property", "itemprop", "tabindex"],
+  ...[
+    "autocomplete",
+    "maxlength",
+    "minlength",
+    "min",
+    "max",
+    "step",
+    "pattern",
+  ],
+  ...[
+    "accept",
+    "enctype",
+    "form",
+    "label",
+    "nonce",
+    "integrity",
+    "crossorigin",
+  ],
+  ...[
+    "referrerpolicy",
+    "media",
+    "sizes",
+    "srcset",
+    "loading",
+    "async",
+    "defer",
+  ],
+  ...["hidden", "disabled", "readonly", "required", "multiple", "open"],
+  ...["novalidate", "autofocus", "onclick", "onchange", "onsubmit", "onload"],
+  "onerror",
+]);
+/** Gli attributi dell'elenco che si scrivono senza valore. */
+const BOOLEAN_ATTRIBUTES = new Set([
+  ...["async", "defer", "hidden", "disabled", "readonly", "required"],
+  ...["multiple", "open", "novalidate", "autofocus"],
+]);
+/** Mai stampati, neanche mascherati: dicono che cosa ha scelto l'utente. */
+const CHOICE_ATTRIBUTES = new Set(["checked", "selected"]);
+const CUSTOM_ATTRIBUTE = /^(?:data|aria)-[a-z][a-z0-9_-]{0,40}$/i;
 /** Attributi il cui valore è un nome del modello della pagina (es. `name=hdSessionIdCR`). */
 const NAMING_ATTRIBUTES = new Set([
   "class",
@@ -366,17 +425,33 @@ const OMITTED = "(contenuto omesso)";
 /** Una classe di una lista `class`, giudicata da sola. */
 const CLASS_TOKEN = /^[A-Za-z][A-Za-z0-9_.:-]{0,60}$/;
 
+/** Il nome di un attributo dell'elenco o `data-…`/`aria-…`, in minuscolo; altrimenti `undefined`. */
+function attributeName(name: string, ctx: ShapeContext): string | undefined {
+  if (
+    !HTML_ATTRIBUTES.has(name.toLowerCase()) &&
+    !CUSTOM_ATTRIBUTE.test(name)
+  ) {
+    return undefined;
+  }
+  return plainName(name, ATTRIBUTE, ctx)?.toLowerCase();
+}
+
 function attributeText(name: string, value: string, ctx: ShapeContext): string {
-  const plain = plainName(name, ATTRIBUTE, ctx);
+  const plain = attributeName(name, ctx);
   const shown = plain ?? `«${maskText(name, ctx.vocab)}»`;
-  if (value === "") return shown;
+  // Senza valore si stampano solo gli attributi booleani dell'elenco.
+  if (value === "") {
+    return plain !== undefined && BOOLEAN_ATTRIBUTES.has(plain)
+      ? plain
+      : `«${maskText(name, ctx.vocab)}»`;
+  }
   // Tutti gli altri valori, compresi href, src, action e data-*, sono mascherati.
-  if (plain === undefined || !NAMING_ATTRIBUTES.has(plain.toLowerCase())) {
+  if (plain === undefined || !NAMING_ATTRIBUTES.has(plain)) {
     return `${shown}=«${maskText(value, ctx.vocab)}»`;
   }
   // Le classi una per una: `fc-day` resta scritta, `fc-day-wed` no.
   const kept =
-    plain.toLowerCase() === "class"
+    plain === "class"
       ? value
           .trim()
           .split(/\s+/)
@@ -388,9 +463,9 @@ function attributeText(name: string, value: string, ctx: ShapeContext): string {
 
 function elementLine(element: HTMLElement, ctx: ShapeContext): string {
   const shown = shownName(element.rawTagName.toLowerCase(), TAG, ctx);
-  const attributes = Object.entries(element.attributes).map(([name, value]) =>
-    attributeText(name, value, ctx),
-  );
+  const attributes = Object.entries(element.attributes)
+    .filter(([name]) => !CHOICE_ATTRIBUTES.has(name.toLowerCase()))
+    .map(([name, value]) => attributeText(name, value, ctx));
   return attributes.length === 0 ? shown : `${shown}[${attributes.join(", ")}]`;
 }
 

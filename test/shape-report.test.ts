@@ -21,6 +21,7 @@ import {
   checkReport,
   DATE_ABBREVIATIONS,
   DATE_WORDS,
+  HTML_ATTRIBUTES,
   main,
   maskText,
   shapeContext,
@@ -364,6 +365,23 @@ describe("shape", () => {
       ),
     ).toEqual(["div[class=fc-day «a-a-a» col-md-9 h9o, name=hr9, id=«A99»]"]);
     expect(shapeOfHtml("<h2>Serie</h2>", ctx)).toEqual(["h9", '  "Serie"']);
+  });
+
+  it("shape: only known attribute names are printed", () => {
+    // Un valore senza virgolette fa nascere attributi dal testo ("Rossi", "Mantova"); `checked` e
+    // `selected` dicono che cosa ha scelto l'utente e non compaiono mai.
+    expect(
+      shapeOfHtml(
+        '<input value=Mario Rossi title=Via Mantova data-row2="x" data-mario="x" aria-label="x" foo="x" TYPE=hidden hidden checked selected required class>',
+        ctx,
+      ),
+    ).toEqual([
+      "input[value=«A», «A», title=«A», «A», data-row9=«a», «a-a»=«a», aria-label=«a», «a»=«a», type=hidden, hidden, required, «a»]",
+    ]);
+    // Ogni nome dell'elenco esce in chiaro: l'elenco è fisso.
+    expect([...HTML_ATTRIBUTES].join(" ")).toBe(
+      "id class name type value href src action method for role rel title alt lang dir style width height colspan rowspan scope placeholder target content charset http-equiv property itemprop tabindex autocomplete maxlength minlength min max step pattern accept enctype form label nonce integrity crossorigin referrerpolicy media sizes srcset loading async defer hidden disabled readonly required multiple open novalidate autofocus onclick onchange onsubmit onload onerror",
+    );
   });
 
   it("shape: names glued to the user's name are masked", () => {
