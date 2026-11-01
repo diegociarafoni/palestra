@@ -11,8 +11,11 @@ I nomi dei campi e la forma delle risposte sono fatti di interoperabilità ricav
 | `strength_detail.html` | Pagina di dettaglio forza con la tabella delle serie |
 | `strength_detail_broken.html` | Pagina di dettaglio senza la tabella delle serie |
 | `cardio_timeseries.json` | Serie temporale (CardioLog) del secondo esercizio di `session_cardio_only.json` |
+| `login_form.html` | Pagina di login con il form `UserBinder.*`; in `client.test.ts` fa da pagina di login, da login fallito e da sessione scaduta: conta solo il campo `UserBinder.Password`, nessun valore letterale |
+| `login_ok.html` | Pagina Training con `EU.currentUser = JSON.parse('…')` (id, token, culture); in `client.test.ts` ne dipendono `USER_ID`, il token `synthetic-token-0001` e `_c` = `it-IT` negli URL e nei parametri attesi |
+| `last_sessions.html` | Elenco sedute con tre righe `hdSessionIdCR` di novembre 2026; in `client.test.ts` ne dipendono gli id `900000003`, `900000002`, `900000001` (in quest'ordine) e l'intervallo che parte dal `19/11/2026` |
 
-Le fixture reali anonimizzate catturate nel Task 0 (Step 4) le sostituiranno con gli stessi nomi di file; nella stessa PR vanno aggiornati i valori letterali attesi in `test/mywellness/normalize.test.ts`.
+Le fixture reali anonimizzate catturate nel Task 0 (Step 4) le sostituiranno con gli stessi nomi di file; nella stessa PR vanno aggiornati i valori letterali attesi in `test/mywellness/normalize.test.ts` e `test/mywellness/client.test.ts`.
 
 ## Da verificare con le fixture reali
 
