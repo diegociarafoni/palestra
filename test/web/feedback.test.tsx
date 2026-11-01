@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
@@ -341,6 +341,43 @@ describe("web", () => {
     expect(
       await screen.findByRole("form", { name: "Come è andata oggi?" }),
     ).toBeTruthy();
+  });
+
+  it("web: calendar follows today into a new month", async () => {
+    // La pagina aperta sabato 31/10 alle 23:30 a Roma resta aperta oltre la mezzanotte.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-31T22:30:00Z"));
+    const user = userEvent.setup();
+    const months: (string | null)[] = [];
+    const bodies: unknown[] = [];
+    server.use(
+      http.get("/api/calendar", ({ request }) => {
+        months.push(new URL(request.url).searchParams.get("month"));
+        return HttpResponse.json(EMPTY);
+      }),
+      http.put("/api/feedback", async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json(feedback({ date: "2026-11-01" }));
+      }),
+    );
+    renderConTema(<Calendario />);
+    await screen.findByRole("form", { name: "Come è andata oggi?" });
+    expect(screen.getByText("ottobre 2026")).toBeTruthy();
+
+    // Domenica 1/11 alle 0:30: tornando sulla pagina, il mese di oggi e il suo modulo.
+    vi.setSystemTime(new Date("2026-10-31T23:30:00Z"));
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(await screen.findByText("novembre 2026")).toBeTruthy();
+    const form = await screen.findByRole("form", {
+      name: "Come è andata oggi?",
+    });
+    expect(months).toEqual(["2026-10", "2026-11"]);
+    await user.click(within(form).getByRole("button", { name: "Ottima" }));
+    await user.click(within(form).getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toMatchObject({ date: "2026-11-01", seq: 1 });
   });
 
   it("web: saving reloads calendar and week", async () => {

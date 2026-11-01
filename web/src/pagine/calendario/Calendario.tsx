@@ -10,7 +10,6 @@ import { ModuloFeedback } from "../../componenti/ModuloFeedback";
 import { SelettoreMese } from "../../componenti/SelettoreMese";
 import { StatoQuery } from "../../componenti/StatoQuery";
 import { testi } from "../../testi";
-import { currentMonthInRome } from "../../utils/date";
 import { useToday } from "../../utils/oggi";
 import { MeseCalendario } from "./MeseCalendario";
 
@@ -18,11 +17,14 @@ import { MeseCalendario } from "./MeseCalendario";
  * Pagina Calendario: nel mese di oggi, in cima, il modulo "Come è andata oggi?" (sull'ultimo
  * feedback di oggi, se c'è, con "Un'altra seduta oggi"); poi gli slot del mese per settimana, le
  * sedute extra e, per ogni seduta, il feedback da aggiungere o modificare; i feedback senza seduta
- * a parte. Parte dal mese di oggi a Roma.
+ * a parte. Mostra il mese di oggi a Roma, che segue il giorno nuovo, finché l'utente non ne
+ * sceglie un altro.
  */
 export default function Calendario() {
   const today = useToday();
-  const [month, setMonth] = useState(currentMonthInRome);
+  // Solo il mese scelto dall'utente: senza scelta, quello di oggi (anche dopo la mezzanotte).
+  const [chosenMonth, setChosenMonth] = useState<string | null>(null);
+  const month = chosenMonth ?? today.slice(0, 7);
   const calendar = {
     queryKey: queryKeys.calendar(month),
     queryFn: () => getCalendar(month),
@@ -55,7 +57,7 @@ export default function Calendario() {
       <Typography variant="h5" component="h1">
         {testi.nav.calendar}
       </Typography>
-      <SelettoreMese month={month} onChange={setMonth} />
+      <SelettoreMese month={month} onChange={setChosenMonth} />
       {month === today.slice(0, 7) && todays.isSuccess && (
         <Paper variant="outlined" sx={{ p: 2 }}>
           {/* Un modulo nuovo per ogni feedback salvato: riparte dai suoi valori. */}
