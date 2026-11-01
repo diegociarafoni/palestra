@@ -1,0 +1,36 @@
+name: sync
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # ogni notte, 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Log: di notte solo "sync completata" (i conteggi rivelerebbero i giorni di allenamento);
+      # avviato a mano, "sedute nuove: N" e "slot aggiornati: N". In errore, il messaggio e l'exit code.
+      # Un login per run; il token di sessione resta nel processo ed è mascherato con ::add-mask::.
+      - name: Sync Mywellness sessions into D1
+        env:
+          MYWELLNESS_EMAIL: ${{ secrets.MYWELLNESS_EMAIL }}
+          MYWELLNESS_PASSWORD: ${{ secrets.MYWELLNESS_PASSWORD }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          CF_TOKEN_D1: ${{ secrets.CF_TOKEN_D1 }}
+        run: npm run sync
