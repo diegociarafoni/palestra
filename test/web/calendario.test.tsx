@@ -45,6 +45,8 @@ const feedback = (fields: object) => ({
   ...fields,
 });
 const CALENDAR = {
+  // Giorni non disponibili del modello di esempio.
+  unavailable: ["mon", "fri"],
   slots: NOVEMBER_SLOTS,
   extra: [{ date: "2026-11-04", name: "Seduta libera", moves: null, seq: 1 }],
   feedback: [
@@ -169,6 +171,7 @@ describe("web", () => {
               joint_pain: true,
             }),
           ],
+          unavailable: [],
         }),
       ),
     );
@@ -211,6 +214,7 @@ describe("web", () => {
               joint_pain: true,
             }),
           ],
+          unavailable: [],
         }),
       ),
     );
@@ -257,6 +261,7 @@ describe("web", () => {
               joint_pain: false,
             }),
           ],
+          unavailable: [],
         }),
       ),
     );
@@ -306,6 +311,7 @@ describe("web", () => {
               joint_where: "spalla",
             }),
           ],
+          unavailable: [],
         }),
       ),
     );
@@ -345,6 +351,7 @@ describe("web", () => {
               joint_pain: false,
             }),
           ],
+          unavailable: [],
         }),
       ),
     );
@@ -357,7 +364,12 @@ describe("web", () => {
   it("web: calendario empty state", async () => {
     server.use(
       http.get("/api/calendar", () =>
-        HttpResponse.json({ slots: [], extra: [], feedback: [] }),
+        HttpResponse.json({
+          slots: [],
+          extra: [],
+          feedback: [],
+          unavailable: [],
+        }),
       ),
     );
     renderConTema(<Calendario />);
@@ -434,7 +446,12 @@ describe("web", () => {
     server.use(
       http.get("/api/calendar", ({ request }) => {
         months.push(new URL(request.url).searchParams.get("month"));
-        return HttpResponse.json({ slots: [], extra: [], feedback: [] });
+        return HttpResponse.json({
+          slots: [],
+          extra: [],
+          feedback: [],
+          unavailable: [],
+        });
       }),
     );
     renderConTema(<Calendario />);

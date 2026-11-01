@@ -479,7 +479,41 @@ describe("api", () => {
     );
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
-    expect(await res.json()).toEqual({ slots: [], extra: [], feedback: [] });
+    expect(await res.json()).toEqual({
+      slots: [],
+      extra: [],
+      feedback: [],
+      unavailable: [],
+    });
+  });
+
+  it("api: calendar gives the unavailable days of the template", async () => {
+    // Il frontend propone come giorni scelti solo quelli disponibili (spec § 5).
+    await env.DB.prepare(
+      "INSERT INTO profile (key, json) VALUES ('settimana_tipo', ?1)",
+    )
+      .bind(
+        JSON.stringify({
+          slots: [
+            { slot: 1, days: ["tue", "wed"], scheda_day: "A" },
+            { slot: 2, days: ["thu"], scheda_day: "B" },
+          ],
+          unavailable: ["mon", "fri"],
+        }),
+      )
+      .run();
+    const res = await app.request(
+      "/api/calendar?month=2026-11",
+      { headers: withToken },
+      bindings,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      slots: [],
+      extra: [],
+      feedback: [],
+      unavailable: ["mon", "fri"],
+    });
   });
 
   it("api: calendar gives day and order of each slot session", async () => {
@@ -605,6 +639,7 @@ describe("api", () => {
           updated_at: "2026-11-03T20:00:00.000Z",
         },
       ],
+      unavailable: [],
     });
     expect(CalendarResponseSchema.safeParse(body).success).toBe(true);
   });

@@ -10,7 +10,15 @@ export type WeekTemplate = {
   unavailable: Weekday[];
 };
 
-const WeekdaySchema = z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
+export const WeekdaySchema = z.enum([
+  "mon",
+  "tue",
+  "wed",
+  "thu",
+  "fri",
+  "sat",
+  "sun",
+]);
 
 /**
  * Schema del modello settimanale letto da `profile` (chiave `settimana_tipo`): ogni slot ha
@@ -106,6 +114,29 @@ export function weekSlots(isoWeek: string, t: WeekTemplate): PlannedSlot[] {
     reason: null,
     session_id: null,
   }));
+}
+
+/** Giorno della settimana di una data `YYYY-MM-DD`. */
+function weekdayOf(date: string): Weekday | undefined {
+  return WEEKDAYS[(new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7];
+}
+
+/**
+ * Giorni che l'utente può scegliere per lo slot (spec § 5): quelli della finestra e il sabato e
+ * la domenica della sua settimana ISO, tolti i giorni non disponibili del modello.
+ */
+export function choosableDays(
+  slot: Pick<PlannedSlot, "week" | "window">,
+  unavailable: Weekday[],
+): string[] {
+  const monday = isoWeekMonday(slot.week);
+  const weekend = [5, 6].map((i) =>
+    new Date(monday + i * DAY_MS).toISOString().slice(0, 10),
+  );
+  return [...slot.window, ...weekend].filter((date) => {
+    const day = weekdayOf(date);
+    return day !== undefined && !unavailable.includes(day);
+  });
 }
 
 /** Slot non ancora fatto: `programmata`, `da_confermare` o `saltata`. */
