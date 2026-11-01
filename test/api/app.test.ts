@@ -89,11 +89,8 @@ describe("api", () => {
         SCHEDA_MD,
       )
       .run();
-    const logs = [
-      vi.spyOn(console, "error"),
-      vi.spyOn(console, "warn"),
-      vi.spyOn(console, "log"),
-    ];
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const others = [vi.spyOn(console, "warn"), vi.spyOn(console, "log")];
     const res = await app.request(
       "/api/scheda",
       { headers: withToken },
@@ -103,7 +100,32 @@ describe("api", () => {
     // Corpo fisso: il messaggio del ParseError (con la versione) non arriva al client.
     expect(await res.text()).toBe('{"error":"internal"}');
     expect(res.headers.get("Cache-Control")).toBe("no-store");
-    for (const log of logs) expect(log).not.toHaveBeenCalled();
+    // Una riga su stderr: nome e messaggio del ParseError (tabella e versione), niente cause né stack.
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(error).toHaveBeenCalledWith(
+      "api: internal ParseError: D1: json e colonne non coerenti in scheda (2026-11)",
+    );
+    for (const log of others) expect(log).not.toHaveBeenCalled();
+  });
+
+  it("api: unexpected error logs only its name", async () => {
+    // Un errore qualunque: il suo messaggio potrebbe contenere dati e non va nel log.
+    const failing = createApp({
+      jwks: signer.jwks,
+      today: () => {
+        throw new TypeError("dato di utente@example.com");
+      },
+    });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await failing.request(
+      "/api/scheda",
+      { headers: withToken },
+      bindings,
+    );
+    expect(res.status).toBe(500);
+    expect(await res.text()).toBe('{"error":"internal"}');
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(error).toHaveBeenCalledWith("api: internal TypeError");
   });
 
   it("api: reports unknown month", async () => {
