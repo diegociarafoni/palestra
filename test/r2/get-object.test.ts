@@ -1,7 +1,7 @@
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { AuthError, SyncError, TransientError } from "../../src/errors";
+import { AuthError, TransientError, UpstreamError } from "../../src/errors";
 import { getObject } from "../../src/r2/get-object";
 
 // Account fittizio nel formato reale e credenziali dell'AWS SigV4 test suite.
@@ -102,7 +102,7 @@ describe("r2 get", () => {
     expect((error as Error).message).toBe("R2: download interrotto (rete)");
   });
 
-  it("r2 get: 404 raises SyncError without the response body", async () => {
+  it("r2 get: 404 raises UpstreamError without the response body", async () => {
     server.use(
       http.get(OBJECT_URL, () =>
         HttpResponse.xml("<Error><Code>NoSuchKey</Code></Error>", {
@@ -111,7 +111,7 @@ describe("r2 get", () => {
       ),
     );
     const error = await download().catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(SyncError);
+    expect(error).toBeInstanceOf(UpstreamError);
     expect(error).not.toBeInstanceOf(AuthError);
     expect(error).not.toBeInstanceOf(TransientError);
     expect((error as Error).message).toBe("R2: HTTP 404");

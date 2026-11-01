@@ -2,11 +2,11 @@
 tipo: concetto
 slug: report-mensile
 titolo: Come il report mensile calcola gli indicatori
-aggiornato: 2026-10-31
+aggiornato: 2026-11-01
 ---
 # Come il report mensile calcola gli indicatori
 
-Il job del report (`src/report/`) legge il mese da D1 e salva il Markdown (`reports`, tipo `report`) e 9 metriche per la dashboard (`metrics`). Applica le regole di [linee guida § 3 e § 5](../../docs/linee-guida-allenamento.md); la revisione mensile conferma o corregge ciò che propone.
+Il job del report (`src/report/`) legge il mese da D1 e salva il Markdown (`reports`, tipo `report`) e 9 metriche per la dashboard (`metrics`). Gira il 1° di ogni mese sul mese precedente, dopo la sync, e a mano per rigenerare un mese ([workflow proprio](../decisioni/2026-11-01-report-mensile-in-workflow-separato.md)). Applica le regole di [linee guida § 3 e § 5](../../docs/linee-guida-allenamento.md); la revisione mensile conferma o corregge ciò che propone.
 
 ## Dati del mese
 - **Slot**: uno slot appartiene al mese del primo giorno della sua finestra, anche se la settimana ISO è a cavallo di due mesi ([sedute programmate](sedute-programmate.md)). Aderenza = slot `fatta` + `spostata` sugli slot del mese; le sedute extra non contano.

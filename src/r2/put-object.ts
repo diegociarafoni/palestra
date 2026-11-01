@@ -1,5 +1,5 @@
 import { createHash, createHmac } from "node:crypto";
-import { AuthError, SyncError, TransientError } from "../errors";
+import { AuthError, TransientError, UpstreamError } from "../errors";
 
 // L'account id finisce nell'host, la chiave d'accesso in un header: caratteri limitati.
 // Account id di Cloudflare: 32 cifre esadecimali minuscole (fetch mette l'host in
@@ -143,7 +143,7 @@ export async function r2Request(
   if (response.status === 429 || response.status >= 500) {
     throw new TransientError(`R2: HTTP ${response.status}`);
   }
-  throw new SyncError(`R2: HTTP ${response.status}`);
+  throw new UpstreamError(`R2: HTTP ${response.status}`);
 }
 
 /** Carica un oggetto nel bucket R2 (giurisdizione UE) con una sola PUT firmata. */

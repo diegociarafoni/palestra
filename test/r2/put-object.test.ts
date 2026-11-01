@@ -5,8 +5,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   AuthError,
   ParseError,
-  SyncError,
   TransientError,
+  UpstreamError,
 } from "../../src/errors";
 import { putObject, signV4 } from "../../src/r2/put-object";
 
@@ -133,7 +133,7 @@ describe("r2", () => {
     expect((error as Error).cause).toBeInstanceOf(TypeError);
   });
 
-  it("r2: 404 raises SyncError", async () => {
+  it("r2: 404 raises UpstreamError", async () => {
     server.use(
       http.put(OBJECT_URL, () =>
         HttpResponse.xml("<Error><Code>NoSuchBucket</Code></Error>", {
@@ -142,7 +142,7 @@ describe("r2", () => {
       ),
     );
     const error = await upload().catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(SyncError);
+    expect(error).toBeInstanceOf(UpstreamError);
     for (const subclass of [AuthError, ParseError, TransientError]) {
       expect(error).not.toBeInstanceOf(subclass);
     }

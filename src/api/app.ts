@@ -2,6 +2,7 @@ import type { D1Database } from "@cloudflare/workers-types";
 import { Hono } from "hono";
 import type { JWTVerifyGetKey } from "jose";
 import { romeDate } from "../domain/dates";
+import { ParseError } from "../errors";
 import { type AccessEnv, AccessError, verifyAccess } from "./access";
 import { calendarRoute } from "./routes/calendar";
 import { exercisesRoute } from "./routes/exercises";
@@ -47,7 +48,14 @@ export function createApp(deps: AppDeps = {}) {
         const body = error.status === 401 ? "unauthorized" : "forbidden";
         return c.json({ error: body }, error.status, NO_STORE);
       }
-      // Mai il motivo nel corpo né nei log: stack e messaggi possono contenere dati.
+      // Corpo fisso. Nel log una riga con il solo nome dell'errore (stack, cause e messaggi possono
+      // contenere dati); per il ParseError anche il messaggio, che per costruzione nomina solo la
+      // tabella e una chiave non personale (src/store/json.ts).
+      const detail =
+        error instanceof ParseError
+          ? `${error.name}: ${error.message}`
+          : error.name;
+      console.error(`api: internal ${detail}`);
       return c.json({ error: "internal" }, 500, NO_STORE);
     })
     .notFound((c) => c.json({ error: "not_found" }, 404, NO_STORE));

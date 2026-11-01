@@ -15,9 +15,8 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
 import { romeDate } from "../domain/dates";
-import { SyncError } from "../errors";
+import { exitCodeFor, SyncError } from "../errors";
 import { getObject } from "../r2/get-object";
-import { exitCodeFor } from "./backup";
 import { runWrangler } from "./wrangler";
 
 const BUCKET = "palestra-backup";
