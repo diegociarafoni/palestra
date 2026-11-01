@@ -382,18 +382,44 @@ describe("shape", () => {
     // nell'ordine delle colonne direbbero quale colonna è segnata.
     expect(
       shapeOfHtml(
-        '<table><tr><th class="d">Cardio</th><th class="d done">Forza<span class="dot"></span></th><th class="d">Move</th></tr></table>',
+        '<table><tr><th class="d">Serie</th><th class="d done">Rip<span class="dot"></span></th><th class="d">Kg</th></tr></table>',
         ctx,
       ),
     ).toEqual([
       "table",
       "  tr",
       "    th",
-      '      "Cardio"',
+      '      "Serie"',
       "    th",
-      '      "Forza"',
+      '      "Rip"',
+      "    th",
+      '      "Kg"',
+    ]);
+    // Senza una parola delle serie (`serie`, `sets`) la riga non è la tabella delle serie: si
+    // raggruppa, anche se fatta di parole di VOCAB come una striscia della settimana.
+    expect(
+      shapeOfHtml(
+        "<table><tr><th>Durata</th><th>Calorie</th><th>Move</th></tr><tr><th>cardio</th><th>cardio done</th><th>forza</th><th>forza done</th></tr></table>",
+        ctx,
+      ),
+    ).toEqual([
+      "table",
+      "  tr",
+      "    th",
+      '      "Calorie"',
+      "    th",
+      '      "Durata"',
       "    th",
       '      "Move"',
+      "  tr",
+      "    th",
+      '      "cardio done"',
+      "    th",
+      '      "cardio"',
+      "    th",
+      '      "forza done"',
+      "    th",
+      '      "forza"',
     ]);
     const words = ["Serie", "Kg", "Rip", "Reps", "Durata", "Calorie", "Tempo"];
     const more = ["Distanza", "Potenza", "Rpm", "Watt", "Livello", "Peso"];
@@ -483,12 +509,14 @@ describe("shape", () => {
     // raggruppa.
     expect(
       shapeOfHtml(
-        "<table><tr><th>move</th><th>done.</th><th>move move</th><th>done</th></tr></table>",
+        "<table><tr><th>move</th><th>Serie</th><th>done.</th><th>move move</th><th>done</th></tr></table>",
         ctx,
       ),
     ).toEqual([
       "table",
       "  tr",
+      "    th",
+      '      "Serie"',
       "    th",
       '      "done"',
       "    th",
@@ -497,6 +525,22 @@ describe("shape", () => {
       '      "move move"',
       "    th",
       '      "move"',
+    ]);
+    // Né l'ordine delle parole.
+    expect(
+      shapeOfHtml(
+        "<table><tr><th>Serie</th><th>Kg eseguiti</th><th>eseguiti Kg</th></tr></table>",
+        ctx,
+      ),
+    ).toEqual([
+      "table",
+      "  tr",
+      "    th",
+      '      "Kg eseguiti"',
+      "    th",
+      '      "Serie"',
+      "    th",
+      '      "eseguiti Kg"',
     ]);
   });
 
@@ -685,6 +729,24 @@ describe("shape", () => {
     ).toEqual([]);
     // Neanche un'identità le cui lettere sono parole di VOCAB, come un peso.
     expect(checkReport(['weight: "99 kg"'], ["75 kg"])).toEqual([]);
+    // Un codice breve scritto con i 9 vale solo tra confini di lettere e cifre: `level99` non è
+    // `L3`.
+    expect(
+      checkReport(
+        [
+          "input[name=level99]",
+          "tab-99: numero 9",
+          '"999bpm"',
+          '"99km"',
+          "field99: numero 9",
+        ],
+        ["L3", "B-7", "3B", "12K", "D4"],
+      ),
+    ).toEqual([]);
+    // Un'identità con i caratteri delle espressioni regolari non rompe il controllo.
+    expect(
+      checkReport(["x99"], [String.raw`x1(b)[c]{d}.e*f+g?h^i$j|k\l-m/n`]),
+    ).toEqual([]);
     // Un codice con lettere sole, come una tessera, resta un'identità scritto con i 9.
     expect(
       checkReport(["A99B99: numero 9", "input[name=B-99]"], ["A1B2", "B-7"]),
@@ -817,6 +879,20 @@ describe("shape", () => {
     ).toEqual(["div[name=«A», type=userId]"]);
   });
 
+  it("shape: the fixed lines of the report never block it", () => {
+    // Un valore con spazi raccolto dal profilo ("Strength 2026") dà la parola `strength`, che
+    // sta anche nel titolo fisso di una sezione: il titolo non può contenere dati.
+    expect(
+      checkReport(
+        ["## session_strength.json", "", "```text", "a: numero 9", "```"],
+        ["Strength 2026"],
+      ),
+    ).toEqual([]);
+    expect(checkReport(['a: "strength"'], ["Strength 2026"])).toEqual([
+      { line: 1, kind: "identity" },
+    ]);
+  });
+
   it("shape: words of an address are identity words", () => {
     // Un'identità con spazi e cifre (un indirizzo) dà le sue parole, tranne via, corso e simili.
     const address = shapeContext(["Via Garibaldi 5"]);
@@ -831,14 +907,26 @@ describe("shape", () => {
     ]);
   });
 
-  it("shape: names with five consonants in a row are masked", () => {
-    // Lettere a caso, non un nome: `XMLHttpRequest` ha parti di al massimo 4 consonanti.
+  it("shape: names with six consonants in a row are masked", () => {
+    // Lettere a caso, non un nome; `XMLHttpRequest`, `XSRFTOKEN` e `lengths` ne hanno al
+    // massimo 5 di fila in una parte.
     expect(
       shapeOfHtml(
         '<input name="_xkqzvbnmwplrtyhgfds" type="XMLHttpRequest">',
         ctx,
       ),
     ).toEqual(["input[name=«_a», type=XMLHttpRequest]"]);
+    expect(
+      shapeOfJson(
+        { XSRFTOKEN: 1, HTTPSRedirect: 2, lengths: 3, lengthcm: 4 },
+        ctx,
+      ),
+    ).toEqual([
+      "XSRFTOKEN: numero 9",
+      "HTTPSRedirect: numero 9",
+      "lengths: numero 9",
+      "«a»: numero 9",
+    ]);
   });
 
   it("shape: names glued to a 3-letter name are masked", () => {
@@ -917,6 +1005,24 @@ describe("shape", () => {
       '- physicalProperty: "TotalIsoWeight"',
       '- property: "FatMass"',
       '- property: "MetabolicAge"',
+    ]);
+    expect(
+      shapeOfJson(
+        [
+          { property: "Vo2Max" },
+          { property: "BasalMetabolicRate" },
+          { property: "TimeUnderTension" },
+          { property: "RangeOfMotion" },
+          { property: "Torque" },
+        ],
+        ctx,
+      ),
+    ).toEqual([
+      '- property: "BasalMetabolicRate"',
+      '- property: "RangeOfMotion"',
+      '- property: "TimeUnderTension"',
+      '- property: "Torque"',
+      '- property: "Vo99Max"',
     ]);
   });
 
@@ -1299,14 +1405,14 @@ describe("shape", () => {
     const dest = join(dir, "forma.md");
     const days = probeOut({
       "strength_detail.html":
-        "<table><tr><th>Lun</th><th>Mar</th></tr></table>",
+        "<table><tr><th>Lun</th><th>Mar</th></tr><tr><th>Durata</th><th>Calorie</th><th>N°</th></tr></table>",
     });
     expect(await main([days, dest])).toBe(0);
     expect(stderr).not.toHaveBeenCalled();
     rmSync(days, { recursive: true });
     const header = probeOut({
       "strength_detail.html":
-        "<table><tr><th>N°</th><th>Kg eseguiti</th></tr></table>",
+        "<table><tr><th>N°</th><th>Serie</th><th>Kg eseguiti</th></tr><tr><th>Serien</th><th>Wdh</th></tr></table>",
     });
     expect(await main([header, dest])).toBe(0);
     expect(stderr.mock.calls).toEqual([

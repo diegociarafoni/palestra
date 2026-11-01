@@ -249,21 +249,26 @@ const CAMEL_PARTS =
   /[^\p{L}]+|(?<=\p{Ll})(?=\p{Lu})|(?<=\p{Lu})(?=\p{Lu}\p{Ll})/u;
 /** Da questa lunghezza un nome con cifre è più probabilmente un token che un campo. */
 const LONG_NAME = 12;
-/** 5 consonanti di fila (la `y` conta come vocale): `lengths` sì, `XMLHttpRequest` no. */
-const CONSONANTS = /[^aeiouy]{5}/u;
+/**
+ * 6 consonanti di fila (la `y` conta come vocale): lettere a caso. `lengths`, `XSRFTOKEN` e
+ * `XMLHttpRequest` ne hanno al massimo 5 in una parte.
+ */
+const CONSONANTS = /[^aeiouy]{6}/u;
 /**
  * Le parti dei nomi delle grandezze di Mywellness che non sono in VOCAB (`Avg` in `AvgRpm`, `H`
  * in `HDistance`, `Fat` e `Mass` in `FatMass`), minuscole: un valore di `physicalProperty` o
  * `property` resta scritto solo se ogni sua parte è qui o in VOCAB.
  */
 const PROPERTY_WORDS: ReadonlySet<string> = new Set([
-  ...["active", "age", "avg", "body", "bone", "bmi", "bmr", "cadence"],
-  ...["concentric", "eccentric", "effort", "elevation", "energy", "execution"],
-  ...["exercise", "fat", "free", "h", "heart", "height", "hr", "incline"],
-  ...["index", "intensity", "iso", "lean", "mass", "max", "met", "metabolic"],
-  ...["mode", "muscle", "pace", "peak", "percent", "percentage", "range"],
-  ...["rate", "resting", "steps", "stroke", "strokes", "total", "visceral"],
-  ...["water", "zone", "zones"],
+  ...["active", "age", "altitude", "avg", "basal", "body", "bone", "bmi"],
+  ...["bmr", "cadence", "concentric", "eccentric", "effort", "elevation"],
+  ...["energy", "execution", "exercise", "fat", "floors", "free", "gradient"],
+  ...["h", "heart", "height", "hr", "incline", "index", "intensity", "iso"],
+  ...["lean", "mass", "max", "met", "metabolic", "mets", "mode", "motion"],
+  ...["muscle", "of", "pace", "peak", "percent", "percentage", "range"],
+  ...["rate", "resistance", "resting", "slope", "steps", "stroke", "strokes"],
+  ...["tension", "torque", "total", "under", "visceral", "vo", "water"],
+  ...["watts", "zone", "zones"],
 ]);
 /** I tag dei titoli, gli unici le cui cifre restano scritte: dicono il livello. */
 const HEADING = /^h[1-6]$/;
@@ -276,7 +281,7 @@ const HEADING = /^h[1-6]$/;
  * anche tra minuscola e maiuscola (in `marioRossi` il controllo finale, che cerca le parole tra
  * confini di lettera, non vedrebbe il nome). Il nome si maschera se:
  * - ha almeno LONG_NAME caratteri e una cifra (`xkqzvbnmwplrtyhgf7ds`, un token);
- * - una parte in camelCase ha 5 consonanti di fila (`xkqzvbnmwplrtyhgfds`, lettere a caso);
+ * - una parte in camelCase ha 6 consonanti di fila (`xkqzvbnmwplrtyhgfds`, lettere a caso);
  * - una parte è una parola di DATE_PARTS (`fc-day-wed`, `Oct29`, `mon-picker`); per i tag non
  *   le forme di 2 lettere dei giorni: `th` resta;
  * - almeno 4 parti hanno 1 o 2 lettere (`AbCdEfGh9j`, un token);
@@ -701,19 +706,21 @@ function cellText(cell: HTMLElement, depth = 0): string | undefined {
   return parts.join(" ").replace(/\s+/g, " ").trim();
 }
 
-/** Su stderr se una riga di soli `th` con parole di VOCAB non resta in ordine. */
+/** Su stderr se una riga di soli `th` che parla di serie non resta in ordine. */
 const HEADER_NOTE =
   "Nota: una riga di intestazioni ha parole fuori da VOCAB, quindi le sue colonne non sono in ordine nel rapporto: tenere probe_out/ e scrivere a Claude le intestazioni della tabella delle serie.";
 
 /**
- * Il testo delle celle di una riga d'intestazione, l'unica che resta nell'ordine della pagina:
- * il Task 0 Step 5 deve sapere in che ordine stanno serie, ripetizioni e kg. È tale una riga di
- * almeno 2 `th`, senza altri elementi né testo, i cui testi sono senza cifre, fatti solo di
- * parole di VOCAB (`Serie`, `Kg eseguiti`) e diversi tra loro anche senza punteggiatura e
- * parole ripetute. Altrimenti `undefined`: le celle si raggruppano come gli altri fratelli,
+ * Il testo delle celle di una riga d'intestazione della tabella delle serie, l'unica che resta
+ * nell'ordine della pagina: il Task 0 Step 5 deve sapere in che ordine stanno serie,
+ * ripetizioni e kg. È tale una riga di almeno 2 `th`, senza altri elementi né testo, con una
+ * parola delle serie (`serie`, `sets`), i cui testi sono senza cifre, fatti solo di parole di
+ * VOCAB (`Serie`, `Kg eseguiti`) e diversi tra loro anche senza punteggiatura, parole ripetute e
+ * ordine delle parole. Altrimenti `undefined`: le celle si raggruppano come gli altri fratelli,
  * perché in un calendario la posizione di una cella direbbe un giorno. Si guarda solo la riga,
- * mai il resto della tabella. Una riga di soli `th` che ha parole di VOCAB ma non passa aggiunge
- * HEADER_NOTE: l'utente deve sapere che l'ordine delle colonne manca.
+ * mai il resto della tabella. Una riga di soli `th` con una parola che comincia per `seri` o è
+ * `sets` che non passa aggiunge HEADER_NOTE: l'utente deve sapere che l'ordine delle colonne
+ * manca.
  */
 function headerTexts(
   row: HTMLElement,
@@ -722,7 +729,7 @@ function headerTexts(
   const texts: string[] = [];
   const keys = new Set<string>();
   let header = true;
-  let known = false;
+  let sets = false;
   for (const node of row.childNodes) {
     if (!(node instanceof HTMLElement)) {
       if (node.nodeType === NodeType.TEXT_NODE && node.text.trim() !== "") {
@@ -733,8 +740,10 @@ function headerTexts(
     if (node.rawTagName.toLowerCase() !== "th") return undefined;
     const text = cellText(node) ?? "";
     const words = (text.match(/[\p{L}\p{M}]+/gu) ?? []).map(fold);
-    const key = [...new Set(words)].join(" ");
-    if (words.some((word) => ctx.vocab.includes(word))) known = true;
+    const key = [...new Set(words)].sort().join(" ");
+    if (words.some((word) => word.startsWith("seri") || word === "sets")) {
+      sets = true;
+    }
     if (
       /\p{N}/u.test(text) ||
       words.length === 0 ||
@@ -746,9 +755,9 @@ function headerTexts(
     keys.add(key);
     texts.push(text);
   }
-  if (texts.length < 2) return undefined;
+  if (texts.length < 2 || !sets) return undefined;
   if (header) return texts;
-  if (known) ctx.notes.add(HEADER_NOTE);
+  ctx.notes.add(HEADER_NOTE);
   return undefined;
 }
 
@@ -878,10 +887,12 @@ function hasOwnLetters(identity: string): boolean {
 
 /**
  * Controllo finale, fail closed, su righe già mascherate: identità (parole di 3 o più
- * lettere dei nomi e della parte locale dell'e-mail, tra confini di lettera; e-mail e sua
- * parte locale, GUID con e senza trattini, token, cookie, URL e le altre identità che non
- * sono nomi come sottostringhe; identità di sole cifre, da 4, tra confini di cifra),
- * numeri (3 o più cifre non tutte `9`), date (nomi di mesi e giorni, anche abbreviati). Con le
+ * lettere dei nomi, delle identità con spazi e della parte locale dell'e-mail, tra confini di
+ * lettera; e-mail e sua parte locale, GUID con e senza trattini, token, cookie, URL e le altre
+ * identità che non sono nomi come sottostringhe, e le loro forme con i 9 tra confini di lettere
+ * e cifre; identità di sole cifre, da 4, tra confini di cifra), numeri (3 o più cifre non tutte
+ * `9`), date (nomi di mesi e giorni, anche abbreviati). Le righe fisse del rapporto (titoli
+ * delle sezioni, recinti, righe vuote) non si controllano: non possono contenere dati. Con le
  * maschere corrette non trova nulla: un risultato è un difetto o un nome che sembra un dato.
  */
 export function checkReport(
@@ -905,20 +916,39 @@ export function checkReport(
   // Le stesse identità scritte con i 9: una cifra per `9`, e ogni sequenza di cifre per `99`
   // come nei nomi stampati, così un token con 1 o 2 cifre non passa per un nome. Solo per le
   // identità con lettere proprie (`hasOwnLetters`): con i 9 una data di nascita, un telefono o un
-  // peso (`75 kg`) hanno la forma di ogni data e di ogni numero del rapporto.
-  for (const text of [...substrings].filter(hasOwnLetters)) {
-    substrings.add(text.replace(/\p{N}/gu, "9"));
-    substrings.add(text.replace(/\p{N}+/gu, "99"));
-  }
+  // peso (`75 kg`) hanno la forma di ogni data e di ogni numero del rapporto. Tra confini di
+  // lettere e cifre: `l99` (da `L3`) sta anche dentro `level99`.
+  const nines = [...substrings]
+    .filter(hasOwnLetters)
+    .flatMap((text) =>
+      [text.replace(/\p{N}/gu, "9"), text.replace(/\p{N}+/gu, "99")]
+        .filter((variant) => variant !== text)
+        .map(
+          (variant) =>
+            new RegExp(
+              `(?<![\\p{L}\\p{N}])${variant.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`,
+              "u",
+            ),
+        ),
+    );
+  const fixed = new Set([
+    ...INPUTS.map(({ heading }) => `## ${heading}`),
+    "```text",
+    "```",
+    "",
+    MORE_VARIANTS,
+  ]);
   const hits: Hit[] = [];
   lines.forEach((raw, i) => {
+    if (fixed.has(raw)) return;
     const line = fold(raw);
     const letterRuns = line.match(/\p{L}+/gu) ?? [];
     const digitRuns = line.match(/\p{N}+/gu) ?? [];
     if (
       letterRuns.some((run) => words.has(run)) ||
       digitRuns.some((run) => digitIdentities.has(run)) ||
-      [...substrings].some((text) => line.includes(text))
+      [...substrings].some((text) => line.includes(text)) ||
+      nines.some((pattern) => pattern.test(line))
     ) {
       hits.push({ line: i + 1, kind: "identity" });
     }
