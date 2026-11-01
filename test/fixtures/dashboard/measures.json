@@ -1,0 +1,28 @@
+[
+  {
+    "date": "2026-11-03",
+    "time": "08:00",
+    "weight_kg": 80,
+    "waist_cm": 90,
+    "skeletal_muscle_kg": 35,
+    "fat_mass_kg": 16,
+    "body_fat_pct": 20,
+    "condition": "digiuno",
+    "in_protocol": true,
+    "source": "inbody",
+    "note": "misura sintetica"
+  },
+  {
+    "date": "2026-11-17",
+    "time": "18:30",
+    "weight_kg": 81,
+    "waist_cm": null,
+    "skeletal_muscle_kg": null,
+    "fat_mass_kg": null,
+    "body_fat_pct": null,
+    "condition": "dopo pranzo",
+    "in_protocol": false,
+    "source": "bilancia",
+    "note": "misura sintetica fuori protocollo"
+  }
+]

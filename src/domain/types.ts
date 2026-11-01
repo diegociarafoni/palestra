@@ -32,7 +32,9 @@ export const ExerciseSchema = z.object({
 });
 export type Exercise = z.infer<typeof ExerciseSchema>;
 
-export const SessionSchema = z.object({
+// `@__PURE__`: il frontend importa da qui solo alcuni schemi (via dashboard.ts); l'annotazione
+// lascia fuori dal bundle in site/ quelli che non usa e i nomi dei loro campi.
+export const SessionSchema = /* @__PURE__ */ z.object({
   session_id: z.string(),
   source: z.enum(["mywellness-api", "export-zip", "manual"]),
   started_at: isoDateTime,
@@ -55,7 +57,7 @@ export const FeedbackClassSchema = z.enum([
   "pessima",
 ]);
 
-export const FeedbackInputSchema = z.object({
+export const FeedbackInputSchema = /* @__PURE__ */ z.object({
   date: z.iso.date(),
   seq: z.int().min(1).optional(),
   class: FeedbackClassSchema,
@@ -67,7 +69,7 @@ export const FeedbackInputSchema = z.object({
 });
 export type FeedbackInput = z.infer<typeof FeedbackInputSchema>;
 
-export const FeedbackSchema = z.object({
+export const FeedbackSchema = /* @__PURE__ */ z.object({
   id: z.int(),
   planned_id: z.string().nullable(),
   session_id: z.string().nullable(),
