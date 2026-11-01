@@ -295,48 +295,121 @@ describe("shape", () => {
       "empty: []",
       "none: {}",
     ]);
-    // Le forme diverse nell'ordine in cui compaiono, al massimo 5.
+    // Le forme diverse in ordine alfabetico, al massimo 5.
     expect(shapeOfJson([1, 2.5, "x", 3, [true], null, {}, false], ctx)).toEqual(
       [
-        "- numero 9",
-        "- numero 9.9",
         '- "a"',
         "- - booleano",
+        "- booleano",
         "- null",
+        "- numero 9",
         "… altre varianti",
       ],
     );
   });
 
+  it("shape: siblings show neither their order nor their number", () => {
+    // Fratelli raggruppati per tag, nell'ordine della prima comparsa del tag; in un gruppo ogni
+    // forma una volta, in ordine alfabetico, con `(ripetuto)` se compare più di una volta.
+    expect(
+      shapeOfHtml(
+        "<tr><td>12</td><th>Kg</th><td>Mario</td><td>60</td><td>5</td><th>Kg</th></tr>",
+        ctx,
+      ),
+    ).toEqual([
+      "tr",
+      "  td (ripetuto)",
+      '    "99"',
+      "  td",
+      '    "A"',
+      "  th (ripetuto)",
+      '    "Kg"',
+    ]);
+    expect(shapeOfHtml("<p>Kg<br>Km<br>Kg</p>", ctx)).toEqual([
+      "p",
+      '  "Kg" (ripetuto)',
+      '  "Km"',
+      "  br (ripetuto)",
+    ]);
+    expect(
+      shapeOfHtml(
+        "<div><i>Watt</i><i>Kg</i><i>Serie</i><i>Rpm</i><i>Bpm</i><i>Cal</i><i>Km</i></div>",
+        ctx,
+      ),
+    ).toEqual([
+      "div",
+      "  i",
+      '    "Bpm"',
+      "  i",
+      '    "Cal"',
+      "  i",
+      '    "Kg"',
+      "  i",
+      '    "Km"',
+      "  i",
+      '    "Rpm"',
+      "  … altre varianti",
+    ]);
+    // Le voci con la chiave mascherata stanno dove compare la prima, con la stessa regola.
+    expect(
+      shapeOfJson(
+        { "2026-10-30": 1, b: 1, "2026-10-31": "x", "2026-11-01": 2, c: 2 },
+        ctx,
+      ),
+    ).toEqual([
+      '«9999-99-99»: "a"',
+      "«9999-99-99»: numero 9 (ripetuto)",
+      "b: numero 9",
+      "c: numero 9",
+    ]);
+    // Anche le forme degli elementi di una lista sono in ordine alfabetico.
+    expect(shapeOfJson(["x", 1, null], ctx)).toEqual([
+      '- "a"',
+      "- null",
+      "- numero 9",
+    ]);
+  });
+
   it("shape: masks data-like keys and identity keys", () => {
-    const lines = shapeOfJson(
-      {
-        "2026-10-29": { hr2: 120 },
-        "2026-10-30": { hr2: 118 },
-        "2026-10-31": "riposo",
-        "123456": "x",
-        u123456: "x",
-        // Un id esadecimale può non avere 3 cifre di fila: contano le cifre in tutto.
-        ab1c2d3e4f: "x",
-        Rossi: 1,
-        marioRossi: 2,
-        "user name": 3,
-        hr2: 5,
-      },
-      ctx,
-    );
-    // Le chiavi numeriche vengono prima in ogni oggetto JavaScript (anche da JSON.parse).
-    // Le chiavi mascherate consecutive con la stessa forma diventano una riga, senza conteggio.
-    expect(lines).toEqual([
-      '«999999»: "a"',
-      "«9999-99-99»:",
+    // Le voci con la chiave mascherata stanno insieme, in ordine alfabetico; quelle uguali una
+    // volta, con `(ripetuto)`. Due oggetti, perché oltre 5 forme scatta `… altre varianti`.
+    expect(
+      shapeOfJson(
+        {
+          "2026-10-29": { hr2: 120 },
+          "2026-10-30": { hr2: 118 },
+          "2026-10-31": "riposo",
+          "123456": "x",
+          hr2: 5,
+        },
+        ctx,
+      ),
+    ).toEqual([
+      "«9999-99-99»: (ripetuto)",
       "  hr9: numero 9",
       '«9999-99-99»: "a"',
+      '«999999»: "a"',
+      "hr9: numero 9",
+    ]);
+    expect(
+      shapeOfJson(
+        {
+          u123456: "x",
+          // Un id esadecimale può non avere 3 cifre di fila: contano le cifre in tutto.
+          ab1c2d3e4f: "x",
+          Rossi: 1,
+          marioRossi: 2,
+          "user name": 3,
+          hr2: 5,
+        },
+        ctx,
+      ),
+    ).toEqual([
+      "«A»: numero 9",
+      "«a a»: numero 9",
       '«a999999»: "a"',
       '«a99a99a99a99a»: "a"',
-      "«A»: numero 9",
       "«a»: numero 9",
-      "«a a»: numero 9",
       "hr9: numero 9",
     ]);
   });
@@ -420,12 +493,12 @@ describe("shape", () => {
       ctx,
     );
     expect(lines).toEqual([
+      '- physicalProperty: "A"',
       '- physicalProperty: "HDistance"',
       '  name: "A"',
       "  rawValue: numero 9.9",
-      '- property: "AvgRpm"',
-      '- physicalProperty: "A"',
       '- property: "A A"',
+      '- property: "AvgRpm"',
       '- property: "a99a99a99"',
     ]);
   });
@@ -499,18 +572,18 @@ describe("shape", () => {
       "        weight: numero 9.9",
       "    a[class=profile-link, href=«/a/A/99a99a99a99a-99a99a-99a99a-99a99a-99a99a99a99a99a99a»]",
       '      "A A"',
+      // Le righe e le celle in ordine alfabetico: 1, 12 e 60 hanno la stessa forma.
       "    table[class=sets]",
-      "      tr",
-      "        th",
-      '          "Serie"',
-      "        th",
-      '          "Ripetizioni"',
-      "        th",
-      '          "Carico"',
-      // Anche le celle consecutive uguali: 1, 12 e 60 hanno la stessa forma.
       "      tr (ripetuto)",
       "        td (ripetuto)",
       '          "99"',
+      "      tr",
+      "        th",
+      '          "Carico"',
+      "        th",
+      '          "Ripetizioni"',
+      "        th",
+      '          "Serie"',
       "    input[type=hidden, name=hdSessionIdCR, value=«9999»]",
       "    div[id=«a-a», data-user=«A», role=note, hidden]",
       '      "A A!"',
@@ -650,13 +723,13 @@ describe("shape", () => {
         "```text",
         "table[class=sets]",
         "  tr",
-        "    th",
-        '      "Serie"',
-        "    th",
-        '      "Kg"',
-        "  tr",
         "    td (ripetuto)",
         '      "99"',
+        "  tr",
+        "    th",
+        '      "Kg"',
+        "    th",
+        '      "Serie"',
         "```",
         "",
         "## strength_detail_2.html",

@@ -288,7 +288,10 @@ function jsonBlock(value: unknown, ctx: ShapeContext): Block {
     const entries = Object.entries(value);
     if (entries.length === 0) return { head: "{}", body: [] };
     const lines: string[] = [];
-    let previous: string | undefined;
+    // Le voci con la chiave mascherata (una mappa per data o per id) stanno insieme, dove
+    // compare la prima, con la regola dei fratelli HTML: niente ordine e niente conteggio.
+    const masked: string[][] = [];
+    let at = -1;
     for (const [key, item] of entries) {
       const plain = plainName(key, KEY, ctx) !== undefined;
       const name = shownName(key, KEY, ctx);
@@ -304,41 +307,55 @@ function jsonBlock(value: unknown, ctx: ShapeContext): Block {
         head === "" ? `${name}:` : `${name}: ${head}`,
         ...indent(body),
       ];
-      // Una mappa per data o per id: le voci mascherate uguali una volta, senza conteggio.
-      const text = entry.join("\n");
-      if (!plain && text === previous) continue;
-      previous = plain ? undefined : text;
-      lines.push(...entry);
+      if (plain) {
+        lines.push(...entry);
+        continue;
+      }
+      if (at < 0) at = lines.length;
+      masked.push(entry);
     }
+    if (at >= 0) lines.splice(at, 0, ...variantLines(masked, true));
     return { head: "", body: lines };
   }
   return { head: "", body: [] };
 }
 
-/** Oltre queste forme diverse in una lista, una riga `… altre varianti`. */
+/** Oltre queste forme diverse in un gruppo, una riga `… altre varianti`. */
 const MAX_VARIANTS = 5;
 
-/** Ogni forma diversa degli elementi una volta, nell'ordine; mai la lunghezza. */
+/**
+ * Ogni forma diversa di un gruppo una volta, in ordine alfabetico e mai nell'ordine del file,
+ * al massimo MAX_VARIANTS. Con `repeated`, `(ripetuto)` sulla prima riga di una forma che
+ * compare più di una volta. Mai un conteggio.
+ */
+function variantLines(items: readonly string[][], repeated: boolean): string[] {
+  const variants = new Map<string, { lines: string[]; count: number }>();
+  for (const lines of items) {
+    const text = lines.join("\n");
+    const seen = variants.get(text);
+    if (seen) seen.count++;
+    else variants.set(text, { lines, count: 1 });
+  }
+  const texts = [...variants.keys()].sort();
+  const out = texts.slice(0, MAX_VARIANTS).flatMap((text) => {
+    const { lines, count } = variants.get(text) ?? { lines: [], count: 0 };
+    const [first = "", ...rest] = lines;
+    return [repeated && count > 1 ? `${first} (ripetuto)` : first, ...rest];
+  });
+  if (texts.length > MAX_VARIANTS) out.push("… altre varianti");
+  return out;
+}
+
+/** Le forme diverse degli elementi; mai la lunghezza della lista. */
 function arrayLines(items: unknown[], ctx: ShapeContext): string[] {
-  const seen: string[] = [];
-  const lines: string[] = [];
-  for (const item of items) {
+  const elements = items.map((item) => {
     const { head, body } = jsonBlock(item, ctx);
     // Un oggetto o una lista comincia sulla riga del trattino, come in YAML.
-    const element =
-      head === ""
-        ? [`- ${body[0] ?? ""}`, ...indent(body.slice(1))]
-        : [`- ${head}`, ...indent(body)];
-    const key = element.join("\n");
-    if (seen.includes(key)) continue;
-    if (seen.length === MAX_VARIANTS) {
-      lines.push("… altre varianti");
-      break;
-    }
-    seen.push(key);
-    lines.push(...element);
-  }
-  return lines;
+    return head === ""
+      ? [`- ${body[0] ?? ""}`, ...indent(body.slice(1))]
+      : [`- ${head}`, ...indent(body)];
+  });
+  return variantLines(elements, false);
 }
 
 /** La forma di un valore JSON, una riga per campo, indentata di 2 spazi per livello. */
@@ -498,27 +515,23 @@ function nodeLines(node: Node, ctx: ShapeContext): string[] {
   return text === "" ? [] : [`"${maskText(text, ctx.vocab)}"`];
 }
 
-/** I fratelli consecutivi uguali una volta, con `(ripetuto)` e senza conteggio. */
+/**
+ * I fratelli raggruppati per tag (i testi sono un gruppo), nell'ordine in cui ogni tag compare
+ * la prima volta; in ogni gruppo le forme diverse secondo `variantLines`. Resta visibile solo
+ * l'ordine della prima comparsa dei tag diversi.
+ */
 function childLines(nodes: Node[], ctx: ShapeContext): string[] {
-  const lines: string[] = [];
-  let previous: string | undefined;
-  let first = -1;
-  let repeated = false;
+  const groups = new Map<string, string[][]>();
   for (const node of nodes) {
     const own = nodeLines(node, ctx);
     if (own.length === 0) continue;
-    const text = own.join("\n");
-    if (text === previous) {
-      if (!repeated) lines[first] += " (ripetuto)";
-      repeated = true;
-      continue;
-    }
-    previous = text;
-    first = lines.length;
-    repeated = false;
-    lines.push(...own);
+    const tag =
+      node instanceof HTMLElement ? node.rawTagName.toLowerCase() : "#text";
+    const group = groups.get(tag);
+    if (group) group.push(own);
+    else groups.set(tag, [own]);
   }
-  return lines;
+  return [...groups.values()].flatMap((group) => variantLines(group, true));
 }
 
 /** La forma di una pagina HTML: un elemento per riga, indentato di 2 spazi per livello. */
