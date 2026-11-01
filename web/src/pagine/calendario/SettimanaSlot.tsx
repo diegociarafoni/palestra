@@ -34,19 +34,19 @@ export function SettimanaSlot({
   unavailable,
 }: SettimanaSlotProps) {
   const titleId = useId();
-  const esito = useEsito();
+  const { titleRef, text, start, done } = useEsito();
   return (
     <Stack component="section" aria-labelledby={titleId} spacing={1}>
       <Typography
         id={titleId}
-        ref={esito.titleRef}
+        ref={titleRef}
         tabIndex={-1}
         variant="subtitle1"
         component="h3"
       >
         {testi.calendar.week(isoWeekNumber(week))}
       </Typography>
-      <Typography role="status">{esito.text}</Typography>
+      <Typography role="status">{text}</Typography>
       <Elenco>
         {slots.map(({ slot, feedback }) => (
           <VoceSlot key={slot.id} slot={slot}>
@@ -54,8 +54,8 @@ export function SettimanaSlot({
               slot={slot}
               feedback={feedback}
               unavailable={unavailable}
-              onSaving={esito.start}
-              onSaved={esito.done}
+              onSaving={start}
+              onSaved={done}
             />
           </VoceSlot>
         ))}

@@ -56,7 +56,7 @@ export default function Calendario() {
   // Il titolo del modulo di oggi sta fuori dal modulo, che si rimonta dopo ogni salvataggio: il
   // focus ci torna e l'esito si annuncia (il pulsante premuto sparisce con il modulo vecchio).
   const titleId = useId();
-  const esito = useEsito();
+  const { titleRef, text, start, done } = useEsito();
   return (
     <Stack spacing={3}>
       <Typography variant="h5" component="h1">
@@ -72,7 +72,7 @@ export default function Calendario() {
           <Stack spacing={2}>
             <Typography
               id={titleId}
-              ref={esito.titleRef}
+              ref={titleRef}
               tabIndex={-1}
               variant="h6"
               component="h2"
@@ -87,10 +87,10 @@ export default function Calendario() {
               seq={last?.seq ?? 1}
               feedback={last ?? undefined}
               anotherSeq={last === null ? undefined : last.seq + 1}
-              onSaving={esito.start}
-              onSaved={() => esito.done(testi.feedbackForm.saved)}
+              onSaving={start}
+              onSaved={() => done(testi.feedbackForm.saved)}
             />
-            <Typography role="status">{esito.text}</Typography>
+            <Typography role="status">{text}</Typography>
           </Stack>
         </Paper>
       )}
