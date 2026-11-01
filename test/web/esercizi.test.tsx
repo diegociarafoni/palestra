@@ -146,14 +146,16 @@ describe("web", () => {
       throw new Error("righe mancanti");
     }
     expect(others).toHaveLength(0);
+    // Dentro una serie gli spazi sono non separabili (\u00a0): da `md` in su i valori vanno a
+    // capo solo prima o dopo la freccia, mai tra numero e unità ("65 kg ×" | "10").
     expect(cells(legPress)).toEqual([
       "Leg Press",
       "2",
-      "60 kg × 12 → 65 kg × 10",
+      "60\u00a0kg\u00a0×\u00a012 → 65\u00a0kg\u00a0×\u00a010",
       "84 → 86,7",
       "+3,2 %",
       "Confermato",
-      "Mantieni → 65 kg × 12",
+      "Mantieni → 65\u00a0kg\u00a0×\u00a012",
     ]);
     expect(cells(chestPress)).toEqual([
       "Chest Press",
@@ -162,16 +164,16 @@ describe("web", () => {
       "—",
       "—",
       "—",
-      "Tara → × 12",
+      "Tara → ×\u00a012",
     ]);
     expect(cells(latMachine)).toEqual([
       "Lat Machine",
       "1",
-      "30 kg × 12 → 30 kg × 12",
+      "30\u00a0kg\u00a0×\u00a012 → 30\u00a0kg\u00a0×\u00a012",
       "42 → 42",
       "0 %",
       "Da rivedere",
-      "Aumenta di uno step → × 10",
+      "Aumenta di uno step → ×\u00a010",
     ]);
   });
 

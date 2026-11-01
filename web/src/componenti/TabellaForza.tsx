@@ -95,8 +95,14 @@ export function TabellaForza({ rows }: TabellaForzaProps) {
               <TableRow
                 key={r.slug}
                 // Sul telefono la tabella scorre in orizzontale: i valori restano su una riga,
-                // solo il nome dell'esercizio va a capo.
-                sx={{ "& > td": { whiteSpace: "nowrap" } }}
+                // solo il nome dell'esercizio va a capo. Da `md` in su la tabella sta nella
+                // pagina: i valori vanno a capo anche loro, ma non dentro una serie (testi.ts).
+                sx={(theme) => ({
+                  "& > td": {
+                    whiteSpace: "nowrap",
+                    [theme.breakpoints.up("md")]: { whiteSpace: "normal" },
+                  },
+                })}
               >
                 <TableCell component="th" scope="row">
                   {r.name}

@@ -93,7 +93,8 @@ export const testi = {
       reliability: "Affidabilità",
       next: "Prossimo passo",
     },
-    set: (load: string, reps: number) => `${load} kg × ${reps}`,
+    // Spazi non separabili (\u00a0): una serie non va a capo tra numero e unità.
+    set: (load: string, reps: number) => `${load}\u00a0kg\u00a0×\u00a0${reps}`,
     range: (from: string, to: string) => `${from} → ${to}`,
     reliability: {
       confermato: "Confermato",
@@ -109,7 +110,7 @@ export const testi = {
     } satisfies Record<StrengthRow["next"]["action"], string>,
     // Senza carico noto lo step non ha un valore in kg: si dicono solo le ripetizioni.
     step: "di uno step",
-    reps: (reps: number) => `× ${reps}`,
+    reps: (reps: number) => `×\u00a0${reps}`,
   },
   calendar: {
     slotsTitle: "Sedute programmate",
