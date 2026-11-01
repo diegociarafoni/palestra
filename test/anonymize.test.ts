@@ -407,6 +407,34 @@ EU.currentUser = JSON.parse('{\"id\":\"00000000-0000-4000-8000-000000000002\",\"
     expect(stderr).not.toHaveBeenCalled();
   });
 
+  it("anonymize-fixtures: replaces every numeric value in biometrics.json", async () => {
+    writeFileSync(join(src, "identities.json"), "[]");
+    writeFileSync(
+      join(src, "biometrics.json"),
+      '{"data":{"lastMeasurements":[{"measuredOn":"2018-07-12 10:24:00 +02:00","value":72.5,"unitOfMeasure":"kg","type":"weight"},{"measuredOn":"2018-07-12 10:24:00 +02:00","value":18.3,"unitOfMeasure":"%","type":"fat"}]}}',
+    );
+    // Valori sintetici fissi per misura; chiavi, unità, tipo e data invariati.
+    expect(await main([src, dest], { mapDay: (iso) => iso })).toBe(0);
+    expect(readFileSync(join(dest, "biometrics.json"), "utf8")).toBe(
+      '{"data":{"lastMeasurements":[{"measuredOn":"2018-07-12 10:24:00 +02:00","value":100,"unitOfMeasure":"kg","type":"weight"},{"measuredOn":"2018-07-12 10:24:00 +02:00","value":101,"unitOfMeasure":"%","type":"fat"}]}}',
+    );
+  });
+
+  it("anonymize-fixtures: copies only allowlisted files and counts the rest", async () => {
+    writeFileSync(join(src, "identities.json"), "[]");
+    writeFileSync(join(src, "session_strength.json"), '{"a":"2026-03-01"}');
+    writeFileSync(join(src, "strength_detail_2.html"), "<p>ok</p>");
+    writeFileSync(join(src, "session_900000001.json"), '{"x":1}');
+    writeFileSync(join(src, "last_sessions_2.html"), "<p>due</p>");
+    expect(await main([src, dest], { mapDay: (iso) => iso })).toBe(0);
+    expect(readdirSync(dest).sort()).toEqual([
+      "session_strength.json",
+      "strength_detail_2.html",
+    ]);
+    // Conteggio dei file ignorati, mai i loro nomi.
+    expect(stderr.mock.calls).toEqual([["2 file ignorati"]]);
+  });
+
   it("anonymize-fixtures: exit 78 without identities.json", async () => {
     writeFileSync(join(src, "login_ok.html"), LOGIN_OK);
     expect(await main([src, dest], {})).toBe(78);
