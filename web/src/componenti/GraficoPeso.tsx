@@ -33,6 +33,8 @@ export function GraficoPeso({ measures }: GraficoPesoProps) {
               // Asse del tempo: le distanze tra i punti seguono i giorni tra le misure.
               scaleType: "utc",
               data: points.map((m) => chartDate(m.date)),
+              // Al più una tacca al giorno: con poche misure vicine le etichette non si ripetono.
+              tickMinStep: 24 * 60 * 60 * 1000,
               valueFormatter: (value: Date) => formatChartDate(value),
             },
           ]}
