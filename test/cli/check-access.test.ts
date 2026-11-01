@@ -347,6 +347,38 @@ describe("check-access", () => {
   );
 
   it("check-access: every request has a 15 s timeout of its own", async () => {
+    // Un segnale nuovo, non scaduto, per ogni chiamata: ogni richiesta deve avere il suo.
+    const timeout = vi
+      .spyOn(AbortSignal, "timeout")
+      .mockImplementation(() => new AbortController().signal);
+    const signals: (AbortSignal | null | undefined)[] = [];
+    // Risponde come Access: 401 alla richiesta con X-Requested-With, altrimenti il redirect.
+    const accessLikeFetch = async (
+      _input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      signals.push(init?.signal);
+      const xhr = new Headers(init?.headers).get("x-requested-with");
+      return xhr === "XMLHttpRequest"
+        ? new Response(null, { status: 401 })
+        : toAccessLogin();
+    };
+    expect(
+      await main(["--after-deploy"], ENV, { fetch: accessLikeFetch }),
+    ).toBe(0);
+    // 2 percorsi × 2 host, più la richiesta con X-Requested-With.
+    expect(timeout.mock.calls).toEqual([
+      [15_000],
+      [15_000],
+      [15_000],
+      [15_000],
+      [15_000],
+    ]);
+    expect(signals).toEqual(timeout.mock.results.map((r) => r.value));
+    expect(new Set(signals).size).toBe(5);
+  });
+
+  it("check-access: exit 75 when a request times out", async () => {
     // Il segnale scaduto sostituisce l'attesa vera: fetch fallisce come al timeout di 15 s.
     const expired = AbortSignal.abort(
       new DOMException(
