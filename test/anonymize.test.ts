@@ -375,10 +375,65 @@ EU.currentUser = JSON.parse('{\"id\":\"00000000-0000-4000-8000-000000000002\",\"
     expect(stderr.mock.calls).toEqual([["session_cardio_only.json:2: date"]]);
   });
 
-  it("anonymize-fixtures: exit 65 on an in-range epoch, even after mapping", async () => {
+  it("anonymize-fixtures: a word date and a /Date(ms)/ mapped by the mapper pass the check", async () => {
+    writeFileSync(join(src, "identities.json"), "[]");
+    writeFileSync(
+      join(src, "last_sessions.html"),
+      "<p>domenica 1 novembre 2026</p>\n<p>/Date(1772378228000)/</p>\n",
+    );
+    // minRandomInt: 2026-03-01 → 2025-12-31 (−60), 2026-11-01 → 2026-01-02 (+2, venerdì);
+    // l'epoch tiene l'ora 15:17:08. Valori calcolati a parte con GNU date.
+    expect(await main([src, dest], { randomInt: minRandomInt })).toBe(0);
+    expect(readFileSync(join(dest, "last_sessions.html"), "utf8")).toBe(
+      "<p>venerdì 2 gennaio 2026</p>\n<p>/Date(1767194228000)/</p>\n",
+    );
+    expect(stderr).not.toHaveBeenCalled();
+  });
+
+  it("anonymize-fixtures: exit 65 only for the line with an unmapped date in words", async () => {
+    writeFileSync(join(src, "identities.json"), "[]");
+    // Senza anno la data a parole non si mappa: resta reale e va segnalata; le altre due
+    // righe, mappate, no.
+    writeFileSync(
+      join(src, "last_sessions.html"),
+      "<p>domenica 1 novembre 2026</p>\n<p>/Date(1772378228000)/</p>\n<p>giovedì 29 ottobre</p>\n",
+    );
+    expect(await main([src, dest], { randomInt: minRandomInt })).toBe(65);
+    expect(existsSync(dest)).toBe(false);
+    expect(stderr.mock.calls).toEqual([["last_sessions.html:3: date"]]);
+  });
+
+  it('anonymize-fixtures: English "may" alone is not a date', async () => {
+    writeFileSync(join(src, "identities.json"), "[]");
+    writeFileSync(
+      join(src, "session_strength.json"),
+      '{"note":"you may skip it"}',
+    );
+    expect(await main([src, dest], { randomInt: minRandomInt })).toBe(0);
+    expect(readFileSync(join(dest, "session_strength.json"), "utf8")).toBe(
+      '{"note":"you may skip it"}',
+    );
+    expect(stderr).not.toHaveBeenCalled();
+  });
+
+  it('anonymize-fixtures: exit 65 on "May" next to a day number', async () => {
+    writeFileSync(join(src, "identities.json"), "[]");
+    writeFileSync(
+      join(src, "session_strength.json"),
+      '{"a":"you may skip it",\n"b":"May 1",\n"c":"1 may"}',
+    );
+    expect(await main([src, dest], { randomInt: minRandomInt })).toBe(65);
+    expect(stderr.mock.calls).toEqual([
+      ["session_strength.json:2: date"],
+      ["session_strength.json:3: date"],
+    ]);
+  });
+
+  it("anonymize-fixtures: exit 65 on an in-range epoch the mapper did not touch", async () => {
     writeFileSync(join(src, "identities.json"), "[]");
     writeFileSync(join(src, "session_strength.json"), '{"t":1772378228000}');
-    expect(await main([src, dest], { randomInt: minRandomInt })).toBe(65);
+    // Un mapDay che non cambia il giorno: l'epoch resta reale e la rete lo segnala.
+    expect(await main([src, dest], { mapDay: (iso) => iso })).toBe(65);
     expect(existsSync(dest)).toBe(false);
     expect(stderr.mock.calls).toEqual([["session_strength.json:1: date"]]);
   });

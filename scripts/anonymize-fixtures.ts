@@ -194,6 +194,16 @@ function ymd(iso: string): [string, string, string] {
 
 /** Trasforma un giorno riconosciuto (sostituzione) o lo registra (raccolta). */
 export type MapIso = (iso: string) => string;
+type Mark = (out: string) => string;
+
+// Le date a parole e gli epoch scritti dal mapper si marcano con due non-caratteri Unicode,
+// che non compaiono nelle pagine: la rete di sicurezza salta i tratti marcati (sono già
+// finti), poi i marcatori si tolgono. Ciò che il mapper non ha toccato resta segnalabile.
+const MARK_OPEN = "\uFDD0";
+const MARK_CLOSE = "\uFDD1";
+const MARKERS = /[\uFDD0\uFDD1]/g;
+const MARKED_SPAN = /\uFDD0[^\uFDD1]*\uFDD1/g;
+const markMapped: Mark = (out) => `${MARK_OPEN}${out}${MARK_CLOSE}`;
 
 type Lang = "it" | "en";
 type Form = "full" | "abbr";
@@ -290,7 +300,7 @@ function rebuildWordDate(
 }
 
 /** Date a parole (it/en, nome mese pieno o abbreviato, giorno di settimana facoltativo). */
-function transformWordDates(input: string, map: MapIso): string {
+function transformWordDates(input: string, map: MapIso, mark: Mark): string {
   const wd = `(?:((?:${WD_ALT})\\.?,?)\\s+)?`;
   let text = input.replace(
     new RegExp(
@@ -301,8 +311,10 @@ function transformWordDates(input: string, map: MapIso): string {
       const hit = lookup(MONTHS, monthTok);
       if (!hit) return m0;
       const iso = isoDay(+year, hit.idx + 1, +day);
-      if (!iso) return m0;
-      return rebuildWordDate(wdTok, day, monthTok, map(iso), "dmy") ?? m0;
+      const fake = iso && map(iso);
+      if (!iso || !fake || fake === iso) return m0;
+      const out = rebuildWordDate(wdTok, day, monthTok, fake, "dmy");
+      return out === undefined ? m0 : mark(out);
     },
   );
   text = text.replace(
@@ -314,8 +326,10 @@ function transformWordDates(input: string, map: MapIso): string {
       const hit = lookup(MONTHS, monthTok);
       if (!hit) return m0;
       const iso = isoDay(+year, hit.idx + 1, +day);
-      if (!iso) return m0;
-      return rebuildWordDate(wdTok, day, monthTok, map(iso), "mdy") ?? m0;
+      const fake = iso && map(iso);
+      if (!iso || !fake || fake === iso) return m0;
+      const out = rebuildWordDate(wdTok, day, monthTok, fake, "mdy");
+      return out === undefined ? m0 : mark(out);
     },
   );
   return text;
@@ -325,8 +339,12 @@ function transformWordDates(input: string, map: MapIso): string {
  * Passa per `map` ogni data riconosciuta, tenendo ora del giorno e fuso. Gli stessi
  * riconoscitori servono alla raccolta (`collectDays`) e alla sostituzione (`anonymize`).
  */
-function transformDates(input: string, map: MapIso): string {
-  let text = transformWordDates(input, map);
+function transformDates(
+  input: string,
+  map: MapIso,
+  mark: Mark = (out) => out,
+): string {
+  let text = transformWordDates(input, map, mark);
   // 1. `YYYY-MM-DD`, anche dentro `… HH:MM:SS +01:00` e ISO 8601.
   text = text.replace(
     /(?<!\d)(\d{4})-(\d{2})-(\d{2})(?!\d)/g,
@@ -377,9 +395,9 @@ function transformDates(input: string, map: MapIso): string {
     if (fake === iso) return m0;
     const newMs =
       Date.parse(`${fake}T00:00:00Z`) + (ms - Date.parse(`${iso}T00:00:00Z`));
-    return digits.length === 13
-      ? String(newMs)
-      : String(Math.floor(newMs / 1000));
+    return mark(
+      digits.length === 13 ? String(newMs) : String(Math.floor(newMs / 1000)),
+    );
   });
   return text;
 }
@@ -435,9 +453,19 @@ export function anonymize(
   input: string,
   opts: { identities: string[]; mapDay: MapIso },
 ): string {
+  return anonymizeMarked(input, opts).replace(MARKERS, "");
+}
+
+/** Come `anonymize`, ma con i tratti scritti dal mapper tra i marcatori. */
+function anonymizeMarked(
+  input: string,
+  opts: { identities: string[]; mapDay: MapIso },
+): string {
+  // Un marcatore già presente nell'input nasconderebbe testo alla rete di sicurezza.
+  const unmarked = input.replace(MARKERS, "");
   // E-mail prima (tengono il connettore), poi le altre identità, poi le date.
-  const text = replaceIdentities(replaceEmails(input), opts.identities);
-  return transformDates(text, opts.mapDay);
+  const text = replaceIdentities(replaceEmails(unmarked), opts.identities);
+  return transformDates(text, opts.mapDay, markMapped);
 }
 
 // Profilo dell'utente nelle pagine del sito: `EU.currentUser = JSON.parse('<JSON>')`, con
@@ -574,16 +602,21 @@ const WEEKDAY_FULL = [...WEEKDAYS.it.full, ...WEEKDAYS.en.full].map(strip);
 const MONTH_ABBR = [...MONTHS.it.abbr, ...MONTHS.en.abbr].map(strip);
 const WEEKDAY_ABBR = [...WEEKDAYS.it.abbr, ...WEEKDAYS.en.abbr].map(strip);
 
+// "may" è anche un verbo inglese: conta solo accanto a un numero di giorno (FLAG_MAY).
 const FLAG_FULL_NAMES = new RegExp(
-  `(?<!\\p{L})(?:${[...new Set([...MONTH_FULL, ...WEEKDAY_FULL])].join("|")})(?!\\p{L})`,
+  `(?<!\\p{L})(?:${[...new Set([...MONTH_FULL, ...WEEKDAY_FULL])].filter((n) => n !== "may").join("|")})(?!\\p{L})`,
   "u",
 );
+const FLAG_MAY =
+  /(?<!\p{L})may\.?\s+\d{1,2}(?!\d)|(?<!\d)\d{1,2}\s+may(?!\p{L})/u;
 const FLAG_ABBR_COMBO = new RegExp(
   `(?<!\\p{L})(?:${[...new Set(WEEKDAY_ABBR)].join("|")})\\.?\\s+\\d{1,2}\\s+(?:${[...new Set(MONTH_ABBR)].join("|")})(?!\\p{L})`,
   "u",
 );
 const FLAG_RELATIVE =
   /(?<!\p{L})(?:oggi|ieri|giorni fa|today|yesterday|days ago)(?!\p{L})/u;
+// `/Date(` con le cifre: dopo aver tolto un epoch mappato resta `/Date()/`, che non conta.
+const FLAG_DATE_CALL = /\/date\(\s*-?\d/;
 const FLAG_DDMMYY = /(?<!\d)\d{1,2}\/\d{1,2}\/\d{2}(?!\d)/;
 const FLAG_EPOCH = /(?<!\d)(\d{13}|\d{10})(?!\d)/g;
 
@@ -591,8 +624,9 @@ const FLAG_EPOCH = /(?<!\d)(\d{13}|\d{10})(?!\d)/g;
 function hasDateResidue(line: string): boolean {
   if (
     FLAG_FULL_NAMES.test(line) ||
+    FLAG_MAY.test(line) ||
     FLAG_ABBR_COMBO.test(line) ||
-    line.includes("/date(") ||
+    FLAG_DATE_CALL.test(line) ||
     FLAG_RELATIVE.test(line) ||
     FLAG_DDMMYY.test(line)
   ) {
@@ -637,7 +671,11 @@ function findResidue(
   const idChecks = identityCheckers(identities);
   const hits: Residue[] = [];
   for (const { name, text } of outputs) {
-    text.split(/\r?\n/).forEach((raw, i) => {
+    // I tratti scritti dal mapper si svuotano, tenendo gli a capo per i numeri di riga.
+    const unmapped = text.replace(MARKED_SPAN, (span) =>
+      span.replace(/[^\n]/g, ""),
+    );
+    unmapped.split(/\r?\n/).forEach((raw, i) => {
       const line = normalizeForCheck(raw);
       if (idChecks.some((re) => re.test(line))) {
         hits.push({ file: name, line: i + 1, kind: "identity" });
@@ -740,7 +778,7 @@ async function anonymizeDir(
   }
   const outputs = clean.map(({ name, text }) => ({
     name,
-    text: anonymize(text, { identities, mapDay }),
+    text: anonymizeMarked(text, { identities, mapDay }),
   }));
   // Rete di sicurezza: su un residuo non si scrive nulla, solo `file:riga: tipo`.
   const residue = findResidue(outputs, identities);
@@ -752,7 +790,7 @@ async function anonymizeDir(
   }
   await mkdir(dest, { recursive: true });
   for (const { name, text } of outputs) {
-    await writeFile(join(dest, name), text);
+    await writeFile(join(dest, name), text.replace(MARKERS, ""));
     console.log(name);
   }
   return outputs.length;
