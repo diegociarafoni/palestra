@@ -379,7 +379,7 @@ describe("web", () => {
     const form = await screen.findByRole("form", {
       name: "Come è andata oggi?",
     });
-    expect(months.at(-1)).toBe("2026-11");
+    expect(months).toEqual(["2026-10", "2026-09", "2026-10", "2026-11"]);
     await user.click(within(form).getByRole("button", { name: "Ottima" }));
     await user.click(within(form).getByRole("button", { name: "Salva" }));
     await waitFor(() => expect(bodies).toHaveLength(1));
@@ -961,6 +961,60 @@ describe("web", () => {
     expect((await within(week).findByRole("alert")).textContent).toBe(
       "Salvataggio non riuscito. Riprova.",
     );
+    expect(within(week).getByRole("status").textContent).toBe("");
+  });
+
+  it("web: a failed skip clears the earlier result", async () => {
+    todayIsThursday();
+    const user = userEvent.setup();
+    // W45-2 sceglie il giorno (riesce), poi "Saltata?" su W45-1 non riesce.
+    let second = { ...slots[2], session_id: null };
+    server.use(
+      http.get("/api/calendar", () =>
+        HttpResponse.json({
+          ...EMPTY,
+          slots: [
+            {
+              ...W45_1,
+              status: "da_confermare",
+              session_id: null,
+              session: null,
+            },
+            { ...second, session: null },
+          ],
+        }),
+      ),
+      http.patch("/api/slots/2026-W45-2", () => {
+        second = { ...second, date: "2026-11-07" };
+        return HttpResponse.json(second);
+      }),
+      http.patch("/api/slots/2026-W45-1", () =>
+        HttpResponse.json({ error: "internal" }, { status: 500 }),
+      ),
+    );
+    renderConTema(<Calendario />);
+
+    const week = await screen.findByRole("region", { name: "Settimana 45" });
+    await user.selectOptions(
+      within(week).getByRole("combobox", { name: "Scegli il giorno" }),
+      "sab 7 nov",
+    );
+    await waitFor(() =>
+      expect(within(week).getByRole("status").textContent).toBe(
+        "Giorno scelto salvato.",
+      ),
+    );
+    await user.click(within(week).getByRole("button", { name: "Saltata?" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Seduta A saltata?",
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Conferma" }));
+    expect((await within(dialog).findByRole("alert")).textContent).toBe(
+      "Salvataggio non riuscito. Riprova.",
+    );
+    // Chiuso il dialogo, l'esito della scelta del giorno non resta accanto allo slot.
+    await user.click(within(dialog).getByRole("button", { name: "Annulla" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(within(week).getByRole("status").textContent).toBe("");
   });
 
