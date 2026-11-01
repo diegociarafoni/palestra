@@ -15,8 +15,8 @@ import { createD1HttpDb } from "../../src/db/d1-http";
 import {
   AuthError,
   ParseError,
-  SyncError,
   TransientError,
+  UpstreamError,
 } from "../../src/errors";
 
 // Identificativi fittizi nel formato reale (esadecimale / UUID).
@@ -175,7 +175,7 @@ describe("d1-http", () => {
   });
 
   it.each([400, 200])(
-    "d1-http: sql error (HTTP %i) raises SyncError with codes only",
+    "d1-http: sql error (HTTP %i) raises UpstreamError with codes only",
     async (status) => {
       respondWith(() =>
         HttpResponse.json(
@@ -193,7 +193,7 @@ describe("d1-http", () => {
         .bind("secret-param")
         .all()
         .catch((e: unknown) => e);
-      expect(error).toBeInstanceOf(SyncError);
+      expect(error).toBeInstanceOf(UpstreamError);
       for (const subclass of [AuthError, ParseError, TransientError]) {
         expect(error).not.toBeInstanceOf(subclass);
       }
@@ -206,7 +206,7 @@ describe("d1-http", () => {
     },
   );
 
-  it("d1-http: non-JSON 404 raises SyncError without the body", async () => {
+  it("d1-http: non-JSON 404 raises UpstreamError without the body", async () => {
     respondWith(() =>
       HttpResponse.text("<html>route not found</html>", { status: 404 }),
     );
@@ -214,7 +214,7 @@ describe("d1-http", () => {
       .prepare("SELECT 1")
       .all()
       .catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(SyncError);
+    expect(error).toBeInstanceOf(UpstreamError);
     expect(error).not.toBeInstanceOf(ParseError);
     expect((error as Error).message).toContain("HTTP 404");
     expect((error as Error).message).not.toContain("route not found");
