@@ -10,6 +10,31 @@ export type WeekTemplate = {
   unavailable: Weekday[];
 };
 
+const WeekdaySchema = z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
+
+/**
+ * Schema del modello settimanale letto da `profile` (chiave `settimana_tipo`): ogni slot ha
+ * una finestra non vuota di soli giorni feriali (il fine settimana non si propone mai) e un
+ * numero diverso dagli altri.
+ */
+export const WeekTemplateSchema = z.object({
+  slots: z
+    .array(
+      z.object({
+        slot: z.int().min(1),
+        days: z.array(WeekdaySchema.exclude(["sat", "sun"])).min(1),
+        scheda_day: z.string(),
+      }),
+    )
+    .refine(
+      (slots) => new Set(slots.map((s) => s.slot)).size === slots.length,
+      {
+        error: "numeri di slot ripetuti",
+      },
+    ),
+  unavailable: z.array(WeekdaySchema),
+}) satisfies z.ZodType<WeekTemplate>;
+
 export type SlotStatus =
   | "programmata"
   | "fatta"
