@@ -337,6 +337,38 @@ describe("shape", () => {
     ]);
   });
 
+  it("shape: only the set table keeps its columns in order", () => {
+    // Un calendario fatto a tabella: le celle si raggruppano e non si legge che il martedì e il
+    // giovedì sono segnati.
+    expect(
+      shapeOfHtml(
+        '<table><tr><td>1</td><td class="day done">2</td><td>3</td><td class="day done">4</td><td>5</td><td>6</td><td>7</td></tr></table>',
+        ctx,
+      ),
+    ).toEqual([
+      "table",
+      "  tr",
+      "    td (ripetuto)",
+      '      "99"',
+      "    td[class=«a done»] (ripetuto)",
+      '      "99"',
+    ]);
+    // La tabella delle serie, riconosciuta come in normalize.ts (un `th` con "seri"): le colonne
+    // restano in ordine, al massimo 12.
+    const header = `<th>Serie</th>${"<th>Kg</th>".repeat(13)}`;
+    expect(
+      shapeOfHtml(`<table><thead><tr>${header}</tr></thead></table>`, ctx),
+    ).toEqual([
+      "table",
+      "  thead",
+      "    tr",
+      "      th",
+      '        "Serie"',
+      ...Array.from({ length: 11 }, () => ["      th", '        "Kg"']).flat(),
+      "      … altre colonne",
+    ]);
+  });
+
   it("shape: siblings show neither their order nor their number", () => {
     // Fratelli raggruppati per tag, nell'ordine della prima comparsa del tag; in un gruppo ogni
     // forma una volta, in ordine alfabetico, con `(ripetuto)` se compare più di una volta.

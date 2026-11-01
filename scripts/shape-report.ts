@@ -540,18 +540,33 @@ function scriptLines(text: string, ctx: ShapeContext, depth: number): string[] {
   return ["EU.currentUser:", ...indent(shapeOfJson(user, ctx, depth))];
 }
 
-function nodeLines(node: Node, ctx: ShapeContext, depth: number): string[] {
+/**
+ * La tabella delle serie, riconosciuta come in `src/mywellness/normalize.ts`: un'intestazione
+ * `th` con "seri" (Serie, Series, Serien).
+ */
+function isSetTable(table: HTMLElement): boolean {
+  return table.querySelectorAll("th").some((th) => /seri/i.test(th.text));
+}
+
+/** `setTable`: il nodo sta nella tabella delle serie, l'unica le cui celle restano in ordine. */
+function nodeLines(
+  node: Node,
+  ctx: ShapeContext,
+  depth: number,
+  setTable: boolean,
+): string[] {
   if (node instanceof HTMLElement) {
     if (depth >= MAX_DEPTH) return [TOO_DEEP];
     const tag = node.rawTagName.toLowerCase();
+    const inside = tag === "table" ? isSetTable(node) : setTable;
     const inner =
       tag === "script"
         ? scriptLines(node.rawText, ctx, depth + 1)
         : tag === "style"
           ? [OMITTED]
-          : tag === "tr"
-            ? cellLines(node.childNodes, ctx, depth + 1)
-            : childLines(node.childNodes, ctx, depth + 1);
+          : tag === "tr" && inside
+            ? cellLines(node.childNodes, ctx, depth + 1, inside)
+            : childLines(node.childNodes, ctx, depth + 1, inside);
     return [elementLine(node, ctx), ...indent(inner)];
   }
   if (node.nodeType !== NodeType.TEXT_NODE) return [];
@@ -564,10 +579,15 @@ function nodeLines(node: Node, ctx: ShapeContext, depth: number): string[] {
  * la prima volta; in ogni gruppo le forme diverse secondo `variantLines`. Resta visibile solo
  * l'ordine della prima comparsa dei tag diversi.
  */
-function childLines(nodes: Node[], ctx: ShapeContext, depth: number): string[] {
+function childLines(
+  nodes: Node[],
+  ctx: ShapeContext,
+  depth: number,
+  setTable: boolean,
+): string[] {
   const groups = new Map<string, string[][]>();
   for (const node of nodes) {
-    const own = nodeLines(node, ctx, depth);
+    const own = nodeLines(node, ctx, depth, setTable);
     if (own.length === 0) continue;
     const tag =
       node instanceof HTMLElement ? node.rawTagName.toLowerCase() : "#text";
@@ -578,19 +598,33 @@ function childLines(nodes: Node[], ctx: ShapeContext, depth: number): string[] {
   return [...groups.values()].flatMap((group) => variantLines(group, true));
 }
 
+/** Oltre queste colonne della tabella delle serie, una riga `… altre colonne`. */
+const MAX_COLUMNS = 12;
+
 /**
- * Le celle di una riga di tabella nell'ordine della pagina, tutte: ordine e numero delle colonne
- * sono struttura, e i valori sono comunque mascherati. Le righe restano raggruppate come gli altri
- * fratelli, così il numero di serie o di sedute non si legge.
+ * Le celle di una riga della tabella delle serie nell'ordine delle colonne, al massimo
+ * MAX_COLUMNS: il Task 0 Step 5 deve sapere in che ordine stanno serie, ripetizioni e kg. Solo
+ * qui: in un'altra tabella (un calendario) la posizione di una cella direbbe un giorno. Le righe
+ * restano raggruppate come gli altri fratelli, così il numero di serie non si legge.
  */
-function cellLines(nodes: Node[], ctx: ShapeContext, depth: number): string[] {
-  return nodes.flatMap((node) => nodeLines(node, ctx, depth));
+function cellLines(
+  nodes: Node[],
+  ctx: ShapeContext,
+  depth: number,
+  setTable: boolean,
+): string[] {
+  const cells = nodes
+    .map((node) => nodeLines(node, ctx, depth, setTable))
+    .filter((lines) => lines.length > 0);
+  const lines = cells.slice(0, MAX_COLUMNS).flat();
+  if (cells.length > MAX_COLUMNS) lines.push("… altre colonne");
+  return lines;
 }
 
 /** La forma di una pagina HTML: un elemento per riga, indentato di 2 spazi per livello. */
 export function shapeOfHtml(html: string, ctx: ShapeContext): string[] {
   // Con le opzioni predefinite i commenti non entrano nell'albero.
-  return childLines(parse(html).childNodes, ctx, 0);
+  return childLines(parse(html).childNodes, ctx, 0, false);
 }
 
 export type Hit = { line: number; kind: "identity" | "number" | "date" };
