@@ -571,6 +571,26 @@ describe("shape", () => {
     ]);
   });
 
+  it("shape: identities without words do not block the report", () => {
+    // Data di nascita, telefono e ultimo accesso scritti con i 9 sono la forma di ogni data e
+    // di ogni numero del rapporto, non un'identità: solo le identità con parole hanno i 9.
+    expect(
+      checkReport(
+        [
+          'birthDate: "99/99/9999"',
+          'phone: "+99 999 9999999"',
+          'lastLogin: "9999-99-99T99:99:99Z"',
+        ],
+        ["12/04/1985", "+39 333 1234567", "2026-11-01T10:00:00Z"],
+      ),
+    ).toEqual([]);
+    // Scritte come sono, restano identità.
+    expect(checkReport(['born: "12/04/1985"'], ["12/04/1985"])).toEqual([
+      { line: 1, kind: "identity" },
+      { line: 1, kind: "number" },
+    ]);
+  });
+
   it("shape: only known attribute names are printed", () => {
     // Un valore senza virgolette fa nascere attributi dal testo ("Rossi", "Mantova"); `checked` e
     // `selected` dicono che cosa ha scelto l'utente e non compaiono mai.

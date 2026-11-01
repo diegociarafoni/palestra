@@ -785,8 +785,10 @@ export function checkReport(
     if (GUID.test(identity)) substrings.add(identity.replaceAll("-", ""));
   }
   // Le stesse identità scritte con i 9: una cifra per `9`, e ogni sequenza di cifre per `99`
-  // come nei nomi stampati, così un token con 1 o 2 cifre non passa per un nome.
-  for (const text of [...substrings]) {
+  // come nei nomi stampati, così un token con 1 o 2 cifre non passa per un nome. Solo per le
+  // identità con almeno 2 lettere di fila: con i 9 una data di nascita o un telefono hanno la
+  // forma di ogni data e di ogni numero del rapporto.
+  for (const text of [...substrings].filter((s) => /\p{L}{2}/u.test(s))) {
     substrings.add(text.replace(/\p{N}/gu, "9"));
     substrings.add(text.replace(/\p{N}+/gu, "99"));
   }
