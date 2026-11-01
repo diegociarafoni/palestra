@@ -87,6 +87,29 @@ describe("web", () => {
     expect(getComputedStyle(cell).fontSize).toBe("16px");
   });
 
+  it("web: measures table readable on a phone", async () => {
+    server.use(
+      http.get("/api/measures", () => HttpResponse.json({ measures })),
+    );
+    renderConTema(<Misure />);
+
+    const table = await screen.findByRole("table", { name: "Tutte le misure" });
+    // Intestazioni dei numeri allineate a destra come le loro celle.
+    for (const name of [
+      "Peso (kg)",
+      "Vita (cm)",
+      "Muscolo (kg)",
+      "Grasso (kg)",
+      "Grasso (%)",
+    ]) {
+      const header = within(table).getByRole("columnheader", { name });
+      expect(getComputedStyle(header).textAlign).toBe("right");
+    }
+    // Data e ora su una riga: a 360 px la tabella scorre in orizzontale.
+    const date = within(table).getByRole("cell", { name: "3 nov 2026, 08:00" });
+    expect(getComputedStyle(date).whiteSpace).toBe("nowrap");
+  });
+
   it("web: misure empty state", async () => {
     server.use(
       http.get("/api/measures", () => HttpResponse.json({ measures: [] })),
