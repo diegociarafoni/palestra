@@ -3,9 +3,11 @@ import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AuthError,
+  exitCodeFor,
   ParseError,
   SyncError,
   TransientError,
+  UpstreamError,
 } from "../../src/errors";
 import { MywellnessClient } from "../../src/mywellness/client";
 import { fixture, setupMswServer } from "../msw";
@@ -421,12 +423,12 @@ describe("client", () => {
       )
       .catch((e: unknown) => e);
 
-    // SyncError fino al merge del Task 6, poi UpstreamError.
-    expect(error).toBeInstanceOf(SyncError);
+    expect(error).toBeInstanceOf(UpstreamError);
     for (const subclass of [AuthError, ParseError, TransientError]) {
       expect(error).not.toBeInstanceOf(subclass);
     }
     expect((error as Error).message).toBe("Mywellness: HTTP 404");
+    expect(exitCodeFor(error)).toBe(69);
     expect(calls).toBe(1);
   });
 
