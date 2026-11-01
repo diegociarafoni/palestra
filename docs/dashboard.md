@@ -98,3 +98,4 @@ L'export contiene le istruzioni `CREATE TABLE` senza `IF NOT EXISTS`: si applica
 | Data | Backup usato | Esito |
 | --- | --- | --- |
 | 2026-10-31 | `palestra-2026-10-31.sql` (primo backup, `workflow_dispatch`) | Riuscita con il workflow `restore-test` (run 2): download e import completi, conteggi identici in 12 tabelle, `palestra-restore-test` cancellato (verificato con il connettore). Il run 1 si era fermato al conteggio per il limite di D1 sulle SELECT composte (#36, corretto nella PR #37). |
+| 2026-10-31 | `palestra-2026-10-31.sql` | Riuscita con il confronto col dump (#35; run 4 e 5 di `restore-test`, dal branch della PR #39): dump e ripristino identici in 12 tabelle, formato dell'export remoto riconosciuto, `palestra-restore-test` cancellato (verificato con il connettore). |
