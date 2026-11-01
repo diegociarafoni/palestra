@@ -4,7 +4,7 @@ slug: 2026-10-31-probe-mywellness-in-locale
 titolo: Il probe di Mywellness gira solo sul computer dell'utente; la sync resta con le credenziali nei GitHub Secrets
 data: 2026-10-31
 stato: sostituisce 2026-10-30-credenziali-solo-in-github-secrets
-aggiornato: 2026-10-31
+aggiornato: 2026-11-01
 ---
 # Il probe di Mywellness gira solo sul computer dell'utente; la sync resta con le credenziali nei GitHub Secrets
 
@@ -12,7 +12,7 @@ aggiornato: 2026-10-31
 
 ## Decisione e motivazione
 - La verifica degli endpoint (Task 0) è uno script locale, `scripts/probe-mywellness.ts`, che l'utente esegue una volta con `MYWELLNESS_EMAIL` e `MYWELLNESS_PASSWORD` nell'ambiente della shell, mai in un file. Non esiste un workflow `probe.yml`: nei repository pubblici gli artifact dei workflow sono scaricabili da chiunque abbia un account GitHub.
-- Le risposte grezze restano in `probe_out/`, ignorata da git e cancellata dopo l'uso. Nel repository entrano solo le fixture prodotte da `scripts/anonymize-fixtures.ts`, controllate con `scripts/check-public-tree.mjs` e rilette a mano.
+- Le risposte grezze restano in `probe_out/`, ignorata da git e cancellata dopo l'uso. Nel repository non entra nessuna risposta reale: entra solo il rapporto della forma `docs/mywellness-forma.md`, scritto da `scripts/shape-report.ts`, controllato con `scripts/check-public-tree.mjs` e riletto dall'utente (vedi [2026-11-01-forma-dei-dati-al-posto-delle-fixture-reali](2026-11-01-forma-dei-dati-al-posto-delle-fixture-reali.md)).
 - La sync notturna continua a leggere le credenziali solo dai GitHub Secrets, come nella decisione precedente.
 
 ## Alternative scartate
