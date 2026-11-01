@@ -1,4 +1,21 @@
+// Rapporto della forma dei dati di Mywellness (Task 0): legge le risposte grezze del probe
+// (probe_out/, che resta sul computer dell'utente) e scrive un file Markdown con la sola forma,
+// da committare al posto delle fixture reali: nomi di campi, tag e attributi e il formato di
+// ogni valore, con ogni lettera resa `a`/`A` e ogni cifra resa `9`; in chiaro restano solo le
+// parole di VOCAB. Vedi docs/mywellness-api.md § 2 e
+// kb/decisioni/2026-11-01-forma-dei-dati-al-posto-delle-fixture-reali.md.
+// Uso: npx tsx scripts/shape-report.ts <cartella_probe> <file_md>
+// Legge solo i file in INPUTS (degli altri stampa il numero su stderr) e identities.json, che
+// serve solo al controllo finale: prima di scrivere cerca nel rapporto identità, numeri e nomi
+// di mesi o giorni; se ne trova non scrive nulla e stampa solo `file:riga: tipo`.
+// Exit code: 0 ok · 64 argomenti · 65 identities.json non interpretabile o controllo finale
+// fallito (nessun file scritto) · 78 identities.json mancante.
+import { existsSync } from "node:fs";
+import { readdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { HTMLElement, type Node, NodeType, parse } from "node-html-parser";
+import { z } from "zod";
 import { ParseError } from "../src/errors";
 import { readCurrentUser } from "../src/mywellness/client";
 
@@ -75,10 +92,11 @@ const SPACES = /^[\s\p{Cc}]/u;
 const INVISIBLE = /\p{Cf}/gu;
 const MAX_DIGITS = 20;
 
-/** Forma di confronto: NFKC, minuscole, senza accenti. */
+/** Forma di confronto: NFKC, senza caratteri invisibili, minuscole, senza accenti. */
 function fold(text: string): string {
   return text
     .normalize("NFKC")
+    .replace(INVISIBLE, "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/\p{M}/gu, "");
@@ -305,16 +323,19 @@ function childLines(nodes: Node[], ctx: ShapeContext): string[] {
   const lines: string[] = [];
   let previous: string | undefined;
   let first = -1;
+  let repeated = false;
   for (const node of nodes) {
     const own = nodeLines(node, ctx);
     if (own.length === 0) continue;
     const text = own.join("\n");
     if (text === previous) {
-      if (!lines[first]?.endsWith(" (ripetuto)")) lines[first] += " (ripetuto)";
+      if (!repeated) lines[first] += " (ripetuto)";
+      repeated = true;
       continue;
     }
     previous = text;
     first = lines.length;
+    repeated = false;
     lines.push(...own);
   }
   return lines;
@@ -324,4 +345,253 @@ function childLines(nodes: Node[], ctx: ShapeContext): string[] {
 export function shapeOfHtml(html: string, ctx: ShapeContext): string[] {
   // Con le opzioni predefinite i commenti non entrano nell'albero.
   return childLines(parse(html).childNodes, ctx);
+}
+
+export type Hit = { line: number; kind: "identity" | "number" | "date" };
+
+/** Mesi e giorni della settimana per intero, in italiano e in inglese, senza accenti. */
+const DATE_WORDS = new Set([
+  "gennaio",
+  "febbraio",
+  "marzo",
+  "aprile",
+  "maggio",
+  "giugno",
+  "luglio",
+  "agosto",
+  "settembre",
+  "ottobre",
+  "novembre",
+  "dicembre",
+  "lunedi",
+  "martedi",
+  "mercoledi",
+  "giovedi",
+  "venerdi",
+  "sabato",
+  "domenica",
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+]);
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const NAME_LIKE = /^[\p{L} '.-]+$/u;
+const ALL_DIGITS = /^\p{N}+$/u;
+
+/**
+ * Controllo finale, fail closed, su righe già mascherate: identità (parole di 3 o più
+ * lettere tra confini di lettera; e-mail e sua parte locale, GUID con e senza trattini,
+ * token e cookie come sottostringhe; identità di sole cifre, da 4, tra confini di cifra),
+ * numeri (3 o più cifre non tutte `9`), date (nomi di mesi e giorni per intero). Con le
+ * maschere corrette non trova nulla: un risultato è un difetto o un nome che sembra un dato.
+ */
+export function checkReport(
+  lines: readonly string[],
+  identities: readonly string[],
+): Hit[] {
+  const words = identityWordsOf(identities);
+  const digitIdentities = new Set<string>();
+  const substrings = new Set<string>();
+  for (const identity of identities.map(fold)) {
+    if (identity === "") continue;
+    if (ALL_DIGITS.test(identity)) {
+      if ([...identity].length >= 4) digitIdentities.add(identity);
+      continue;
+    }
+    if (!NAME_LIKE.test(identity)) substrings.add(identity);
+    const at = identity.indexOf("@");
+    if (at > 0) substrings.add(identity.slice(0, at));
+    if (GUID.test(identity)) substrings.add(identity.replaceAll("-", ""));
+  }
+  const hits: Hit[] = [];
+  lines.forEach((raw, i) => {
+    const line = fold(raw);
+    const letterRuns = line.match(/\p{L}+/gu) ?? [];
+    const digitRuns = line.match(/\p{N}+/gu) ?? [];
+    if (
+      letterRuns.some((run) => words.has(run)) ||
+      digitRuns.some((run) => digitIdentities.has(run)) ||
+      [...substrings].some((text) => line.includes(text))
+    ) {
+      hits.push({ line: i + 1, kind: "identity" });
+    }
+    if (digitRuns.some((run) => [...run].length >= 3 && /[^9]/u.test(run))) {
+      hits.push({ line: i + 1, kind: "number" });
+    }
+    if (letterRuns.some((run) => DATE_WORDS.has(run))) {
+      hits.push({ line: i + 1, kind: "date" });
+    }
+  });
+  return hits;
+}
+
+const USAGE = "Uso: npx tsx scripts/shape-report.ts <cartella_probe> <file_md>";
+const IDENTITIES_FILE = "identities.json";
+/** I soli file del probe che il rapporto legge, nell'ordine delle sezioni. */
+const INPUTS = [
+  /^login_form\.html$/,
+  /^login_ok\.html$/,
+  /^last_sessions(?:_(\d+))?\.html$/,
+  /^session_strength\.json$/,
+  /^session_cardio_only\.json$/,
+  /^strength_detail(?:_(\d+))?\.html$/,
+  /^cardio_timeseries\.json$/,
+  /^biometrics\.json$/,
+];
+const HEADER = [
+  "# Forma dei dati di Mywellness",
+  "",
+  "File generato da `scripts/shape-report.ts` (Task 0) con le risposte del probe, che restano sul computer dell'utente. Mostra solo la forma dei dati:",
+  "",
+  "- restano scritti i nomi dei campi JSON, dei tag e degli attributi HTML e i valori di attributi come `class`, `id` e `name`, se hanno la forma di un nome; gli altri sono mascherati tra `«»`;",
+  "- nei valori ogni parola diventa `a` (se comincia con una minuscola) o `A` (se comincia con una maiuscola) e ogni cifra diventa `9`;",
+  "- restano scritte solo le parole del vocabolario `VOCAB` dello script (unità di misura, parole della tabella delle serie e dell'interfaccia, tipi di esercizio), la punteggiatura, i simboli e la `T` e la `Z` delle date ISO;",
+  "- liste e righe ripetute (`(ripetuto)`) non dicono quanti elementi hanno; il contenuto degli script è omesso, tranne la forma di `EU.currentUser`.",
+  "",
+  "Nient'altro: nessun nome, data, numero o identificativo.",
+].join("\n");
+
+/** Famiglia (posizione in INPUTS) e numero (1 senza suffisso) di un file del probe. */
+function inputOrder(name: string): [number, number] | undefined {
+  for (const [family, input] of INPUTS.entries()) {
+    const match = input.exec(name);
+    if (match) return [family, Number(match[1] ?? 1)];
+  }
+  return undefined;
+}
+
+async function readIdentities(src: string): Promise<string[]> {
+  const text = await readFile(join(src, IDENTITIES_FILE), "utf8");
+  try {
+    return z.array(z.string()).parse(JSON.parse(text));
+  } catch (error) {
+    // Mai il messaggio originale: potrebbe citare le identità contenute nel file.
+    throw new ParseError(
+      `${IDENTITIES_FILE} non valido: serve un array di stringhe`,
+      { cause: error },
+    );
+  }
+}
+
+function shapeOfFile(name: string, text: string, ctx: ShapeContext): string[] {
+  if (!name.endsWith(".json")) return shapeOfHtml(text, ctx);
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return ["(JSON non valido)"];
+  }
+  return shapeOfJson(value, ctx);
+}
+
+/** Una sezione del rapporto; `equalTo`: il file precedente della stessa famiglia, se uguale. */
+type Section = {
+  name: string;
+  family: number;
+  shape: string[];
+  equalTo?: string;
+};
+
+function render(sections: Section[]): string {
+  const parts = [HEADER];
+  for (const { name, shape, equalTo } of sections) {
+    parts.push(
+      `## ${name}`,
+      equalTo
+        ? `Uguale a ${equalTo}.`
+        : ["```text", ...shape, "```"].join("\n"),
+    );
+  }
+  return `${parts.join("\n\n")}\n`;
+}
+
+export async function main(
+  argv: string[],
+  deps: Partial<{ vocab: readonly string[] }> = {},
+): Promise<number> {
+  const [src, dest] = argv;
+  if (argv.length !== 2 || !src || !dest) {
+    console.error(USAGE);
+    return 64;
+  }
+  if (!existsSync(join(src, IDENTITIES_FILE))) {
+    console.error(
+      `${IDENTITIES_FILE} mancante in ${src}: eseguire prima il probe`,
+    );
+    return 78;
+  }
+  let identities: string[];
+  try {
+    identities = await readIdentities(src);
+  } catch (error) {
+    if (!(error instanceof ParseError)) throw error;
+    console.error(error.message);
+    return 65;
+  }
+  const ctx = shapeContext(identities);
+  // Solo per i test: un vocabolario dato, senza togliere le parole delle identità.
+  if (deps.vocab) ctx.vocab = deps.vocab;
+  const entries = await readdir(src);
+  const inputs = entries
+    .flatMap((name) => {
+      const order = inputOrder(name);
+      return order ? [{ name, order }] : [];
+    })
+    .sort((a, b) => a.order[0] - b.order[0] || a.order[1] - b.order[1]);
+  // Gli altri file (session_<n>.json…) non si leggono; identities.json non è una sezione.
+  const skipped = entries.length - inputs.length - 1;
+  const sections: Section[] = [];
+  for (const { name, order } of inputs) {
+    const text = new TextDecoder().decode(await readFile(join(src, name)));
+    const shape = shapeOfFile(name, text, ctx);
+    const previous = sections.findLast((s) => s.family === order[0]);
+    const equal = previous?.shape.join("\n") === shape.join("\n");
+    sections.push({
+      name,
+      family: order[0],
+      shape,
+      ...(previous && equal ? { equalTo: previous.name } : {}),
+    });
+  }
+  // Fail closed: un solo risultato e non si scrive nulla; su stderr mai il testo trovato.
+  const hits = sections.flatMap(({ name, shape, equalTo }) =>
+    equalTo
+      ? []
+      : checkReport(shape, identities).map(
+          ({ line, kind }) => `${name}:${line}: ${kind}`,
+        ),
+  );
+  if (hits.length > 0) {
+    for (const hit of hits) console.error(hit);
+    return 65;
+  }
+  await writeFile(dest, render(sections));
+  console.log(`rapporto scritto: ${dest}`);
+  console.log(`sezioni: ${sections.length}`);
+  if (skipped > 0) console.error(`file ignorati: ${skipped}`);
+  return 0;
+}
+
+// Eseguito con `npx tsx scripts/shape-report.ts`; importato dai test, non parte.
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  process.exitCode = await main(process.argv.slice(2));
 }

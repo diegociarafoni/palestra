@@ -1,5 +1,25 @@
-import { describe, expect, it } from "vitest";
 import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockInstance,
+  vi,
+} from "vitest";
+import {
+  checkReport,
+  main,
   maskText,
   shapeContext,
   shapeOfHtml,
@@ -22,6 +42,30 @@ const IDENTITIES = [
   COOKIE,
 ];
 const ctx = shapeContext(IDENTITIES);
+
+let dir: string;
+let stdout: MockInstance;
+let stderr: MockInstance;
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), "shape-"));
+  stdout = vi.spyOn(console, "log").mockImplementation(() => undefined);
+  stderr = vi.spyOn(console, "error").mockImplementation(() => undefined);
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+/** Una cartella come probe_out/: identities.json più i file dati. */
+function probeOut(files: Record<string, string>, identities = IDENTITIES) {
+  const src = join(dir, "probe_out");
+  mkdirSync(src);
+  writeFileSync(join(src, "identities.json"), JSON.stringify(identities));
+  for (const [name, text] of Object.entries(files)) {
+    writeFileSync(join(src, name), text);
+  }
+  return src;
+}
 
 describe("shape", () => {
   it("shape: masks every value", () => {
@@ -295,5 +339,154 @@ describe("shape", () => {
     expect(maskText("\u1372\u1371", VOCAB)).toBe("99");
     // Caratteri di controllo come spazi: un NUL farebbe saltare il file a check-public-tree.
     expect(maskText("Ma\u0000rio\u0007", VOCAB)).toBe("A a ");
+  });
+
+  it("shape: final check fails closed", async () => {
+    const lines = [
+      'name: "Mario A"',
+      "class=x-ROSSI",
+      'url: "xmario.rossix"',
+      'id: "x3F2A9C1E-7B4D-4E8A-9C6F-1D2E3F4A5B6Cx"',
+      'id: "3f2a9c1e7b4d4e8a9c6f1d2e3f4a5b6c"',
+      "a xtok-di-prova-0123456789x a",
+      'card: "9999999"',
+      'card: "99999999"',
+      'card: "a9999999a"',
+      "numero 120",
+      "numero 999.99",
+      '"29 Ottobre"',
+      "Lunedì",
+      "a may a",
+      "mayday",
+      '"a.a@a.a"',
+      "Ma\u200Brio",
+    ];
+    expect(checkReport(lines, [...IDENTITIES, "9999999"])).toEqual([
+      { line: 1, kind: "identity" },
+      { line: 2, kind: "identity" },
+      { line: 3, kind: "identity" },
+      { line: 4, kind: "identity" },
+      { line: 5, kind: "identity" },
+      { line: 6, kind: "identity" },
+      { line: 6, kind: "number" },
+      { line: 7, kind: "identity" },
+      { line: 9, kind: "identity" },
+      { line: 10, kind: "number" },
+      { line: 12, kind: "date" },
+      { line: 13, kind: "date" },
+      { line: 14, kind: "date" },
+      { line: 17, kind: "identity" },
+    ]);
+    // Un'identità vuota non rende sospetta ogni riga.
+    expect(checkReport(['name: "A A"'], [""])).toEqual([]);
+
+    // Un vocabolario sbagliato lascia passare un nome: il controllo non scrive nulla.
+    const src = probeOut({ "login_ok.html": "<p>Mario Rossi</p>" });
+    const dest = join(dir, "forma.md");
+    expect(await main([src, dest], { vocab: [...VOCAB, "mario"] })).toBe(65);
+    expect(existsSync(dest)).toBe(false);
+    expect(stderr.mock.calls).toEqual([["login_ok.html:2: identity"]]);
+    expect(stdout).not.toHaveBeenCalled();
+  });
+
+  it("shape: cli", async () => {
+    const usage =
+      "Uso: npx tsx scripts/shape-report.ts <cartella_probe> <file_md>";
+    expect(await main([])).toBe(64);
+    expect(await main(["probe_out"])).toBe(64);
+    expect(await main(["probe_out", "a.md", "b.md"])).toBe(64);
+    expect(stderr.mock.calls).toEqual([[usage], [usage], [usage]]);
+    stderr.mockClear();
+
+    // Senza identities.json non c'è controllo finale: niente rapporto.
+    const empty = join(dir, "vuota");
+    mkdirSync(empty);
+    const dest = join(dir, "forma.md");
+    expect(await main([empty, dest])).toBe(78);
+    expect(stderr.mock.calls).toEqual([
+      [`identities.json mancante in ${empty}: eseguire prima il probe`],
+    ]);
+    writeFileSync(join(empty, "identities.json"), '{"email":"x"}');
+    expect(await main([empty, dest])).toBe(65);
+    expect(stderr.mock.calls.at(-1)).toEqual([
+      "identities.json non valido: serve un array di stringhe",
+    ]);
+    expect(existsSync(dest)).toBe(false);
+    stderr.mockClear();
+
+    const table = (set: number, kg: number) =>
+      `<table class="sets"><tr><th>Serie</th><th>Kg</th></tr><tr><td>${set}</td><td>${kg}</td></tr></table>`;
+    const src = probeOut({
+      "biometrics.json": JSON.stringify({
+        data: {
+          lastMeasurements: [
+            {
+              measuredOn: "2026-10-20 10:24:00 +02:00",
+              value: 81.5,
+              unitOfMeasure: "kg",
+              name: "Weight",
+            },
+          ],
+        },
+      }),
+      "strength_detail.html": table(1, 60),
+      "strength_detail_2.html": table(2, 55),
+      // Fuori elenco: la seduta grezza e una seconda serie cardio.
+      "session_1.json": '{"data":{}}',
+      "cardio_timeseries_2.json": "{}",
+    });
+    expect(await main([src, dest])).toBe(0);
+    expect(readFileSync(dest, "utf8")).toBe(
+      [
+        "# Forma dei dati di Mywellness",
+        "",
+        "File generato da `scripts/shape-report.ts` (Task 0) con le risposte del probe, che restano sul computer dell'utente. Mostra solo la forma dei dati:",
+        "",
+        "- restano scritti i nomi dei campi JSON, dei tag e degli attributi HTML e i valori di attributi come `class`, `id` e `name`, se hanno la forma di un nome; gli altri sono mascherati tra `«»`;",
+        "- nei valori ogni parola diventa `a` (se comincia con una minuscola) o `A` (se comincia con una maiuscola) e ogni cifra diventa `9`;",
+        "- restano scritte solo le parole del vocabolario `VOCAB` dello script (unità di misura, parole della tabella delle serie e dell'interfaccia, tipi di esercizio), la punteggiatura, i simboli e la `T` e la `Z` delle date ISO;",
+        "- liste e righe ripetute (`(ripetuto)`) non dicono quanti elementi hanno; il contenuto degli script è omesso, tranne la forma di `EU.currentUser`.",
+        "",
+        "Nient'altro: nessun nome, data, numero o identificativo.",
+        "",
+        "## strength_detail.html",
+        "",
+        "```text",
+        "table[class=sets]",
+        "  tr",
+        "    th",
+        '      "Serie"',
+        "    th",
+        '      "Kg"',
+        "  tr",
+        "    td",
+        '      "9"',
+        "    td",
+        '      "99"',
+        "```",
+        "",
+        "## strength_detail_2.html",
+        "",
+        "Uguale a strength_detail.html.",
+        "",
+        "## biometrics.json",
+        "",
+        "```text",
+        "data:",
+        "  lastMeasurements:",
+        '    - measuredOn: "9999-99-99 99:99:99 +99:99"',
+        "      value: numero 99.9",
+        '      unitOfMeasure: "kg"',
+        '      name: "Weight"',
+        "```",
+        "",
+      ].join("\n"),
+    );
+    expect(stdout.mock.calls).toEqual([
+      [`rapporto scritto: ${dest}`],
+      ["sezioni: 3"],
+    ]);
+    // Dei file fuori elenco solo il numero, mai il nome.
+    expect(stderr.mock.calls).toEqual([["file ignorati: 2"]]);
   });
 });
