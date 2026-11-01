@@ -147,8 +147,10 @@ const isOpen = (s: PlannedSlot): boolean =>
  * Abbina la seduta del giorno `date` (`YYYY-MM-DD`, Europe/Rome) a uno slot. `slots` sono gli
  * slot della settimana ISO di `date`, con il loro stato attuale: le sedute si abbinano una alla
  * volta in ordine cronologico, e `slots` riflette l'esito dell'abbinamento precedente.
- * Il primo slot non fatto (in ordine di numero) la cui finestra contiene `date` diventa
- * `fatta`; altrimenti, di sabato o domenica, il primo slot non fatto diventa `spostata`
+ * Prima il giorno scelto dall'utente: il primo slot non fatto con `date` scelta uguale alla data
+ * della seduta diventa `fatta` se il giorno è nella sua finestra, `spostata` se è sabato o
+ * domenica. Poi il primo slot non fatto (in ordine di numero) la cui finestra contiene `date`
+ * diventa `fatta`; altrimenti, di sabato o domenica, il primo slot non fatto diventa `spostata`
  * (recupero); altrimenti la seduta è `extra`.
  * Le finestre stanno nei giorni feriali (il fine settimana non si propone mai): di sabato o
  * domenica tutte le finestre della settimana sono già finite.
@@ -162,21 +164,35 @@ export function matchSession(
   | { kind: "slot"; id: string; status: "fatta" | "spostata" }
   | { kind: "extra" } {
   const ordered = slots.toSorted((a, b) => a.slot - b.slot);
+  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const weekend = weekday === 6 || weekday === 0;
+  const chosen = ordered.find((s) => isOpen(s) && s.date === date);
+  if (chosen?.window.includes(date)) {
+    return { kind: "slot", id: chosen.id, status: "fatta" };
+  }
+  if (chosen && weekend) {
+    return { kind: "slot", id: chosen.id, status: "spostata" };
+  }
   const inWindow = ordered.find((s) => isOpen(s) && s.window.includes(date));
   if (inWindow) return { kind: "slot", id: inWindow.id, status: "fatta" };
-  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
-  if (weekday === 6 || weekday === 0) {
+  if (weekend) {
     const missed = ordered.find(isOpen);
     if (missed) return { kind: "slot", id: missed.id, status: "spostata" };
   }
   return { kind: "extra" };
 }
 
-/** Id degli slot `programmata` la cui finestra è finita prima di `today` (`YYYY-MM-DD`). */
+/**
+ * Id degli slot `programmata` la cui finestra è finita prima di `today` (`YYYY-MM-DD`), e anche
+ * il giorno scelto dall'utente, se c'è.
+ */
 export function overdue(slots: PlannedSlot[], today: string): string[] {
   return slots
     .filter(
-      (s) => s.status === "programmata" && s.window.every((d) => d < today),
+      (s) =>
+        s.status === "programmata" &&
+        s.window.every((d) => d < today) &&
+        (s.date === null || s.date < today),
     )
     .map((s) => s.id);
 }
