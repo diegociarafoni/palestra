@@ -4,7 +4,7 @@ import Typography from "@mui/material/Typography";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { useId } from "react";
 import { testi } from "../testi";
-import { chartDate, formatChartDate, formatChartDay } from "../utils/date";
+import { chartDate, formatDayAxis } from "../utils/date";
 import { formatNumber } from "../utils/numeri";
 
 type GraficoEsercizioProps = {
@@ -46,10 +46,7 @@ export function GraficoEsercizio({
             // toccherebbero (a 1024 px); MUI nasconde quelle più vicine di così.
             tickLabelMinGap: 16,
             // Tacche senza anno (giorni del mese scelto); nel tooltip la data completa.
-            valueFormatter: (value: Date, context) =>
-              context.location === "tick"
-                ? formatChartDay(value)
-                : formatChartDate(value),
+            valueFormatter: formatDayAxis,
           },
         ]}
         // Asse y proprio, numeri come nella tabella (it-IT): tacche dell'asse.

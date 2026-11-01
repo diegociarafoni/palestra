@@ -55,9 +55,17 @@ export function formatChartDate(value: Date): string {
   return shortDate.format(value);
 }
 
-/** Data di un asse del tempo senza anno → "3 nov" (tacche dentro un mese). */
-export function formatChartDay(value: Date): string {
-  return dayMonth.format(value);
+/**
+ * Formattatore di un asse di giorni dentro un mese (MUI X `valueFormatter`): sulle tacche senza
+ * anno, "3 nov"; altrove (tooltip) la data completa, "3 nov 2026".
+ */
+export function formatDayAxis(
+  value: Date,
+  context: { location: string },
+): string {
+  return context.location === "tick"
+    ? dayMonth.format(value)
+    : shortDate.format(value);
 }
 
 /** `2026-11-03`, `08:00` → "3 nov 2026, 08:00"; senza ora solo la data. L'ora (`HH:MM`, scritta a mano) resta com'è. */
