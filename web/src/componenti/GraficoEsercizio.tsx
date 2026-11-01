@@ -15,6 +15,18 @@ type GraficoEsercizioProps = {
   to: string;
 };
 
+// Asse y attorno ai dati, largo almeno ±5 % della media: una variazione da rumore (1–2 %) non
+// riempie l'altezza del grafico come un progresso netto. Un margine del 20 % tiene i punti
+// lontani dalle linee degli assi.
+function yBounds(values: number[]): { min: number; max: number } {
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const half = Math.max((high - low) / 2, mean * 0.05) * 1.2;
+  const centre = (low + high) / 2;
+  return { min: centre - half, max: centre + half };
+}
+
 /**
  * e1RM di un esercizio nel mese: una serie sola, quindi nessuna legenda (il titolo è il nome
  * dell'esercizio) e un solo colore.
@@ -52,6 +64,7 @@ export function GraficoEsercizio({
         yAxis={[
           {
             label: testi.exercises.kg,
+            ...yBounds(points.map((p) => p.e1rm_kg)),
             valueFormatter: (value: number | null) => formatNumber(value),
           },
         ]}

@@ -61,6 +61,12 @@ const marks = (chart: HTMLElement, slot: number) =>
       element.closest("li") === null && element.getAttribute("fill") !== "none",
   );
 
+// Etichette delle tacche dell'asse y: i testi SVG del grafico fatti solo di cifre e virgola.
+const yTicks = (chart: HTMLElement) =>
+  [...chart.querySelectorAll("svg text")]
+    .map((text) => text.textContent ?? "")
+    .filter((text) => /^\d+(,\d+)?$/.test(text));
+
 // Celle di una riga del corpo: l'intestazione (il nome dell'esercizio), poi i valori.
 const rowCells = (row: HTMLElement) => [
   within(row).getByRole("rowheader"),
@@ -324,7 +330,7 @@ describe("web", () => {
   });
 
   it("web: esercizi chart y ticks in italian", async () => {
-    // Ogni grafico ha il suo asse y, con i numeri come nella tabella (it-IT): "42,5", non "42.5".
+    // Ogni grafico ha il suo asse y, con i numeri come nella tabella (it-IT): "8,5", non "8.5".
     server.use(
       http.get("/api/exercises", () =>
         HttpResponse.json({
@@ -334,8 +340,8 @@ describe("web", () => {
               slug: "lat-machine",
               name: "Lat Machine",
               points: [
-                { date: "2026-11-03", e1rm_kg: 42 },
-                { date: "2026-11-10", e1rm_kg: 43 },
+                { date: "2026-11-03", e1rm_kg: 8 },
+                { date: "2026-11-10", e1rm_kg: 9 },
               ],
             },
           ],
@@ -345,10 +351,35 @@ describe("web", () => {
     renderConTema(<Esercizi />);
 
     const chart = await screen.findByRole("region", { name: "Lat Machine" });
-    for (const tick of ["42", "42,5", "43"]) {
-      expect(within(chart).getByText(tick)).toBeTruthy();
-    }
-    expect(within(chart).queryByText("42.5")).toBeNull();
+    expect(yTicks(chart)).toEqual(["8", "8,5", "9"]);
+    expect(within(chart).queryByText("8.5")).toBeNull();
+  });
+
+  it("web: esercizi chart y axis spans at least 5 % of the mean", async () => {
+    // Da 100 a 101 kg (1 %, rumore): l'asse y copre almeno ±5 % della media attorno ai dati, con
+    // un margine, e la variazione non riempie l'altezza del grafico. Le tacche dell'asse y sono i
+    // soli testi numerici del grafico (un testo SVG non ha ruolo: docs/buone-pratiche-mui.md § 9).
+    server.use(
+      http.get("/api/exercises", () =>
+        HttpResponse.json({
+          strength_table: [],
+          e1rm_series: [
+            {
+              slug: "leg-press",
+              name: "Leg Press",
+              points: [
+                { date: "2026-11-03", e1rm_kg: 100 },
+                { date: "2026-11-10", e1rm_kg: 101 },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+    renderConTema(<Esercizi />);
+
+    const chart = await screen.findByRole("region", { name: "Leg Press" });
+    expect(yTicks(chart)).toEqual(["95", "100", "105"]);
   });
 
   it("web: esercizi chart keeps the best of the day", async () => {
