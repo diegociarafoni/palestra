@@ -6,6 +6,7 @@ import type { Session } from "../../src/domain/types";
 import { ParseError } from "../../src/errors";
 import {
   knownSessionIds,
+  listSessionStarts,
   listSessionsByMonth,
   upsertSession,
 } from "../../src/store/sessions";
@@ -86,6 +87,38 @@ describe("store sessions", () => {
     // Estremo incluso.
     expect(await knownSessionIds(env.DB, "2026-10-29")).toEqual(
       new Set(["sess-002"]),
+    );
+  });
+
+  it("store: session starts within window", async () => {
+    // Inserite fuori ordine; 23:30Z del 1° novembre è già il 2 a Roma.
+    for (const s of [
+      session("sess-006", "2026-11-03T09:00:00Z"),
+      session("sess-007", "2026-11-01T23:30:00Z"),
+      session("sess-008", "2026-11-01T18:00:00+01:00"),
+      session("sess-009", "2026-11-03T09:30:00+01:00"),
+    ]) {
+      await upsertSession(env.DB, s, {});
+    }
+    // In ordine di istante (08:30Z prima di 09:00Z); il 1° novembre resta fuori.
+    expect(await listSessionStarts(env.DB, "2026-11-02")).toEqual([
+      { session_id: "sess-007", started_at: "2026-11-01T23:30:00Z" },
+      { session_id: "sess-009", started_at: "2026-11-03T09:30:00+01:00" },
+      { session_id: "sess-006", started_at: "2026-11-03T09:00:00Z" },
+    ]);
+
+    // Inizio non ISO: la riga è rifiutata, con il rowid e mai l'id nel messaggio.
+    await env.DB.prepare(
+      "INSERT INTO sessions (session_id, date, started_at, json) VALUES (?1, ?2, ?3, ?4)",
+    )
+      .bind("sess-bad", "2026-11-04", "ieri", "{}")
+      .run();
+    const error = await listSessionStarts(env.DB, "2026-11-02").catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ParseError);
+    expect((error as Error).message).toBe(
+      "D1: dato non conforme in sessions (rowid 5)",
     );
   });
 
