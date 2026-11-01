@@ -576,33 +576,19 @@ function scriptLines(text: string, ctx: ShapeContext, depth: number): string[] {
   return [CURRENT_USER, ...indent(shapeOfJson(user, ctx, depth))];
 }
 
-/**
- * La tabella delle serie, riconosciuta come in `src/mywellness/normalize.ts`: un'intestazione
- * `th` con "seri" (Serie, Series, Serien).
- */
-function isSetTable(table: HTMLElement): boolean {
-  return table.querySelectorAll("th").some((th) => /seri/i.test(th.text));
-}
-
-/** `setTable`: il nodo sta nella tabella delle serie, l'unica le cui celle restano in ordine. */
-function nodeLines(
-  node: Node,
-  ctx: ShapeContext,
-  depth: number,
-  setTable: boolean,
-): string[] {
+function nodeLines(node: Node, ctx: ShapeContext, depth: number): string[] {
   if (node instanceof HTMLElement) {
     if (depth >= MAX_DEPTH) return [TOO_DEEP];
     const tag = node.rawTagName.toLowerCase();
-    const inside = tag === "table" ? isSetTable(node) : setTable;
+    const columns = tag === "tr" ? headerCells(node, ctx.vocab) : undefined;
     const inner =
       tag === "script"
         ? scriptLines(node.rawText, ctx, depth + 1)
         : tag === "style"
           ? [OMITTED]
-          : tag === "tr" && inside
-            ? cellLines(node.childNodes, ctx, depth + 1, inside)
-            : childLines(node.childNodes, ctx, depth + 1, inside);
+          : columns
+            ? columnLines(columns, ctx, depth + 1)
+            : childLines(node.childNodes, ctx, depth + 1);
     return [elementLine(node, ctx), ...indent(inner)];
   }
   if (node.nodeType !== NodeType.TEXT_NODE) return [];
@@ -615,15 +601,10 @@ function nodeLines(
  * la prima volta; in ogni gruppo le forme diverse secondo `variantLines`. Resta visibile solo
  * l'ordine della prima comparsa dei tag diversi.
  */
-function childLines(
-  nodes: Node[],
-  ctx: ShapeContext,
-  depth: number,
-  setTable: boolean,
-): string[] {
+function childLines(nodes: Node[], ctx: ShapeContext, depth: number): string[] {
   const groups = new Map<string, string[][]>();
   for (const node of nodes) {
-    const own = nodeLines(node, ctx, depth, setTable);
+    const own = nodeLines(node, ctx, depth);
     if (own.length === 0) continue;
     const tag =
       node instanceof HTMLElement ? node.rawTagName.toLowerCase() : "#text";
@@ -634,25 +615,78 @@ function childLines(
   return [...groups.values()].flatMap((group) => variantLines(group, true));
 }
 
-/** Oltre queste colonne della tabella delle serie, una riga `… altre colonne`. */
+/** Oltre queste colonne di una riga d'intestazione, una riga `… altre colonne`. */
 const MAX_COLUMNS = 12;
+/** Livelli di elementi letti nel testo di una cella (`<th><span>Serie</span></th>`). */
+const CELL_DEPTH = 3;
+/** Elementi il cui testo non si vede: una cella che li contiene non è un'intestazione. */
+const HIDDEN_TEXT = new Set(["script", "style", "template"]);
+
+/** Il testo di una cella, con gli elementi fino a CELL_DEPTH livelli; altrimenti `undefined`. */
+function cellText(cell: HTMLElement, depth = 0): string | undefined {
+  const parts: string[] = [];
+  for (const child of cell.childNodes) {
+    if (child instanceof HTMLElement) {
+      const tag = child.rawTagName.toLowerCase();
+      if (depth >= CELL_DEPTH || HIDDEN_TEXT.has(tag)) return undefined;
+      const text = cellText(child, depth + 1);
+      if (text === undefined) return undefined;
+      parts.push(text);
+    } else if (child.nodeType === NodeType.TEXT_NODE) {
+      parts.push(child.text);
+    }
+  }
+  return parts.join(" ").replace(/\s+/g, " ").trim();
+}
 
 /**
- * Le celle di una riga della tabella delle serie nell'ordine delle colonne, al massimo
- * MAX_COLUMNS: il Task 0 Step 5 deve sapere in che ordine stanno serie, ripetizioni e kg. Solo
- * qui: in un'altra tabella (un calendario) la posizione di una cella direbbe un giorno. Le righe
- * restano raggruppate come gli altri fratelli, così il numero di serie non si legge.
+ * Le celle di una riga d'intestazione, l'unica che resta nell'ordine della pagina: il Task 0
+ * Step 5 deve sapere in che ordine stanno serie, ripetizioni e kg. È tale una riga di almeno 2
+ * `th`, senza altri elementi né testo, i cui testi sono diversi tra loro, senza cifre e fatti
+ * solo di parole di VOCAB (`Serie`, `Kg eseguiti`). Altrimenti `undefined`: le celle si
+ * raggruppano come gli altri fratelli, perché in un calendario la posizione di una cella
+ * direbbe un giorno. Si guarda solo la riga, mai il resto della tabella.
  */
-function cellLines(
-  nodes: Node[],
+function headerCells(
+  row: HTMLElement,
+  vocab: readonly string[],
+): HTMLElement[] | undefined {
+  const cells: HTMLElement[] = [];
+  const texts = new Set<string>();
+  for (const node of row.childNodes) {
+    if (!(node instanceof HTMLElement)) {
+      if (node.nodeType === NodeType.TEXT_NODE && node.text.trim() !== "") {
+        return undefined;
+      }
+      continue;
+    }
+    if (node.rawTagName.toLowerCase() !== "th") return undefined;
+    const text = cellText(node);
+    const words = text?.match(/[\p{L}\p{M}]+/gu) ?? [];
+    if (
+      text === undefined ||
+      /\p{N}/u.test(text) ||
+      words.length === 0 ||
+      !words.every((word) => vocab.includes(fold(word))) ||
+      texts.has(fold(text))
+    ) {
+      return undefined;
+    }
+    texts.add(fold(text));
+    cells.push(node);
+  }
+  return cells.length >= 2 ? cells : undefined;
+}
+
+/** Le celle di una riga d'intestazione nell'ordine delle colonne, al massimo MAX_COLUMNS. */
+function columnLines(
+  cells: readonly HTMLElement[],
   ctx: ShapeContext,
   depth: number,
-  setTable: boolean,
 ): string[] {
-  const cells = nodes
-    .map((node) => nodeLines(node, ctx, depth, setTable))
-    .filter((lines) => lines.length > 0);
-  const lines = cells.slice(0, MAX_COLUMNS).flat();
+  const lines = cells
+    .slice(0, MAX_COLUMNS)
+    .flatMap((cell) => nodeLines(cell, ctx, depth));
   if (cells.length > MAX_COLUMNS) lines.push(MORE_COLUMNS);
   return lines;
 }
@@ -660,7 +694,7 @@ function cellLines(
 /** La forma di una pagina HTML: un elemento per riga, indentato di 2 spazi per livello. */
 export function shapeOfHtml(html: string, ctx: ShapeContext): string[] {
   // Con le opzioni predefinite i commenti non entrano nell'albero.
-  return childLines(parse(html).childNodes, ctx, 0, false);
+  return childLines(parse(html).childNodes, ctx, 0);
 }
 
 export type Hit = { line: number; kind: "identity" | "number" | "date" };

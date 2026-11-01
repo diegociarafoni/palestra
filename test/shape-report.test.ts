@@ -354,39 +354,13 @@ describe("shape", () => {
     );
   });
 
-  it("shape: table cells keep their column order", () => {
-    // Le celle di una riga sono le colonne: ordine e numero sono struttura, non dati, e il
-    // Task 0 Step 5 deve sapere in che ordine stanno le colonne della tabella delle serie.
+  it("shape: a header row keeps its column order", () => {
+    // Il Task 0 Step 5 deve sapere in che ordine stanno le colonne della tabella delle serie:
+    // solo una riga di `th` con testi diversi di VOCAB resta nell'ordine della pagina, al
+    // massimo 12 colonne. Le righe di dati si raggruppano come gli altri fratelli.
     expect(
       shapeOfHtml(
-        "<table><tr><th>Serie</th><th>Ripetizioni</th><th>Carico</th></tr><tr><td>1</td><td>12</td><td>Mario</td></tr></table>",
-        ctx,
-      ),
-    ).toEqual([
-      "table",
-      "  tr",
-      "    td",
-      '      "99"',
-      "    td",
-      '      "99"',
-      "    td",
-      '      "A"',
-      "  tr",
-      "    th",
-      '      "Serie"',
-      "    th",
-      '      "Ripetizioni"',
-      "    th",
-      '      "Carico"',
-    ]);
-  });
-
-  it("shape: only the set table keeps its columns in order", () => {
-    // Un calendario fatto a tabella: le celle si raggruppano e non si legge che il martedì e il
-    // giovedì sono segnati.
-    expect(
-      shapeOfHtml(
-        '<table><tr><td>1</td><td class="day done">2</td><td>3</td><td class="day done">4</td><td>5</td><td>6</td><td>7</td></tr></table>',
+        "<table><tr><th>Serie</th><th><span>Ripetizioni</span> eseguite</th><th>Carico</th></tr><tr><td>1</td><td>12</td><td>Mario</td></tr></table>",
         ctx,
       ),
     ).toEqual([
@@ -394,23 +368,106 @@ describe("shape", () => {
       "  tr",
       "    td (ripetuto)",
       '      "99"',
-      "    td[class=«a done»] (ripetuto)",
-      '      "99"',
+      "    td",
+      '      "A"',
+      "  tr",
+      "    th",
+      '      "Serie"',
+      "    th",
+      "      span",
+      '        "Ripetizioni"',
+      '      "eseguite"',
+      "    th",
+      '      "Carico"',
     ]);
-    // La tabella delle serie, riconosciuta come in normalize.ts (un `th` con "seri"): le colonne
-    // restano in ordine, al massimo 12.
-    const header = `<th>Serie</th>${"<th>Kg</th>".repeat(13)}`;
+    const words = ["Serie", "Kg", "Rip", "Reps", "Durata", "Calorie", "Tempo"];
+    const more = ["Distanza", "Potenza", "Rpm", "Watt", "Livello", "Peso"];
+    const header = [...words, ...more].map((word) => `<th>${word}</th>`);
     expect(
-      shapeOfHtml(`<table><thead><tr>${header}</tr></thead></table>`, ctx),
+      shapeOfHtml(
+        `<table><thead><tr>${header.join("")}</tr></thead></table>`,
+        ctx,
+      ),
     ).toEqual([
       "table",
       "  thead",
       "    tr",
-      "      th",
-      '        "Serie"',
-      ...Array.from({ length: 11 }, () => ["      th", '        "Kg"']).flat(),
+      ...[...words, ...more.slice(0, 5)].flatMap((word) => [
+        "      th",
+        `        "${word}"`,
+      ]),
       "      … altre colonne",
     ]);
+  });
+
+  it("shape: only a header row keeps its order", () => {
+    // Una settimana fatta a tabella con il martedì e il giovedì segnati: in ogni caso le sue
+    // celle si raggruppano e non si legge quali giorni sono segnati.
+    const week =
+      '<tr><td class="day">1</td><td class="day done">2</td><td class="day">3</td><td class="day done">4</td><td class="day">5</td><td class="day">6</td><td class="day">7</td></tr>';
+    const popover = week.replaceAll(
+      'done">',
+      'done"><table><tr><th>Serie</th><th>Kg</th></tr></table>',
+    );
+    const days = (html: string) =>
+      shapeOfHtml(html, ctx)
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith("td[class=«a"));
+    const cases = [
+      `<table>${week}</table>`,
+      `<table><tr><th colspan="7">Serie di allenamenti</th></tr>${week}</table>`,
+      `<table>${popover}</table>`,
+      `<table><tr><th>Inserisci</th></tr>${week}</table>`,
+      `<table><template><th>Series</th></template>${week}</table>`,
+      `<table><tr><th><script>chart({series:[]})</script></th></tr>${week}</table>`,
+      `<table><tr><td><table><tr><th>Serie</th><th>Kg</th></tr></table></td></tr>${week}</table>`,
+      `<table><tr><th>Serie</th><th>Kg</th></tr><tr><td><div>${week}</div></td></tr></table>`,
+      `<table><tr><th style="display:none">seri</th></tr>${week}</table>`,
+    ];
+    for (const html of cases) {
+      expect(days(html)).toEqual([
+        "td[class=«a done»] (ripetuto)",
+        "td[class=«a»] (ripetuto)",
+      ]);
+    }
+    // Intestazioni con cifre, giorni o parole ripetute: anche queste si raggruppano, e non si
+    // legge il numero di serie di una tabella trasposta.
+    expect(
+      shapeOfHtml(
+        "<table><tr><th>Serie</th><th>1</th><th>2</th><th>3</th><th>4</th></tr></table>",
+        ctx,
+      ),
+    ).toEqual([
+      "table",
+      "  tr",
+      "    th (ripetuto)",
+      '      "99"',
+      "    th",
+      '      "Serie"',
+    ]);
+    expect(
+      shapeOfHtml(
+        "<table><tr><th>Lun</th><th>Mar</th><th>Mer</th></tr><tr><th>Cardio</th><th>Forza</th><th>Cardio</th></tr></table>",
+        ctx,
+      ),
+    ).toEqual([
+      "table",
+      "  tr",
+      "    th (ripetuto)",
+      '      "A"',
+      "  tr",
+      "    th (ripetuto)",
+      '      "Cardio"',
+      "    th",
+      '      "Forza"',
+    ]);
+  });
+
+  it("shape: deeply nested tables do not stop the report", () => {
+    const html = `${"<table><tr><td>".repeat(10000)}x${"</td></tr></table>".repeat(10000)}`;
+    const lines = shapeOfHtml(html, ctx);
+    expect(lines.length).toBe(41);
+    expect(lines.at(-1)).toBe(`${"  ".repeat(40)}(troppo profondo)`);
   });
 
   it("shape: siblings show neither their order nor their number", () => {
@@ -786,11 +843,7 @@ describe("shape", () => {
       // Le righe in ordine alfabetico e senza numero; le celle di una riga nell'ordine delle colonne.
       "    table[class=«sets»]",
       "      tr (ripetuto)",
-      "        td",
-      '          "99"',
-      "        td",
-      '          "99"',
-      "        td",
+      "        td (ripetuto)",
       '          "99"',
       "      tr",
       "        th",
@@ -1064,9 +1117,7 @@ describe("shape", () => {
         "```text",
         "table[class=«sets»]",
         "  tr",
-        "    td",
-        '      "99"',
-        "    td",
+        "    td (ripetuto)",
         '      "99"',
         "  tr",
         "    th",
