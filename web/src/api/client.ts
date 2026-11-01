@@ -34,8 +34,9 @@ async function read<T>(
   const response = await request;
   if (response.status === 401 || response.status === 403) {
     const now = Date.now();
-    const lastReload = Number(sessionStorage.getItem(RELOAD_KEY));
-    if (now - lastReload < RELOAD_INTERVAL_MS) {
+    // Un'ora nel futuro (orologio spostato indietro) non conta come ricarica recente.
+    const elapsed = now - Number(sessionStorage.getItem(RELOAD_KEY));
+    if (elapsed >= 0 && elapsed < RELOAD_INTERVAL_MS) {
       throw new SessionError(
         `API: risposta ${response.status} dopo una ricarica`,
       );

@@ -62,6 +62,17 @@ describe("web", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("web: reload time in the future does not block reloads", async () => {
+    // Orologio spostato indietro dopo l'ultima ricarica: quell'ora sta 30 s nel futuro.
+    sessionStorage.setItem(RELOAD_KEY, "1793692830000");
+    const reload = expiredSession(401);
+    renderConTema(<Misure />);
+
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+    expect(sessionStorage.getItem(RELOAD_KEY)).toBe("1793692800000");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it.each([401, 403])(
     "web: session still invalid after a reload shows message (%i)",
     async (status) => {
