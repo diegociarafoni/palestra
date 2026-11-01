@@ -79,6 +79,16 @@ describe("web", () => {
     expect(within(open).queryByText(/^Svolta/)).toBeNull();
   });
 
+  it("web: settimana status label is 16 px", async () => {
+    // docs/buone-pratiche-mui.md § 8: testo di base almeno 16 px, anche nell'etichetta del Chip
+    // di stato (MUI usa 13 px).
+    server.use(http.get("/api/week", () => HttpResponse.json(WEEK)));
+    renderConTema(<Settimana />);
+
+    const label = await screen.findByText("Fatta");
+    expect(getComputedStyle(label).fontSize).toBe("16px");
+  });
+
   it("web: settimana shows sessions and moves total", async () => {
     server.use(http.get("/api/week", () => HttpResponse.json(WEEK)));
     renderConTema(<Settimana />);

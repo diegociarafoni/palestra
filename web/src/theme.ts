@@ -77,6 +77,12 @@ export const theme = createTheme({
         }),
       },
     },
+    // Etichetta del Chip di stato a 16 px (MUI usa 13 px); l'altezza di 32 px la contiene.
+    MuiChip: {
+      styleOverrides: {
+        root: ({ theme }) => ({ fontSize: theme.typography.body1.fontSize }),
+      },
+    },
     MuiMenuItem: {
       styleOverrides: {
         // Da `sm` in su MUI riduce l'altezza minima: qui resta 48 px a ogni larghezza.
