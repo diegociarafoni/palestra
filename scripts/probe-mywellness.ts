@@ -3,10 +3,12 @@
 // da cui scripts/shape-report.ts ricava il rapporto della forma. Endpoint e parametri:
 // docs/probe-mywellness.md § 1 (letti dal codice di gymexport, da verificare).
 // Uso: MYWELLNESS_EMAIL=… MYWELLNESS_PASSWORD=… npx tsx scripts/probe-mywellness.ts [--days N]
-// Un login per esecuzione, almeno 1 s tra due richieste. Su stdout una riga per richiesta
-// (etichetta, stato HTTP, byte), su stderr le note; mai corpi, id, date, nomi o password.
+// Un login per esecuzione, almeno 1 s tra due richieste, al massimo 30 s per richiesta,
+// User-Agent palestra-probe/<versione>. Su stdout una riga per richiesta (etichetta, stato
+// HTTP, byte), su stderr le note; mai corpi, id, date, nomi o password.
 // Exit code: 0 ok · 64 argomenti · 65 profilo non interpretabile · 69 risposta HTTP
-// inattesa · 75 errore di rete, 429 o 5xx · 78 credenziali mancanti o rifiutate.
+// inattesa · 75 errore di rete, richiesta oltre i 30 s, 429 o 5xx · 78 credenziali mancanti
+// o rifiutate.
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";

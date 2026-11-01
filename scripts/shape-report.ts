@@ -5,10 +5,11 @@
 // parole di VOCAB. Vedi docs/probe-mywellness.md § 2 e
 // kb/decisioni/2026-11-01-forma-dei-dati-al-posto-delle-fixture-reali.md.
 // Uso: npx tsx scripts/shape-report.ts <cartella_probe> <file_md>
-// Legge solo i file in INPUTS (gli altri non li apre né li conta) e identities.json, che serve
-// solo al controllo finale: una sezione per famiglia, con un titolo fisso e le forme diverse
-// dei suoi file in ordine alfabetico. Prima di scrivere cerca nelle sezioni identità, numeri e
-// nomi di mesi o giorni; se ne trova non scrive nulla e stampa solo `sezione:riga: tipo`.
+// Legge solo i file in INPUTS (gli altri non li apre né li conta) e scrive una sezione per
+// famiglia, con un titolo fisso e le forme diverse dei suoi file in ordine alfabetico.
+// identities.json serve solo al controllo finale: prima di scrivere cerca nelle sezioni
+// identità, numeri e nomi di mesi o giorni; se ne trova non scrive nulla e stampa solo
+// `sezione:riga: tipo`.
 // Su stdout solo `rapporto scritto: <file_md>`.
 // Exit code: 0 ok · 64 argomenti · 65 identities.json non interpretabile o controllo finale
 // fallito (nessun file scritto) · 70 errore imprevisto (solo un messaggio fisso e il codice
