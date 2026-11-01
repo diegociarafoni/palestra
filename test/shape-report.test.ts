@@ -599,7 +599,12 @@ describe("shape", () => {
         ctx,
       ),
     ).toEqual(["div[name=«a-a-a», type=hr99, method=«A99»]"]);
-    expect(shapeOfHtml("<h2>Serie</h2>", ctx)).toEqual(["h99", '  "Serie"']);
+    // Nei tag solo il livello dei titoli resta scritto.
+    expect(shapeOfHtml("<h2>Serie</h2><x-row12></x-row12>", ctx)).toEqual([
+      "h2",
+      '  "Serie"',
+      "x-row99",
+    ]);
   });
 
   it("shape: digit runs in names become 99", () => {
@@ -682,6 +687,39 @@ describe("shape", () => {
     ).toEqual(["div[title=«a\\», name=«A»]"]);
   });
 
+  it("shape: field names may start with an underscore", () => {
+    // Il nome del campo anti-CSRF serve a ricostruire il login (issue #52).
+    expect(
+      shapeOfHtml(
+        '<input type="hidden" name="__RequestVerificationToken" value="x">',
+        ctx,
+      ),
+    ).toEqual([
+      "input[type=hidden, name=__RequestVerificationToken, value=«a»]",
+    ]);
+  });
+
+  it("shape: tags are exempt only from the two-letter days", () => {
+    // `th` e `do-list` restano; `mon-picker` si maschera, così il controllo finale non blocca.
+    const lines = shapeOfHtml(
+      "<mon-picker></mon-picker><do-list></do-list>",
+      ctx,
+    );
+    expect(lines).toEqual(["«a-a»", "do-list"]);
+    expect(checkReport(lines, IDENTITIES)).toEqual([]);
+  });
+
+  it("shape: long names with digits are masked", () => {
+    // Da 12 caratteri un nome con cifre è più probabilmente un token che un nome di campo.
+    expect(
+      shapeOfHtml('<input name="xkqzvbnmwplrtyhgf7ds" type="hidden">', ctx),
+    ).toEqual(["input[name=«a99a», type=hidden]"]);
+    expect(shapeOfJson({ abcdefghijk1: 1, heartRate2: 2 }, ctx)).toEqual([
+      "«a99»: numero 9",
+      "heartRate99: numero 9",
+    ]);
+  });
+
   it("shape: unreadable attributes do not stop the report", () => {
     // Il parser non sa leggere attributi con il nome di un metodo di Object.
     expect(
@@ -707,18 +745,30 @@ describe("shape", () => {
       "Mario Rossi",
       "https://example.com/user/photo.jpg",
     ]);
+    // Nelle chiavi JSON, che si stampano se passano la regola dei nomi.
     expect(
-      shapeOfHtml(
-        '<div id="mariorossi" name="MRossi" for="user_mrossi" role="ROSSIM" class="initials-MR" type="userId"></div>',
+      shapeOfJson(
+        {
+          userId: 1,
+          mariorossi: 2,
+          MRossi: 3,
+          user_mrossi: 4,
+          ROSSIM: 5,
+          initials_MR: 6,
+        },
         glued,
       ),
     ).toEqual([
-      "div[id=«a», name=«A», for=«a_a», role=«A», class=«a-A», type=userId]",
-    ]);
-    expect(shapeOfJson({ userId: 1, user_mrossi: 2 }, glued)).toEqual([
       "userId: numero 9",
+      "«A»: numero 9 (ripetuto)",
+      "«a_A»: numero 9",
       "«a_a»: numero 9",
+      "«a»: numero 9",
     ]);
+    // E nei valori di `name`, `type` e `method`.
+    expect(
+      shapeOfHtml('<div name="MRossi" type="userId"></div>', glued),
+    ).toEqual(["div[name=«A», type=userId]"]);
   });
 
   it("shape: names glued to a 3-letter name are masked", () => {
@@ -769,6 +819,11 @@ describe("shape", () => {
       '- property: "AvgRpm"',
       '- property: "a99a99a99"',
     ]);
+    // Una parola sola resta scritta solo se è di VOCAB: non il nome di un'altra persona.
+    expect(shapeOfJson({ property: "Giulia" }, ctx)).toEqual(['property: "A"']);
+    expect(
+      shapeOfJson({ physicalProperty: "Duration", property: "FatMass" }, ctx),
+    ).toEqual(['physicalProperty: "Duration"', 'property: "FatMass"']);
   });
 
   it("shape: json inside a string", () => {

@@ -231,6 +231,13 @@ const KEY = /^[A-Za-z_$][A-Za-z0-9_$]{0,63}$/;
  */
 const PROPERTY_KEYS = new Set(["physicalProperty", "property"]);
 const PROPERTY_VALUE = /^[A-Za-z][A-Za-z0-9]{0,40}$/;
+/** Le parti di un nome in camelCase, anche dopo una sigla (`HDistance`: `H` e `Distance`). */
+const CAMEL_PARTS =
+  /[^\p{L}]+|(?<=\p{Ll})(?=\p{Lu})|(?<=\p{Lu})(?=\p{Lu}\p{Ll})/u;
+/** Da questa lunghezza un nome con cifre è più probabilmente un token che un campo. */
+const LONG_NAME = 12;
+/** I tag dei titoli, gli unici le cui cifre restano scritte: dicono il livello. */
+const HEADING = /^h[1-6]$/;
 
 /**
  * Un nome (chiave JSON, tag, attributo, valore di `name`, `type` e `method` o di `property`) si
@@ -239,20 +246,28 @@ const PROPERTY_VALUE = /^[A-Za-z][A-Za-z0-9]{0,40}$/;
  * esadecimale può non averne 3 consecutive. Le parti sono le sequenze di lettere, spezzate
  * anche tra minuscola e maiuscola (in `marioRossi` il controllo finale, che cerca le parole tra
  * confini di lettera, non vedrebbe il nome). Il nome si maschera se:
- * - una parte è una parola di DATE_PARTS (`fc-day-wed`, `Oct29`; non per i tag: `th` resta);
+ * - ha almeno LONG_NAME caratteri e una cifra (`xkqzvbnmwplrtyhgf7ds`, un token);
+ * - una parte è una parola di DATE_PARTS (`fc-day-wed`, `Oct29`, `mon-picker`); per i tag non
+ *   le forme di 2 lettere dei giorni: `th` resta;
  * - almeno 4 parti hanno 1 o 2 lettere (`AbCdEfGh9j`, un token);
  * - una parte di 2 lettere sono iniziali di un nome (`mr`, `Mr`, `RM`), o le parti di una
  *   lettera, unite, le contengono (`M.R`, `m-r`);
  * - una parola di un'identità sta in un punto qualunque delle lettere unite del nome
  *   (`mariorossi`, `user_mrossi`, `profileeva`).
+ * Con `tag`, `h1`…`h6` restano come sono.
  */
 function plainName(
   name: string,
   shape: RegExp,
   ctx: ShapeContext,
-  dateParts = true,
+  tag = false,
 ): string | undefined {
-  if (!shape.test(name) || (name.match(/\d/g)?.length ?? 0) >= 3) {
+  const digits = name.match(/\d/g)?.length ?? 0;
+  if (
+    !shape.test(name) ||
+    digits >= 3 ||
+    (digits > 0 && name.length >= LONG_NAME)
+  ) {
     return undefined;
   }
   const parts = name
@@ -265,7 +280,7 @@ function plainName(
     parts.some((part) => {
       const word = fold(part);
       return (
-        (dateParts && DATE_PART_SET.has(word)) ||
+        (DATE_PART_SET.has(word) && !(tag && TWO_LETTER_DAYS.has(word))) ||
         ([...part].length === 2 && ctx.initials.has(word))
       );
     })
@@ -284,7 +299,21 @@ function plainName(
   if ([...ctx.identityWords].some((word) => letters.includes(word))) {
     return undefined;
   }
-  return name.replace(/\d+/g, "99");
+  return tag && HEADING.test(name) ? name : name.replace(/\d+/g, "99");
+}
+
+/**
+ * Il valore di `physicalProperty` o `property` com'è secondo `plainName`, se ha almeno 2 parti
+ * in camelCase (`AvgRpm`) o è una parola di VOCAB (`Duration`): una parola sola potrebbe essere
+ * il nome di un'altra persona. Altrimenti `undefined`.
+ */
+function propertyName(value: string, ctx: ShapeContext): string | undefined {
+  const plain = plainName(value, PROPERTY_VALUE, ctx);
+  const parts = value.split(CAMEL_PARTS).filter((part) => part !== "");
+  return plain !== undefined &&
+    (parts.length >= 2 || ctx.vocab.includes(fold(value)))
+    ? plain
+    : undefined;
 }
 
 /** Il nome com'è secondo `plainName`, o la sua maschera tra `«»`. */
@@ -292,11 +321,9 @@ function shownName(
   name: string,
   shape: RegExp,
   ctx: ShapeContext,
-  dateParts = true,
+  tag = false,
 ): string {
-  return (
-    plainName(name, shape, ctx, dateParts) ?? `«${maskText(name, ctx.vocab)}»`
-  );
+  return plainName(name, shape, ctx, tag) ?? `«${maskText(name, ctx.vocab)}»`;
 }
 
 /** Riga di intestazione e righe interne (non indentate) di un valore JSON. */
@@ -369,7 +396,7 @@ function jsonBlock(value: unknown, ctx: ShapeContext, depth: number): Block {
       const name = shownName(key, KEY, ctx);
       const property =
         plain && PROPERTY_KEYS.has(key) && typeof item === "string"
-          ? plainName(item, PROPERTY_VALUE, ctx)
+          ? propertyName(item, ctx)
           : undefined;
       const { head, body } =
         property !== undefined
@@ -510,7 +537,7 @@ const CUSTOM_ATTRIBUTE = /^(?:data|aria)-[a-z][a-z0-9_-]{0,40}$/i;
  * parser (es. `name=hdSessionIdCR`). I valori di `class`, `id` e degli altri sono mascherati.
  */
 const NAMING_ATTRIBUTES = new Set(["method", "name", "type"]);
-const NAMING_VALUE = /^[A-Za-z][A-Za-z0-9_. :-]{0,60}$/;
+const NAMING_VALUE = /^[A-Za-z_][A-Za-z0-9_. :-]{0,60}$/;
 /** Virgolette con la barra: il parser spezza male gli attributi e ne fa nascere dal testo. */
 const ESCAPED_QUOTE = /\\["']/;
 
@@ -547,8 +574,8 @@ function attributeText(
 }
 
 function elementLine(element: HTMLElement, ctx: ShapeContext): string {
-  // I tag sono esclusi dalla regola delle date: `th` è anche "giovedì" abbreviato.
-  const shown = shownName(element.rawTagName.toLowerCase(), TAG, ctx, false);
+  // `th` è anche "giovedì" abbreviato: i tag sono esclusi dalle forme di 2 lettere dei giorni.
+  const shown = shownName(element.rawTagName.toLowerCase(), TAG, ctx, true);
   const maskValues = ESCAPED_QUOTE.test(element.rawAttrs);
   let entries: [string, string][];
   try {
