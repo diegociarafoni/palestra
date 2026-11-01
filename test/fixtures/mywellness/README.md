@@ -15,14 +15,9 @@ I nomi dei campi e la forma delle risposte sono fatti di interoperabilità ricav
 | `login_ok.html` | Pagina Training con `EU.currentUser = JSON.parse('…')` (id, token, culture); in `client.test.ts` ne dipendono `USER_ID`, il token `synthetic-token-0001` e `_c` = `it-IT` negli URL e nei parametri attesi; in `test/cli/sync.test.ts` il token |
 | `last_sessions.html` | Elenco sedute con tre righe `hdSessionIdCR` di novembre 2026; in `client.test.ts` ne dipendono gli id `900000003`, `900000002`, `900000001` (in quest'ordine) e l'intervallo che parte dal `19/11/2026` |
 
-Le fixture reali anonimizzate catturate nel Task 0 (Step 4) le sostituiranno con gli stessi nomi di file; nella stessa PR vanno aggiornati a mano i valori letterali attesi in `test/mywellness/normalize.test.ts`, `test/mywellness/client.test.ts`, `test/sync/sync.test.ts` e `test/cli/sync.test.ts`, con i nuovi valori letti dalle fixture.
+Le fixture restano sintetiche anche dopo il Task 0: nessuna risposta reale entra nel repository (vedi [la decisione](../../../kb/decisioni/2026-11-01-forma-dei-dati-al-posto-delle-fixture-reali.md)). Dopo il probe Claude le adegua al rapporto della forma `docs/mywellness-forma.md` (Task 0, Step 5): stessi nomi di file, campi, tag e formati del rapporto, valori sempre inventati. Nella stessa PR vanno aggiornati a mano i valori letterali attesi in `test/mywellness/normalize.test.ts`, `test/mywellness/client.test.ts`, `test/sync/sync.test.ts` e `test/cli/sync.test.ts`.
 
-Nelle fixture reali anonimizzate:
-
-- le date sono rimappate con una mappa dei giorni casuale: restano l'ordine e l'adiacenza di 1 giorno, ma **gli intervalli tra i giorni non sono reali**; orario e fuso (UTC offset) sono riportati tali e quali, quindi **non corrispondono alla data finta** e non dicono nulla sulla stagione o sulla data reale;
-- in `biometrics.json`, se presente, ogni `value` numerico è sostituito da un numero fisso per misura: sono **valori sintetici** (chiavi, unità e tipo restano).
-
-## Da verificare con le fixture reali
+## Da verificare con il rapporto della forma
 
 - Separatore delle migliaia nei `formattedValue` (es. `1.234 MOVEs`): oggi non è gestito.
 - Unità di `HDistance`, sia `rawValue` sia `formattedValue` (km o m): oggi si assume km.
