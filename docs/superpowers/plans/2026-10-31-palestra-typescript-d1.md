@@ -360,8 +360,8 @@ Ordine obbligatorio: Step 1–2 prima del primo deploy.
 
 - [ ] **Step 1 (utente):** progetto Pages `palestra`; dominio personalizzato; nelle impostazioni Functions: binding D1 `DB` → `palestra`, variabili `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, secret `ALLOWED_EMAIL`.
 - [ ] **Step 2 (utente):** applicazione Access self-hosted sull'hostname, One-time PIN, policy Allow per la sola e-mail, sessione 1 mese; verificare che la pagina vuota chieda il PIN; copiare l'AUD nella variabile.
-- [ ] **Step 3: `publish.yml`:** trigger `push` su `main` con `paths` `functions/**`, `web/**`, `src/**`, `package-lock.json`, e `workflow_dispatch`; `permissions: contents: read`; `timeout-minutes: 10`; `concurrency: publish`; `npm ci`, `npm run build:web`, `npx wrangler pages deploy site --project-name palestra --branch main` con `CLOUDFLARE_API_TOKEN: ${{ secrets.CF_TOKEN_PAGES }}` e `CLOUDFLARE_ACCOUNT_ID`.
-- [ ] **Step 4: `docs/dashboard.md`:** pagine, API, configurazione Access e binding passo per passo (senza hostname né e-mail), cosa fare se il deploy fallisce, sezione Grafici.
+- [x] **Step 3: `publish.yml`:** trigger `push` su `main` con `paths` `functions/**`, `web/**`, `src/**`, `package-lock.json`, e `workflow_dispatch`; `permissions: contents: read`; `timeout-minutes: 10`; `concurrency: publish`; `npm ci`, `npm run build:web`, `npx wrangler pages deploy site --project-name palestra --branch main` con `CLOUDFLARE_API_TOKEN: ${{ secrets.CF_TOKEN_PAGES }}` e `CLOUDFLARE_ACCOUNT_ID`. (1/11: solo `workflow_dispatch`, con la guardia di Access prima e dopo il deploy, `src/cli/check-access.ts`; il trigger `push` resta una proposta per l'utente in `docs/dashboard.md`, «Pubblicazione».)
+- [x] **Step 4: `docs/dashboard.md`:** pagine, API, configurazione Access e binding passo per passo (senza hostname né e-mail), cosa fare se il deploy fallisce, sezione Grafici.
 - [ ] **Step 5:** run manuale, verifiche, commit `ci: publish dashboard to cloudflare pages`.
 
 ---
