@@ -345,13 +345,13 @@ Prima di scrivere codice leggere `docs/buone-pratiche-react.md`, `docs/buone-pra
   - Rotte: `GET /api/week?date=AAAA-MM-GG` → `{ slots: PlannedSlot[], sessions: { date, name, moves }[], moves_total }`; `GET /api/exercises?month=` → `strength_table`, `e1rm_series`; `GET /api/measures` → misure con `in_protocol`; `GET /api/scheda` → scheda attiva (`md`, `json`); `GET /api/reports/:month` → Markdown di report e revisione; `GET /api/calendar?month=` → slot, sedute extra, feedback del mese.
   - Frontend: client `hc<AppType>("/")`; pagine con `lazy()`; navigazione `BottomNavigation` (sotto `md`) / `Tabs`; grafici `LineChart`/`BarChart` di `@mui/x-charts`; report con `react-markdown` + `remark-gfm` mappati su componenti MUI; `renderConTema(ui: ReactElement)` in `test/web/render.tsx`.
 
-- [ ] **Step 1: Test:**
+- [x] **Step 1: Test:**
   - `access: rejects missing token` (401), `access: rejects expired token` (401), `access: rejects wrong audience` (401), `access: rejects other email` (403), `access: accepts valid token` — JWT firmati nel test con una chiave RSA generata e un JWKS locale passato come `jwks`.
   - `api: week returns slots and sessions` (D1 locale con fixture); `api: calendar with no data` → liste vuote, 200; `api: reports unknown month` → 404 senza corpo informativo.
   - `web: settimana shows slots` (MSW) — due slot, uno "Fatta" e uno "Programmata", testi visibili per ruolo.
   - `web: esercizi empty state` → "Nessun dato"; `web: api error shows retry` → `Alert` con pulsante "Riprova".
   - `web: report renders markdown table` — una tabella del report diventa `role="table"`.
-- [ ] **Step 2:** FAIL → implementare → PASS; `npm run build:web`, misura del bundle, screenshot con Playwright (già presente nell'ambiente cloud).
+- [x] **Step 2:** FAIL → implementare → PASS; `npm run build:web`, misura del bundle, screenshot con Playwright (già presente nell'ambiente cloud).
 - [ ] **Step 3: Commit** `feat(dashboard): hono read api and react mui frontend`
 
 ---
