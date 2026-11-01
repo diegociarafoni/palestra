@@ -4,7 +4,7 @@ slug: 2026-10-31-prova-ripristino-confronto-col-dump
 titolo: La prova di ripristino confronta le righe ripristinate con le INSERT del dump; palestra resta solo informativo
 data: 2026-10-31
 stato: sostituisce 2026-10-31-prova-ripristino-in-workflow
-aggiornato: 2026-10-31
+aggiornato: 2026-11-01
 ---
 # La prova di ripristino confronta le righe ripristinate con le INSERT del dump; palestra resta solo informativo
 
@@ -17,7 +17,7 @@ aggiornato: 2026-10-31
 - **Nel log solo nomi delle tabelle e conteggi.** I log delle Actions di un repository pubblico sono pubblici: l'output di wrangler non si mostra mai, il dump non si stampa e l'output delle query di conteggio resta in memoria, validato con `zod`.
 - **`palestra-restore-test` si cancella alla fine, anche dopo un errore**, perché contiene una copia dei dati personali. La cancellazione automatica sostituisce la conferma manuale, su scelta dell'utente.
 - I nomi delle tabelle si leggono da `sqlite_schema` a ogni prova (escluse `sqlite_*` e `_cf_*`, anche nel dump), così una tabella nuova entra nel confronto senza modifiche; entrano nella query e su stdout solo se sono identificatori semplici. Un nome del dump che non lo è ferma la prova con 65 prima di creare il database di prova.
-- Conteggi diversi dal dump danno exit 1 (run rosso): la prova ha girato con esito negativo. L'import remoto è atomico (se non riesce, il passo esce con 69), quindi un `DIVERSO` indica righe che il ripristino non ha oppure, con `dump` a 0 ovunque, un formato dell'export non riconosciuto. 65 resta, come in `docs/buone-pratiche.md` § 8, per una risposta di wrangler che non rispetta lo schema.
+- Conteggi diversi dal dump danno exit 1 (run rosso): la prova ha girato con esito negativo. L'import remoto è atomico (se non riesce, il passo esce con 69), quindi un `DIVERSO` con `ripristino` minore indica righe che il ripristino non ha; con `ripristino` maggiore, o con `dump` a 0 ovunque, una parte dell'export che il conteggio non ha riconosciuto. 65 resta, come in `docs/buone-pratiche.md` § 8, per una risposta di wrangler che non rispetta lo schema.
 
 ## Alternative scartate
 - Confrontare solo con `palestra` (decisione precedente): dopo qualunque run della sync il run diventa rosso anche con un backup perfetto.
