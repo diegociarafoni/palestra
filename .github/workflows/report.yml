@@ -1,12 +1,13 @@
 name: report
 
 # Report mensile (docs/dashboard.md, «Report mensile»): il 1° del mese, dopo la sync notturna,
-# genera il report del mese precedente e lo salva in D1 (tabelle reports e metrics); un nuovo
-# salvataggio dello stesso mese sostituisce il precedente. A mano: workflow_dispatch, con il
-# mese AAAA-MM facoltativo.
+# genera il report del mese precedente e lo salva in D1 (tabelle reports e metrics); l'8 lo
+# rigenera, quando gli slot dell'ultima settimana del mese sono chiusi. Un nuovo salvataggio
+# dello stesso mese sostituisce il precedente. A mano: workflow_dispatch, con il mese AAAA-MM
+# facoltativo.
 on:
   schedule:
-    - cron: "37 5 1 * *" # il 1° di ogni mese, 05:37 UTC (la sync notturna gira alle 03:17 UTC)
+    - cron: "37 5 1,8 * *" # il 1° e l'8 di ogni mese, 05:37 UTC (la sync notturna gira alle 03:17 UTC)
   workflow_dispatch:
     inputs:
       month:
@@ -38,7 +39,7 @@ jobs:
       - name: Generate the monthly report into D1
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
           CF_TOKEN_D1: ${{ secrets.CF_TOKEN_D1 }}
           REPORT_MONTH: ${{ inputs.month }}
         run: |
