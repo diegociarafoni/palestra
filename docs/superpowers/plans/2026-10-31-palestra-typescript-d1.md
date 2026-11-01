@@ -352,7 +352,7 @@ Prima di scrivere codice leggere `docs/buone-pratiche-react.md`, `docs/buone-pra
   - `web: esercizi empty state` → "Nessun dato"; `web: api error shows retry` → `Alert` con pulsante "Riprova".
   - `web: report renders markdown table` — una tabella del report diventa `role="table"`.
 - [x] **Step 2:** FAIL → implementare → PASS; `npm run build:web`, misura del bundle, screenshot con Playwright (già presente nell'ambiente cloud).
-- [ ] **Step 3: Commit** `feat(dashboard): hono read api and react mui frontend`
+- [x] **Step 3: Commit** `feat(dashboard): hono read api and react mui frontend`
 
 ---
 
