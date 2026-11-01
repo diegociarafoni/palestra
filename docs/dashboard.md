@@ -128,7 +128,7 @@ Ogni richiesta del frontend all'API porta `X-Requested-With: XMLHttpRequest`. A 
 - Palette nel tema ([`web/src/theme.ts`](../web/src/theme.ts)): `palette.grafici.serie1` … `serie8`, con valori diversi per lo schema chiaro e lo scuro, presi dalla skill `dataviz`. Nei componenti si leggono da `theme.vars.palette.grafici`, che segue lo schema colore. Le serie prendono i colori in ordine (`serie1`, `serie2`, …): l'ordine è ciò che li tiene distinguibili anche per chi confonde i colori.
 - Asse del tempo: `scaleType: "utc"` con le date a mezzanotte UTC (`chartDate` in `web/src/utils/date.ts`), così le distanze tra i punti seguono i giorni tra le misure; al massimo una tacca al giorno; date e numeri in italiano (`it-IT`).
 - Titolo sempre visibile e unità sull'asse; legenda solo con più serie; un segno per ogni punto; senza dati "Nessun dato", non assi vuoti.
-- Alternativa testuale: una tabella con i valori esatti (per il peso, la tabella delle misure). Regole complete in [`buone-pratiche-mui.md` § 7](buone-pratiche-mui.md#7-grafici-mui-x-charts).
+- Alternativa testuale: per il peso, la tabella delle misure con i valori esatti; per l'e1RM, la tabella della forza, che ne dà il riassunto (inizio e fine del mese, variazione), mentre i singoli punti si leggono nel tooltip. Regole complete in [`buone-pratiche-mui.md` § 7](buone-pratiche-mui.md#7-grafici-mui-x-charts).
 
 ## Report mensile
 

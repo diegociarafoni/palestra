@@ -33,8 +33,8 @@ export const ReportsResponseSchema = z.object({
 });
 export type ReportsResponse = z.infer<typeof ReportsResponseSchema>;
 
-// `@__PURE__` (come in types.ts): finché il frontend non usa questi schemi, restano fuori dal
-// bundle in site/ con i nomi dei loro campi.
+// `@__PURE__` (come in types.ts). Il frontend valida le risposte con questi schemi, quindi i nomi
+// dei loro campi (mai valori) sono nel bundle in site/, come ammette R22.
 
 /** Riassunto di una seduta: data di calendario (Europe/Rome), nome e MOVEs. */
 export const SessionSummarySchema = /* @__PURE__ */ z.object({

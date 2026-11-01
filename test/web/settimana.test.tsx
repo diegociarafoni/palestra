@@ -79,6 +79,30 @@ describe("web", () => {
     expect(within(open).queryByText(/^Svolta/)).toBeNull();
   });
 
+  it("web: settimana shows the chosen day and the day it was done", async () => {
+    // Giorno scelto mer 4/11, seduta svolta mar 3/11: la voce li mostra entrambi, ciascuno dal
+    // proprio campo.
+    const [first, ...rest] = WEEK.slots;
+    if (!first) throw new Error("slot mancanti");
+    server.use(
+      http.get("/api/week", () =>
+        HttpResponse.json({
+          ...WEEK,
+          slots: [{ ...first, date: "2026-11-04" }, ...rest],
+        }),
+      ),
+    );
+    renderConTema(<Settimana />);
+
+    const planned = await screen.findByRole("region", {
+      name: "Sedute programmate",
+    });
+    const [done] = within(planned).getAllByRole("listitem");
+    if (!done) throw new Error("slot mancanti");
+    expect(within(done).getByText("Svolta: mar 3 nov")).toBeTruthy();
+    expect(within(done).getByText("Giorno scelto: mer 4 nov")).toBeTruthy();
+  });
+
   it("web: settimana status label is 16 px", async () => {
     // docs/buone-pratiche-mui.md § 8: testo di base almeno 16 px, anche nell'etichetta del Chip
     // di stato (MUI usa 13 px).

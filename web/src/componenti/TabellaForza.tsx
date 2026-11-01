@@ -51,7 +51,7 @@ function nextStep({ load_kg, reps_target, action }: StrengthRow["next"]) {
 /**
  * Forza per esercizio nel mese, dalle metriche del report (nessun ricalcolo): serie migliore
  * della prima e dell'ultima seduta, e1RM, affidabilità e proposta per la seduta dopo. È anche
- * l'alternativa testuale del grafico dell'e1RM.
+ * l'alternativa testuale, in forma di riassunto (inizio, fine, variazione), del grafico dell'e1RM.
  */
 export function TabellaForza({ rows }: TabellaForzaProps) {
   const titleId = useId();
