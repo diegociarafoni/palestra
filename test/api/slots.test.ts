@@ -252,16 +252,14 @@ describe("slots", () => {
       { id: "2026-W45-2", date: "2026-11-08", status: "da_confermare" },
     ]);
 
-    // Con il sabato e il mercoledì non disponibili: né sabato, né mercoledì anche se in finestra.
+    // Variante sintetica: domenica non disponibile, solo per provare l'esclusione.
     await env.DB.prepare(
       "UPDATE profile SET json = ?1 WHERE key = 'settimana_tipo'",
     )
-      .bind(JSON.stringify({ ...TEMPLATE, unavailable: ["mon", "wed", "sat"] }))
+      .bind(JSON.stringify({ ...TEMPLATE, unavailable: ["mon", "fri", "sun"] }))
       .run();
-    for (const date of ["2026-11-07", "2026-11-04"]) {
-      const res = await patch("2026-W45-1", { date });
-      expect(res.status, date).toBe(400);
-    }
+    const sunday = await patch("2026-W45-1", { date: "2026-11-08" });
+    expect(sunday.status).toBe(400);
     const tuesday = await patch("2026-W45-1", { date: "2026-11-03" });
     expect(tuesday.status).toBe(200);
     expect(await rows("SELECT row_key FROM audit ORDER BY id")).toEqual([

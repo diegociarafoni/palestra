@@ -189,7 +189,7 @@ describe("web", () => {
               joint_pain: true,
             }),
           ],
-          unavailable: [],
+          unavailable: ["mon", "fri"],
         }),
       ),
     );
@@ -232,7 +232,7 @@ describe("web", () => {
               joint_pain: true,
             }),
           ],
-          unavailable: [],
+          unavailable: ["mon", "fri"],
         }),
       ),
     );
@@ -279,7 +279,7 @@ describe("web", () => {
               joint_pain: false,
             }),
           ],
-          unavailable: [],
+          unavailable: ["mon", "fri"],
         }),
       ),
     );
@@ -329,7 +329,7 @@ describe("web", () => {
               joint_where: "spalla",
             }),
           ],
-          unavailable: [],
+          unavailable: ["mon", "fri"],
         }),
       ),
     );
@@ -369,7 +369,7 @@ describe("web", () => {
               joint_pain: false,
             }),
           ],
-          unavailable: [],
+          unavailable: ["mon", "fri"],
         }),
       ),
     );
@@ -386,7 +386,7 @@ describe("web", () => {
           slots: [],
           extra: [],
           feedback: [],
-          unavailable: [],
+          unavailable: ["mon", "fri"],
         }),
       ),
     );
@@ -468,7 +468,7 @@ describe("web", () => {
           slots: [],
           extra: [],
           feedback: [],
-          unavailable: [],
+          unavailable: ["mon", "fri"],
         });
       }),
     );

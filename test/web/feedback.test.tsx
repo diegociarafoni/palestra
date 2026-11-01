@@ -568,10 +568,11 @@ describe("web", () => {
   it("web: programmata slot offers the choosable days", async () => {
     todayIsThursday();
     const user = userEvent.setup();
-    // Anche il sabato non disponibile. W45-1 senza giorno scelto; W45-2 scelto per giovedì 5/11.
+    // Variante sintetica: domenica non disponibile, solo per provare l'esclusione. W45-1 senza
+    // giorno scelto; W45-2 scelto per giovedì 5/11.
     const calendar = serveCalendar({
       ...EMPTY,
-      unavailable: ["mon", "fri", "sat"],
+      unavailable: ["mon", "fri", "sun"],
       slots: [
         { ...W45_1, status: "programmata", session_id: null, session: null },
         { ...slots[2], session: null },
@@ -586,7 +587,7 @@ describe("web", () => {
         return HttpResponse.json({
           ...W45_1,
           status: "programmata",
-          date: "2026-11-08",
+          date: "2026-11-07",
           session_id: null,
         });
       }),
@@ -604,21 +605,21 @@ describe("web", () => {
     const choice = within(first).getByRole<HTMLSelectElement>("combobox", {
       name: "Scegli il giorno",
     });
-    // Finestra (martedì, mercoledì) e domenica: niente lunedì, venerdì e sabato.
+    // Finestra (martedì, mercoledì) e sabato: niente lunedì, venerdì e domenica.
     expect(
       within(choice)
         .getAllByRole("option")
         .map((o) => o.textContent),
-    ).toEqual(["—", "mar 3 nov", "mer 4 nov", "dom 8 nov"]);
-    await user.selectOptions(choice, "dom 8 nov");
+    ).toEqual(["—", "mar 3 nov", "mer 4 nov", "sab 7 nov"]);
+    await user.selectOptions(choice, "sab 7 nov");
 
     await waitFor(() => expect(requests).toHaveLength(1));
     expect(requests[0]).toEqual({
       id: "2026-W45-1",
-      body: { date: "2026-11-08" },
+      body: { date: "2026-11-07" },
     });
     // Durante l'invio il giorno appena scelto, senza altre scelte.
-    expect(choice.value).toBe("2026-11-08");
+    expect(choice.value).toBe("2026-11-07");
     expect(choice.disabled).toBe(true);
     response.resolve();
     await waitFor(() => expect(choice.disabled).toBe(false));
