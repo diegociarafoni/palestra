@@ -262,6 +262,8 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 - Create: `.github/workflows/sync.yml`
 
 - [x] **Step 1:** `on: schedule: - cron: "17 3 * * *"` e `workflow_dispatch`; `permissions: contents: read`; `timeout-minutes: 15`; `concurrency: { group: sync, cancel-in-progress: false }`; checkout e setup-node pinnate a SHA; `npm ci`; `npm run sync` con env `MYWELLNESS_EMAIL`, `MYWELLNESS_PASSWORD`, `CLOUDFLARE_ACCOUNT_ID`, `D1_DATABASE_ID` (variabile), `CF_TOKEN_D1`. Nessun commit, nessun artifact.
+> Nota (2026-11-01): `D1_DATABASE_ID` è un GitHub Secret (confermato dall'utente), quindi `sync.yml` lo legge da `secrets.` e resta mascherato nei log.
+
 - [ ] **Step 2 (utente):** verifiche dell'accettazione dal tab Actions, dopo il merge del Task 4 (la run notturna fallisce con exit 78 finché mancano Secrets o variabile).
 - [x] **Step 3: Commit** `ci: nightly sync to d1`
 
