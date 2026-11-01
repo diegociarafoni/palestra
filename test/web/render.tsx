@@ -8,13 +8,15 @@ import { theme } from "../../web/src/theme";
 
 /**
  * Rende `ui` con lo stesso tema dell'app e i provider che servono alle pagine: un QueryClient
- * nuovo per ogni test (senza retry, così un errore si vede subito, e restituito per rilanciare le
- * query) e un router in memoria su "/".
+ * nuovo per ogni test (di default senza retry, così un errore si vede subito; restituito per
+ * rilanciare le query) e un router in memoria su "/".
  */
-export function renderConTema(ui: ReactElement) {
-  const queryClient = new QueryClient({
+export function renderConTema(
+  ui: ReactElement,
+  queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
-  });
+  }),
+) {
   const result = render(
     <ThemeProvider theme={theme} noSsr>
       <CssBaseline />

@@ -1,7 +1,8 @@
+import { QueryClient } from "@tanstack/react-query";
 import { screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
-import { browser, retryQuery, SessionError } from "../../web/src/api/session";
+import { browser, queryDefaults } from "../../web/src/api/session";
 import Misure from "../../web/src/pagine/misure/Misure";
 import measures from "../fixtures/dashboard/measures.json";
 import { renderConTema } from "./render";
@@ -12,6 +13,15 @@ import { server } from "./setup";
 // ricarica passa da `browser.reload`, che qui è sostituita da una spia.
 const RELOAD_KEY = "palestra:lastReload";
 const NOW = new Date("2026-11-03T08:00:00Z"); // 1793692800000
+
+// QueryClient con le opzioni dell'app, senza attesa tra i nuovi tentativi (solo nei test).
+const appQueryClient = () =>
+  new QueryClient({
+    defaultOptions: {
+      ...queryDefaults,
+      queries: { ...queryDefaults.queries, retryDelay: 0 },
+    },
+  });
 
 function expiredSession(status: number) {
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -108,11 +118,40 @@ describe("web", () => {
     },
   );
 
-  it("web: session error is not retried", () => {
-    // Politica dei nuovi tentativi del QueryClient dell'app (main.tsx): 3 per gli altri errori.
-    expect(retryQuery(0, new SessionError("sessione"))).toBe(false);
-    expect(retryQuery(0, new Error("rete"))).toBe(true);
-    expect(retryQuery(2, new Error("rete"))).toBe(true);
-    expect(retryQuery(3, new Error("rete"))).toBe(false);
+  it("web: session error is not retried", async () => {
+    // QueryClient con le opzioni dell'app (main.tsx); qui solo senza attesa tra i tentativi.
+    sessionStorage.setItem(RELOAD_KEY, "1793692770000"); // 30 s prima
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    vi.spyOn(browser, "reload").mockImplementation(() => {});
+    let requests = 0;
+    server.use(
+      http.get("/api/measures", () => {
+        requests += 1;
+        return HttpResponse.json({ error: "unauthorized" }, { status: 401 });
+      }),
+    );
+    renderConTema(<Misure />, appQueryClient());
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain(
+      "Sessione non valida. Chiudi e riapri la dashboard.",
+    );
+    expect(requests).toBe(1);
+  });
+
+  it("web: other errors are retried", async () => {
+    let requests = 0;
+    server.use(
+      http.get("/api/measures", () => {
+        requests += 1;
+        return HttpResponse.json({ error: "internal" }, { status: 500 });
+      }),
+    );
+    renderConTema(<Misure />, appQueryClient());
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Impossibile caricare i dati.");
+    expect(requests).toBe(4); // la prima richiesta e 3 nuovi tentativi
   });
 });
