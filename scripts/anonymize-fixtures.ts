@@ -192,12 +192,138 @@ function ymd(iso: string): [string, string, string] {
 /** Trasforma un giorno riconosciuto (sostituzione) o lo registra (raccolta). */
 export type MapIso = (iso: string) => string;
 
+type Lang = "it" | "en";
+type Form = "full" | "abbr";
+const MONTHS: Record<Lang, Record<Form, string[]>> = {
+  it: {
+    full: "gennaio febbraio marzo aprile maggio giugno luglio agosto settembre ottobre novembre dicembre".split(
+      " ",
+    ),
+    abbr: "gen feb mar apr mag giu lug ago set ott nov dic".split(" "),
+  },
+  en: {
+    full: "january february march april may june july august september october november december".split(
+      " ",
+    ),
+    abbr: "jan feb mar apr may jun jul aug sep oct nov dec".split(" "),
+  },
+};
+const WEEKDAYS: Record<Lang, Record<Form, string[]>> = {
+  it: {
+    full: "domenica lunedì martedì mercoledì giovedì venerdì sabato".split(" "),
+    abbr: "dom lun mar mer gio ven sab".split(" "),
+  },
+  en: {
+    full: "sunday monday tuesday wednesday thursday friday saturday".split(" "),
+    abbr: "sun mon tue wed thu fri sat".split(" "),
+  },
+};
+const LANGS: Lang[] = ["it", "en"];
+const FORMS: Form[] = ["full", "abbr"];
+
+type Hit = { lang: Lang; form: Form; idx: number };
+function lookup(
+  tables: Record<Lang, Record<Form, string[]>>,
+  token: string,
+): Hit | undefined {
+  const t = token.toLowerCase().replace(/[.,]+$/, "");
+  for (const lang of LANGS) {
+    for (const form of FORMS) {
+      const idx = tables[lang][form].indexOf(t);
+      if (idx >= 0) return { lang, form, idx };
+    }
+  }
+  return undefined;
+}
+
+/** Applica a `word` le maiuscole di `sample` (tutto maiuscolo, iniziale maiuscola o minuscolo). */
+function applyCase(sample: string, word: string): string {
+  if (sample === sample.toUpperCase() && sample !== sample.toLowerCase()) {
+    return word.toUpperCase();
+  }
+  const head = sample.charAt(0);
+  if (head === head.toUpperCase() && head !== head.toLowerCase()) {
+    return word.charAt(0).toUpperCase() + word.slice(1);
+  }
+  return word.toLowerCase();
+}
+
+const MONTH_NAMES = [
+  ...new Set(LANGS.flatMap((l) => FORMS.flatMap((f) => MONTHS[l][f]))),
+].sort((a, b) => b.length - a.length);
+const WEEKDAY_NAMES = [
+  ...new Set(LANGS.flatMap((l) => FORMS.flatMap((f) => WEEKDAYS[l][f]))),
+].sort((a, b) => b.length - a.length);
+const MONTH_ALT = MONTH_NAMES.map((n) => escapeRegExp(n)).join("|");
+const WD_ALT = WEEKDAY_NAMES.map((n) => escapeRegExp(n)).join("|");
+
+/** Ricostruisce una data a parole dal giorno finto, tenendo lingua, forma e maiuscole. */
+function rebuildWordDate(
+  wdToken: string | undefined,
+  dayToken: string,
+  monthToken: string,
+  fakeIso: string,
+  order: "dmy" | "mdy",
+): string | undefined {
+  const monthHit = lookup(MONTHS, monthToken);
+  if (!monthHit) return undefined;
+  const wdHit = wdToken ? lookup(WEEKDAYS, wdToken) : undefined;
+  const lang = wdHit?.lang ?? monthHit.lang;
+  const [fy, fm, fd] = ymd(fakeIso);
+  const fakeMonth = applyCase(
+    monthToken,
+    MONTHS[lang][monthHit.form][Number(fm) - 1] ?? "",
+  );
+  const day = dayToken.length === 2 ? fd : String(Number(fd));
+  let weekday = "";
+  if (wdToken !== undefined && wdHit) {
+    const dow = new Date(`${fakeIso}T00:00:00Z`).getUTCDay();
+    weekday = applyCase(wdToken, WEEKDAYS[lang][wdHit.form][dow] ?? "");
+    weekday += wdToken.includes(",") ? ", " : " ";
+  }
+  return order === "dmy"
+    ? `${weekday}${day} ${fakeMonth} ${fy}`
+    : `${weekday}${fakeMonth} ${day}, ${fy}`;
+}
+
+/** Date a parole (it/en, nome mese pieno o abbreviato, giorno di settimana facoltativo). */
+function transformWordDates(input: string, map: MapIso): string {
+  const wd = `(?:((?:${WD_ALT})\\.?,?)\\s+)?`;
+  let text = input.replace(
+    new RegExp(
+      `(?<!\\p{L})${wd}(\\d{1,2})\\s+(${MONTH_ALT})\\.?\\s+(\\d{4})(?![\\p{L}\\d])`,
+      "giu",
+    ),
+    (m0, wdTok, day: string, monthTok: string, year: string) => {
+      const hit = lookup(MONTHS, monthTok);
+      if (!hit) return m0;
+      const iso = isoDay(+year, hit.idx + 1, +day);
+      if (!iso) return m0;
+      return rebuildWordDate(wdTok, day, monthTok, map(iso), "dmy") ?? m0;
+    },
+  );
+  text = text.replace(
+    new RegExp(
+      `(?<!\\p{L})${wd}(${MONTH_ALT})\\.?\\s+(\\d{1,2}),?\\s+(\\d{4})(?![\\p{L}\\d])`,
+      "giu",
+    ),
+    (m0, wdTok, monthTok: string, day: string, year: string) => {
+      const hit = lookup(MONTHS, monthTok);
+      if (!hit) return m0;
+      const iso = isoDay(+year, hit.idx + 1, +day);
+      if (!iso) return m0;
+      return rebuildWordDate(wdTok, day, monthTok, map(iso), "mdy") ?? m0;
+    },
+  );
+  return text;
+}
+
 /**
  * Passa per `map` ogni data riconosciuta, tenendo ora del giorno e fuso. Gli stessi
  * riconoscitori servono alla raccolta (`collectDays`) e alla sostituzione (`anonymize`).
  */
 function transformDates(input: string, map: MapIso): string {
-  let text = input;
+  let text = transformWordDates(input, map);
   // 1. `YYYY-MM-DD`, anche dentro `… HH:MM:SS +01:00` e ISO 8601.
   text = text.replace(
     /(?<!\d)(\d{4})-(\d{2})-(\d{2})(?!\d)/g,
@@ -208,9 +334,19 @@ function transformDates(input: string, map: MapIso): string {
       return `${fy}-${fm}-${fd}`;
     },
   );
-  // 2. `DD/MM/YYYY`, anche con le barre codificate negli URL (`%2F`).
+  // 2. `YYYY/MM/DD`, anche con `%2F` o `\/`.
   text = text.replace(
-    /(?<!\d)(\d{2})(\/|%2F)(\d{2})\2(\d{4})(?!\d)/gi,
+    /(?<!\d)(\d{4})(\/|%2F|\\\/)(\d{1,2})\2(\d{1,2})(?!\d)/gi,
+    (m0, y: string, sep: string, m: string, d: string) => {
+      const iso = isoDay(+y, +m, +d);
+      if (!iso) return m0;
+      const [fy, fm, fd] = ymd(map(iso));
+      return `${fy}${sep}${fm}${sep}${fd}`;
+    },
+  );
+  // 3. `DD/MM/YYYY` (anche `D/M/YYYY`), con separatore `/`, `.`, `-`, `%2F` o `\/`.
+  text = text.replace(
+    /(?<!\d)(\d{1,2})(\/|%2F|\\\/|[.-])(\d{1,2})\2(\d{4})(?!\d)/gi,
     (m0, d: string, sep: string, m: string, y: string) => {
       const iso = isoDay(+y, +m, +d);
       if (!iso) return m0;
@@ -218,9 +354,9 @@ function transformDates(input: string, map: MapIso): string {
       return `${fd}${sep}${fm}${sep}${fy}`;
     },
   );
-  // 3. `YYYYMMDD` / `YYYYMMDDHHMMSS` come sequenza di cifre a sé.
+  // 4. `YYYYMMDD`, `YYYYMMDDHHMMSS`, `YYYYMMDDTHHMMSS` come cifre a sé (anche dopo `_`/`-`).
   text = text.replace(
-    /(?<![\w-]|\d[.,])(20\d{2})(\d{2})(\d{2})((?:[01]\d|2[0-3])[0-5]\d[0-5]\d)?(?![\w-]|[.,]\d)/g,
+    /(?<![0-9A-Za-z])(?<!\d[.,])(20\d{2})(\d{2})(\d{2})(T?(?:[01]\d|2[0-3])[0-5]\d[0-5]\d)?(?![0-9A-Za-z-])(?![.,]\d)/g,
     (m0, y: string, m: string, d: string, time: string | undefined) => {
       const iso = isoDay(+y, +m, +d, 2000);
       if (!iso) return m0;
@@ -228,6 +364,20 @@ function transformDates(input: string, map: MapIso): string {
       return `${fy}${fm}${fd}${time ?? ""}`;
     },
   );
+  // 5. Epoch di 10 (secondi) o 13 (millisecondi) cifre, in [2015, 2035]; l'ora resta.
+  text = text.replace(/(?<!\d)(\d{13}|\d{10})(?!\d)/g, (m0, digits: string) => {
+    const ms = digits.length === 13 ? Number(digits) : Number(digits) * 1000;
+    const iso = new Date(ms).toISOString().slice(0, 10);
+    const year = Number(iso.slice(0, 4));
+    if (year < 2015 || year > 2035) return m0;
+    const fake = map(iso);
+    if (fake === iso) return m0;
+    const newMs =
+      Date.parse(`${fake}T00:00:00Z`) + (ms - Date.parse(`${iso}T00:00:00Z`));
+    return digits.length === 13
+      ? String(newMs)
+      : String(Math.floor(newMs / 1000));
+  });
   return text;
 }
 

@@ -93,6 +93,63 @@ describe("anonymize", () => {
     );
   });
 
+  it("anonymize: maps word dates (it/en, full/abbrev) and recomputes the weekday", () => {
+    const input = [
+      "domenica 1 novembre 2026",
+      "Dom 01 Mar 2026",
+      "Sunday, March 1, 2026",
+      "a novembre vado, nel 2026",
+    ].join("\n");
+    const mapDay = (iso: string) =>
+      ({ "2026-11-01": "2025-07-15", "2026-03-01": "2025-12-20" })[iso] ?? iso;
+    // Giorno di settimana ricalcolato nella stessa lingua, forma e maiuscole. Valori a parte.
+    expect(anonymize(input, { identities: [], mapDay })).toBe(
+      [
+        "martedì 15 luglio 2025",
+        "Sab 20 Dic 2025",
+        "Saturday, December 20, 2025",
+        "a novembre vado, nel 2026",
+      ].join("\n"),
+    );
+  });
+
+  it("anonymize: maps dates with other separators and a compact T", () => {
+    const input = [
+      "a 4/3/2026 b 04-03-2026 c 04.03.2026",
+      String.raw`d 2026/03/04 e 04\/03\/2026 f 20260304T120000`,
+      "g 1.2.3 h 2026-03-04",
+      "i day_20260304 j x20260304",
+    ].join("\n");
+    const mapDay = (iso: string) => (iso === "2026-03-04" ? "2025-12-20" : iso);
+    expect(anonymize(input, { identities: [], mapDay })).toBe(
+      [
+        "a 20/12/2025 b 20-12-2025 c 20.12.2025",
+        String.raw`d 2025/12/20 e 20\/12\/2025 f 20251220T120000`,
+        "g 1.2.3 h 2025-12-20",
+        // `_20260304` sì (dopo un trattino basso), `x20260304` no (dentro una parola).
+        "i day_20251220 j x20260304",
+      ].join("\n"),
+    );
+  });
+
+  it("anonymize: maps epochs and /Date(ms)/ in range, leaving other numbers alone", () => {
+    const input = [
+      "ms 1772378228000 sec 1772431200",
+      String.raw`d /Date(1772378228000)/ j \/Date(1772378228000)\/`,
+      "fuori 9999999999 corto 12345678 lungo 17723782280001",
+    ].join("\n");
+    const mapDay = (iso: string) =>
+      ({ "2026-03-01": "2025-12-31", "2026-03-02": "2026-01-02" })[iso] ?? iso;
+    // Valori calcolati a parte: l'ora del giorno resta, cambia solo il giorno.
+    expect(anonymize(input, { identities: [], mapDay })).toBe(
+      [
+        "ms 1767194228000 sec 1767333600",
+        String.raw`d /Date(1767194228000)/ j \/Date(1767194228000)\/`,
+        "fuori 9999999999 corto 12345678 lungo 17723782280001",
+      ].join("\n"),
+    );
+  });
+
   it("anonymize: replaces encoded and differently cased identities and other e-mails", () => {
     const input = [
       '<a href="/x?u=mario.rossi%40example.com&n=Mario+Rossi&f=Mario%20Rossi">Ciao MARIO, mario rossi</a>',
