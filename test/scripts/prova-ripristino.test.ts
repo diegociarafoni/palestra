@@ -25,6 +25,13 @@ const DUMP = readFileSync(
   join(import.meta.dirname, "..", "fixtures", "d1-export-sintetico.sql"),
   "utf8",
 );
+// Casi limite del conteggio, con gli stessi conteggi attesi in test/cli/restore-test.test.ts.
+const EDGE = readFileSync(
+  join(import.meta.dirname, "..", "fixtures", "d1-export-casi-limite.sql"),
+  "utf8",
+);
+const DONE =
+  "Import di palestra-2026-10-31.sql in palestra-restore-test completato; la copia locale è cancellata.";
 
 let dir: string;
 let fakeBin: string;
@@ -167,22 +174,93 @@ describe("prova-ripristino", () => {
         "tabella                   dump",
         "audit                        3",
         "sessions                     2",
-        "Import di palestra-2026-10-31.sql in palestra-restore-test completato; la copia locale è cancellata.",
+        DONE,
         "",
       ].join("\n"),
     );
     expect(result.stderr).not.toContain("dato-personale");
   });
 
-  it("prova-ripristino: a dump table name that is not an identifier exits 65 before creating", () => {
-    const result = run(["2026-10-31"], {
-      FAKE_DOWNLOAD: 'INSERT INTO "dato personale" ("x") VALUES(1);\n',
-    });
-    expect(result.status).toBe(65);
-    expect(result.stderr).toContain(
-      "Nome di tabella non ammesso nel dump: palestra-2026-10-31.sql",
+  it("prova-ripristino: applies the same counting rules as restore-test, names sorted", () => {
+    const result = run(["2026-10-31"], { FAKE_DOWNLOAD: EDGE });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe(
+      [
+        "tabella                   dump",
+        "Mixed_Case1                  1",
+        "audit                        2",
+        "sessions                     1",
+        DONE,
+        "",
+      ].join("\n"),
     );
-    expect(`${result.stdout}${result.stderr}`).not.toContain("dato personale");
+  });
+
+  it.each([
+    "CREATE INDEX i ON audit(id);",
+    "create unique index u on audit(id);",
+    "CREATE TRIGGER t AFTER INSERT ON audit BEGIN",
+    'CREATE VIEW "v" AS SELECT 1;',
+    "CREATE\tTRIGGER t AFTER INSERT ON audit BEGIN",
+    "CREATE TRIGGER\r",
+  ])("prova-ripristino: counting stops at %j after the data", (stop) => {
+    const result = run(["2026-10-31"], {
+      FAKE_DOWNLOAD: [
+        'INSERT INTO "audit" ("id") VALUES(1);',
+        stop,
+        'INSERT INTO "audit" ("id") VALUES(2);',
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe(
+      [
+        "tabella                   dump",
+        "audit                        1",
+        DONE,
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("prova-ripristino: a dump without recognised INSERTs prints only the header", () => {
+    const result = run(["2026-10-31"]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe(
+      ["tabella                   dump", DONE, ""].join("\n"),
+    );
+  });
+
+  it.each(["dato personale", "1abc", "a-b"])(
+    "prova-ripristino: dump table name %j exits 65 before creating",
+    (name) => {
+      const result = run(["2026-10-31"], {
+        FAKE_DOWNLOAD: `INSERT INTO "${name}" ("x") VALUES(1);\n`,
+      });
+      expect(result.status).toBe(65);
+      expect(result.stderr).toContain(
+        "Nome di tabella non ammesso nel dump: palestra-2026-10-31.sql",
+      );
+      expect(`${result.stdout}${result.stderr}`).not.toContain(name);
+      expect(calls()).toHaveLength(1);
+      expect(readdirSync(tmp)).toEqual([]);
+    },
+  );
+
+  it("prova-ripristino: an awk failure exits 69 without showing awk's output", () => {
+    // awk finto che fallisce stampando una riga del backup, come in un errore di memoria.
+    writeFileSync(
+      join(fakeBin, "awk"),
+      `#!/bin/sh\necho "$FAKE_ROW"\necho "$FAKE_ROW" >&2\nexit 2\n`,
+      { mode: 0o755 },
+    );
+    const result = run(["2026-10-31"]);
+    expect(result.status).toBe(69);
+    expect(result.stderr).toContain(
+      "Conteggio del dump non riuscito (exit 2).",
+    );
+    expect(result.stderr).not.toContain("Nome di tabella non ammesso");
+    expect(`${result.stdout}${result.stderr}`).not.toContain("dato-personale");
     expect(calls()).toHaveLength(1);
     expect(readdirSync(tmp)).toEqual([]);
   });

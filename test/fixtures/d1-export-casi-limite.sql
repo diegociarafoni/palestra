@@ -1,0 +1,21 @@
+-- Casi limite del conteggio delle INSERT del dump, letti sia da restore-test sia da
+-- scripts/prova-ripristino.sh con gli stessi conteggi attesi: nessun dato reale.
+-- Contano: audit 2, sessions 1, Mixed_Case1 1. Le altre INSERT non contano.
+PRAGMA defer_foreign_keys=TRUE;
+-- commento: audit" ("id") con INSERT INTO "audit" a metà riga, non conta.
+CREATE TABLE audit (id INTEGER);
+INSERT INTO "audit" ("id") VALUES(1);
+INSERT INTO "audit"("id") VALUES(2);
+INSERT INTO "audit";
+INSERT INTO "audit"x VALUES(9);
+INSERT INTO audit VALUES(9);
+ INSERT INTO "audit" ("id") VALUES(9);
+INSERT INTO "" ("id") VALUES(9);
+INSERT INTO "_cf_K V" ("k") VALUES(9);
+INSERT INTO "sqlite_x-y" ("k") VALUES(9);
+CREATE TABLE sessions (id INTEGER);
+INSERT INTO "sessions" ("id") VALUES(1);
+CREATE TABLE Mixed_Case1 (id INTEGER);
+INSERT INTO "Mixed_Case1" ("id") VALUES(1);
+create unique index u on audit(id);
+INSERT INTO "audit" ("id") VALUES(9);

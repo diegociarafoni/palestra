@@ -327,6 +327,40 @@ describe("restore-test", () => {
     );
   });
 
+  it("restore-test: counting edge cases, the same as scripts/prova-ripristino.sh", async () => {
+    const io = output();
+    const tables = ["Mixed_Case1", "audit", "sessions"];
+    const counts = { Mixed_Case1: 1, audit: 2, sessions: 1 };
+    const f = fakes(
+      {
+        tables: { "palestra-restore-test": tables, palestra: tables },
+        counts: { "palestra-restore-test": counts, palestra: counts },
+      },
+      async () =>
+        new TextEncoder().encode(
+          readFileSync(
+            join(
+              import.meta.dirname,
+              "..",
+              "fixtures",
+              "d1-export-casi-limite.sql",
+            ),
+            "utf8",
+          ),
+        ),
+    );
+    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(0);
+    expect(io.stdout()).toContain(
+      [
+        HEADER,
+        "Mixed_Case1                  1           1           1",
+        "audit                        2           2           2",
+        "sessions                     1           1           1",
+        "",
+      ].join("\n"),
+    );
+  });
+
   it("restore-test: a table of the dump missing from the restore is a difference", async () => {
     const io = output();
     const f = fakes({
