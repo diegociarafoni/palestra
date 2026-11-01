@@ -411,7 +411,8 @@ describe("web", () => {
 
   it("web: esercizi table keeps the exercise in view", async () => {
     // A 360 px la tabella scorre in orizzontale: la colonna dell'esercizio resta ferma a sinistra,
-    // con lo sfondo del foglio perché i valori le scorrono sotto (anche nell'intestazione).
+    // con lo sfondo del foglio perché i valori le scorrono sotto (anche nell'intestazione) e un
+    // bordo a destra che separa il nome dai valori tagliati.
     server.use(http.get("/api/exercises", () => HttpResponse.json(EXERCISES)));
     renderConTema(<Esercizi />);
 
@@ -425,10 +426,16 @@ describe("web", () => {
     expect(first).toHaveLength(4);
     for (const cell of first) {
       const style = getComputedStyle(cell);
-      expect([style.position, style.left, style.backgroundColor]).toEqual([
+      expect([
+        style.position,
+        style.left,
+        style.backgroundColor,
+        style.borderRightStyle,
+      ]).toEqual([
         "sticky",
         "0px",
         "var(--mui-palette-background-paper)",
+        "solid",
       ]);
     }
   });

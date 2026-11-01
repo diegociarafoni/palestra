@@ -66,12 +66,16 @@ export function TabellaForza({ rows }: TabellaForzaProps) {
           size="small"
           aria-labelledby={titleId}
           // Sul telefono la tabella scorre in orizzontale: la colonna dell'esercizio resta ferma a
-          // sinistra, con lo sfondo del foglio sotto cui scorrono i valori.
+          // sinistra, con lo sfondo del foglio sotto cui scorrono i valori e un bordo che la separa.
+          // Con i bordi "collapse" (default di MUI) il bordo resterebbe indietro, nella griglia.
           sx={{
+            borderCollapse: "separate",
             "& tr > :first-child": {
               position: "sticky",
               left: 0,
               bgcolor: "background.paper",
+              borderRight: 1,
+              borderRightColor: "divider",
             },
           }}
         >
