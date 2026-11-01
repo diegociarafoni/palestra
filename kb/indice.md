@@ -110,6 +110,7 @@ Inventario per zona e verifiche aperte: [docs/attrezzi-via-mantova.md](../docs/a
 - 2026-11-01 · [Con la sessione di Access scaduta la dashboard ricarica la pagina al massimo una volta al minuto](decisioni/2026-11-01-sessione-access-scaduta.md)
 - 2026-11-01 · [Nel frontend zod gira senza JIT, perché la CSP della dashboard non ammette 'unsafe-eval'](decisioni/2026-11-01-zod-senza-jit-nel-frontend.md)
 - 2026-11-01 · [Il report mensile gira in un workflow proprio il 1° e l'8 del mese; D1_DATABASE_ID è un Secret](decisioni/2026-11-01-report-il-1-e-l-8-del-mese.md)
+- 2026-11-01 · [La dashboard si pubblica solo a mano, e il workflow si ferma se Access non la protegge](decisioni/2026-11-01-pubblicazione-manuale-con-guardia-access.md)
 - 2026-11-01 · [Nella dashboard un feedback va con la seduta dello stesso giorno e dello stesso numero nel giorno](decisioni/2026-11-01-feedback-abbinato-per-giorno-e-ordine.md)
 
 ## Documenti di processo

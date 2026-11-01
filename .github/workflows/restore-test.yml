@@ -1,8 +1,9 @@
 name: restore-test
 
 # Prova di ripristino del backup mensile, solo a mano: scarica palestra-AAAA-MM-GG.sql da R2,
-# lo importa in palestra-restore-test, confronta il numero di righe di ogni tabella con
-# palestra (sola lettura) e cancella palestra-restore-test (docs/dashboard.md).
+# lo importa in palestra-restore-test, confronta il numero di righe di ogni tabella con le
+# INSERT del dump (palestra, in sola lettura, è solo informativo) e cancella
+# palestra-restore-test (docs/dashboard.md).
 on:
   workflow_dispatch:
     inputs:
