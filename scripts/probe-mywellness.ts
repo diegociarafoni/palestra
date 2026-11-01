@@ -21,7 +21,6 @@ import {
   TransientError,
   UpstreamError,
 } from "../src/errors";
-import { readCurrentUser } from "../src/mywellness/client";
 
 const SITE = "https://www.mywellness.com";
 const SERVICES = "https://services.mywellness.com";
@@ -39,6 +38,31 @@ const MAX_DAYS = 365;
 const DAY_MS = 86_400_000;
 const USAGE =
   "Uso: MYWELLNESS_EMAIL=… MYWELLNESS_PASSWORD=… npx tsx scripts/probe-mywellness.ts [--days N] (N da 1 a 365)";
+
+// La pagina Training contiene `EU.currentUser = JSON.parse('<stringa JS>')`.
+const CURRENT_USER_PATTERN =
+  /EU\.currentUser\s*=\s*JSON\.parse\('((?:[^'\\]|\\.)*)'\)/;
+
+/**
+ * Payload di `EU.currentUser` di una pagina Training, decodificato ma non validato;
+ * `undefined` se la pagina non lo contiene. Contiene dati personali: mai stamparlo.
+ * Copia della decodifica di `MywellnessClient.login` in `src/mywellness/client.ts`, che
+ * appartiene a un altro task: va tenuta uguale finché il client non la esporterà.
+ */
+export function readCurrentUser(page: string): unknown {
+  const literal = CURRENT_USER_PATTERN.exec(page)?.[1];
+  if (literal === undefined) return undefined;
+  try {
+    // Stringa JS tra apici singoli → stringa JSON (`"` escapato o no) → oggetto.
+    const json = literal.replace(/\\.|"/g, (token) =>
+      token === '"' ? '\\"' : token === "\\'" ? "'" : token,
+    );
+    return JSON.parse(JSON.parse(`"${json}"`));
+  } catch {
+    // Niente cause: il SyntaxError cita il payload, che contiene dati personali.
+    throw new ParseError("Mywellness: utente corrente non interpretabile");
+  }
+}
 
 type Reply = { status: number; bytes: Uint8Array; text: string };
 

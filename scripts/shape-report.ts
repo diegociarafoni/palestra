@@ -17,7 +17,7 @@ import { pathToFileURL } from "node:url";
 import { HTMLElement, type Node, NodeType, parse } from "node-html-parser";
 import { z } from "zod";
 import { ParseError } from "../src/errors";
-import { readCurrentUser } from "../src/mywellness/client";
+import { readCurrentUser } from "./probe-mywellness";
 
 /**
  * Parole lasciate in chiaro nei valori (minuscole, senza accenti), ordinate: unità, parole

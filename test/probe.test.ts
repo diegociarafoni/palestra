@@ -24,7 +24,8 @@ import {
   type MockInstance,
   vi,
 } from "vitest";
-import { main } from "../scripts/probe-mywellness";
+import { main, readCurrentUser } from "../scripts/probe-mywellness";
+import { ParseError } from "../src/errors";
 
 // Valori inventati e pagine sintetiche: nessuna richiesta reale verso Mywellness.
 const SITE = "https://www.mywellness.com";
@@ -71,6 +72,32 @@ const deps = () => ({
 });
 
 describe("probe", () => {
+  it("probe: readCurrentUser decodes the profile like the client", () => {
+    // Tutto il payload, senza zod: lo usano il probe e il rapporto della forma.
+    expect(
+      readCurrentUser(
+        String.raw`<script>EU.currentUser = JSON.parse('{\"id\":\"u-1\",\"firstName\":\"Mario\",\"note\":\"l\'ok\"}');</script>`,
+      ),
+    ).toEqual({ id: "u-1", firstName: "Mario", note: "l'ok" });
+    // Virgolette non escapate, come accetta il client.
+    expect(
+      readCurrentUser(`EU.currentUser = JSON.parse('{"id":"u-2"}')`),
+    ).toEqual({ id: "u-2" });
+    expect(readCurrentUser("<p>pagina diversa</p>")).toBeUndefined();
+    let error: unknown;
+    try {
+      readCurrentUser("EU.currentUser = JSON.parse('{rotto')");
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(ParseError);
+    expect((error as Error).message).toBe(
+      "Mywellness: utente corrente non interpretabile",
+    );
+    // Niente cause: il SyntaxError citerebbe il payload, che contiene dati personali.
+    expect((error as Error).cause).toBeUndefined();
+  });
+
   it("probe: exit 78 without credentials", async () => {
     const code = await main([], { MYWELLNESS_EMAIL: EMAIL }, deps());
     expect(code).toBe(78);

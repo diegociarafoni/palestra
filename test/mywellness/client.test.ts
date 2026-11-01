@@ -9,7 +9,7 @@ import {
   TransientError,
   UpstreamError,
 } from "../../src/errors";
-import { MywellnessClient, readCurrentUser } from "../../src/mywellness/client";
+import { MywellnessClient } from "../../src/mywellness/client";
 import { fixture, setupMswServer } from "../msw";
 
 const SITE = "https://www.mywellness.com";
@@ -140,29 +140,6 @@ describe("client", () => {
     expect((error as Error).message).toBe(
       "Mywellness: utente corrente assente",
     );
-  });
-
-  it("client: readCurrentUser decodes the profile without validating it", () => {
-    // Usato anche dal probe e dal rapporto della forma (scripts/): tutto il payload, senza zod.
-    expect(
-      readCurrentUser(
-        String.raw`<script>EU.currentUser = JSON.parse('{\"id\":\"u-1\",\"firstName\":\"Mario\"}');</script>`,
-      ),
-    ).toEqual({ id: "u-1", firstName: "Mario" });
-    expect(readCurrentUser("<p>pagina diversa</p>")).toBeUndefined();
-    const error = (() => {
-      try {
-        return readCurrentUser("EU.currentUser = JSON.parse('{rotto')");
-      } catch (e) {
-        return e;
-      }
-    })();
-    expect(error).toBeInstanceOf(ParseError);
-    expect((error as Error).message).toBe(
-      "Mywellness: utente corrente non interpretabile",
-    );
-    // Niente cause: il SyntaxError citerebbe il payload, che contiene dati personali.
-    expect((error as Error).cause).toBeUndefined();
   });
 
   it("client: token outside printable ascii raises ParseError", async () => {

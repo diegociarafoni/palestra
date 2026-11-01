@@ -55,26 +55,6 @@ export type MywellnessClientOptions = {
   today?: () => string;
 };
 
-/**
- * Payload di `EU.currentUser` di una pagina Training, decodificato ma non validato;
- * `undefined` se la pagina non lo contiene. Contiene dati personali: mai stamparlo.
- * Lo usano anche il probe e il rapporto della forma (scripts/).
- */
-export function readCurrentUser(page: string): unknown {
-  const literal = CURRENT_USER_PATTERN.exec(page)?.[1];
-  if (literal === undefined) return undefined;
-  try {
-    // Stringa JS tra apici singoli → stringa JSON (`"` escapato o no) → oggetto.
-    const json = literal.replace(/\\.|"/g, (token) =>
-      token === '"' ? '\\"' : token === "\\'" ? "'" : token,
-    );
-    return JSON.parse(JSON.parse(`"${json}"`));
-  } catch {
-    // Niente cause: il SyntaxError cita il payload, che contiene dati personali.
-    throw new ParseError("Mywellness: utente corrente non interpretabile");
-  }
-}
-
 const defaultSleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -187,10 +167,21 @@ export class MywellnessClient {
     }
     // Di nuovo il form di login: credenziali rifiutate.
     if (LOGIN_FORM_PATTERN.test(page)) throw new AuthError(LOGIN_FAILED);
-    const payload = readCurrentUser(page);
+    const literal = CURRENT_USER_PATTERN.exec(page)?.[1];
     // Né utente né form: la pagina è cambiata.
-    if (payload === undefined) {
+    if (literal === undefined) {
       throw new ParseError("Mywellness: utente corrente assente");
+    }
+    let payload: unknown;
+    try {
+      // Stringa JS tra apici singoli → stringa JSON (`"` escapato o no) → oggetto.
+      const json = literal.replace(/\\.|"/g, (token) =>
+        token === '"' ? '\\"' : token === "\\'" ? "'" : token,
+      );
+      payload = JSON.parse(JSON.parse(`"${json}"`));
+    } catch {
+      // Niente cause: il SyntaxError cita il payload, che contiene dati personali.
+      throw new ParseError("Mywellness: utente corrente non interpretabile");
     }
     const user = CurrentUserSchema.safeParse(payload);
     if (!user.success) {
