@@ -190,6 +190,11 @@ export class MywellnessClient {
     return this.#requireUser().id;
   }
 
+  /** Token di sessione: solo per mascherarlo nei log delle Actions (`::add-mask::`). */
+  get token(): string {
+    return this.#requireUser().token;
+  }
+
   /**
    * Id delle sedute tra `since` e `until` (`YYYY-MM-DD`, inclusi), senza duplicati: mese per
    * mese da `since` a `until` e, in ogni mese, nell'ordine della pagina. Nessun ordinamento
