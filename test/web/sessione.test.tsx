@@ -90,6 +90,24 @@ describe("web", () => {
     },
   );
 
+  it.each(["getItem", "setItem"] as const)(
+    "web: session storage unavailable shows message (%s)",
+    async (method) => {
+      // Navigazione privata o storage disattivato: senza memoria della ricarica si rischia un ciclo.
+      vi.spyOn(Storage.prototype, method).mockImplementation(() => {
+        throw new DOMException("storage non disponibile", "SecurityError");
+      });
+      const reload = expiredSession(401);
+      renderConTema(<Misure />);
+
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toContain(
+        "Sessione non valida. Chiudi e riapri la dashboard.",
+      );
+      expect(reload).not.toHaveBeenCalled();
+    },
+  );
+
   it("web: session error is not retried", () => {
     // Politica dei nuovi tentativi del QueryClient dell'app (main.tsx): 3 per gli altri errori.
     expect(retryQuery(0, new SessionError("sessione"))).toBe(false);

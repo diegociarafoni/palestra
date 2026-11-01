@@ -23,9 +23,26 @@ const RELOAD_KEY = "palestra:lastReload";
 const RELOAD_INTERVAL_MS = 60_000;
 
 /**
+ * Annota la ricarica e dice se è permessa: no se la precedente ha meno di 60 s, né se
+ * sessionStorage non si può usare (navigazione privata, storage disattivato o pieno), perché
+ * senza memoria della ricarica la pagina si ricaricherebbe all'infinito.
+ */
+function reloadAllowed(now: number): boolean {
+  try {
+    // Un'ora nel futuro (orologio spostato indietro) non conta come ricarica recente.
+    const elapsed = now - Number(sessionStorage.getItem(RELOAD_KEY));
+    if (elapsed >= 0 && elapsed < RELOAD_INTERVAL_MS) return false;
+    sessionStorage.setItem(RELOAD_KEY, String(now));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Legge una risposta: 2xx → dati validati; 404 → `null` (la pagina mostra "Nessun dato");
- * 401/403 → sessione di Access scaduta: si ricarica la pagina, che passa di nuovo da Access, ma
- * non più di una volta al minuto (poi `SessionError`); ogni altro stato → errore ("Riprova").
+ * 401/403 → sessione di Access scaduta: si ricarica la pagina, che passa di nuovo da Access, se
+ * `reloadAllowed` lo permette (altrimenti `SessionError`); ogni altro stato → errore ("Riprova").
  */
 async function read<T>(
   request: Promise<ApiResponse>,
@@ -33,15 +50,11 @@ async function read<T>(
 ): Promise<T | null> {
   const response = await request;
   if (response.status === 401 || response.status === 403) {
-    const now = Date.now();
-    // Un'ora nel futuro (orologio spostato indietro) non conta come ricarica recente.
-    const elapsed = now - Number(sessionStorage.getItem(RELOAD_KEY));
-    if (elapsed >= 0 && elapsed < RELOAD_INTERVAL_MS) {
+    if (!reloadAllowed(Date.now())) {
       throw new SessionError(
-        `API: risposta ${response.status} dopo una ricarica`,
+        `API: risposta ${response.status}, ricarica non permessa`,
       );
     }
-    sessionStorage.setItem(RELOAD_KEY, String(now));
     browser.reload();
     // La richiesta resta in corso fino alla ricarica: nessun errore tecnico da mostrare.
     return new Promise<never>(() => {});
