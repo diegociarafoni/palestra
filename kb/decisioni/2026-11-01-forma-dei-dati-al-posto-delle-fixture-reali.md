@@ -3,12 +3,12 @@ tipo: decisione
 slug: 2026-11-01-forma-dei-dati-al-posto-delle-fixture-reali
 titolo: Il probe produce il rapporto della forma dei dati, non fixture reali; le fixture restano sintetiche
 data: 2026-11-01
-stato: accettata
+stato: proposta
 aggiornato: 2026-11-01
 ---
 # Il probe produce il rapporto della forma dei dati, non fixture reali; le fixture restano sintetiche
 
-**Data**: 2026-11-01 · **Stato**: accettata · **Decisa da**: l'utente, su proposta di Claude nel Task 0 del piano
+**Data**: 2026-11-01 · **Stato**: proposta · **Proposta da**: Claude; in attesa dell'utente
 
 ## Contesto
 Il Task 0 prevedeva fixture reali: `scripts/anonymize-fixtures.ts` sostituiva nelle risposte del probe le identità note e rimappava le date, poi un controllo dei residui fermava la scrittura. Due prove di privacy indipendenti sullo script, con dati inventati, hanno trovato ancora decine di fughe con exit 0: date abbreviate, formati numerici rari, campi del profilo che il probe non raccoglieva tra le identità, entità HTML fuori dalla tabella delle codifiche. Un filtro che cerca i dati da togliere ne manca sempre qualcuno: ogni formato nuovo chiede una regola in più, e una regola mancante non si vede.
