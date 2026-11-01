@@ -14,7 +14,7 @@ const ENV = {
   D1_DATABASE_ID: "00000000-0000-4000-8000-000000000000",
   CF_TOKEN_D1: "test-token",
 };
-const USAGE = "Uso: npm run sync [-- --lookback-days N]";
+const USAGE = "Uso: npm run sync [-- --lookback-days N] (N da 1 a 366)";
 const QUERY_URL = `https://api.cloudflare.com/client/v4/accounts/${ENV.CLOUDFLARE_ACCOUNT_ID}/d1/database/${ENV.D1_DATABASE_ID}/query`;
 
 const server = setupMswServer();
@@ -227,6 +227,23 @@ describe("cli sync", () => {
       expect(io.stdout()).toBe("");
     }
     expect(makeClient).not.toHaveBeenCalled();
+  });
+
+  it("cli sync: lookback days up to 366", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-05T12:00:00Z"));
+    capture();
+    emptyD1();
+    const { list, deps } = fakeClient();
+
+    // 366 giorni prima: martedì 4/11/2025, dal lunedì della settimana.
+    expect(await main(["--lookback-days", "366"], ENV, deps)).toBe(0);
+    expect(list).toEqual([{ since: "2025-11-03", until: "2026-11-05" }]);
+
+    const io = capture();
+    expect(await main(["--lookback-days", "367"], ENV, deps)).toBe(64);
+    expect(io.stderr()).toBe(USAGE);
+    expect(list).toHaveLength(1);
   });
 
   it("cli sync: exit 75 on mywellness 5xx", async () => {

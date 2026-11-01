@@ -17,8 +17,10 @@ export type SyncDeps = {
   makeClient: (credentials: { email: string; password: string }) => CliClient;
 };
 
-const USAGE = "Uso: npm run sync [-- --lookback-days N]";
+const USAGE = "Uso: npm run sync [-- --lookback-days N] (N da 1 a 366)";
 const POSITIVE_INT = /^[1-9]\d*$/;
+// Un anno: oltre, una run riscarica mesi di sedute e crea slot per settimane lontane.
+const MAX_LOOKBACK_DAYS = 366;
 
 // Tutte controllate prima di ogni richiesta: una variabile D1 mancante non costa un login.
 const REQUIRED_ENV = [
@@ -51,7 +53,7 @@ function parseLookbackDays(argv: string[]): number | undefined | null {
     flag !== "--lookback-days" ||
     value === undefined ||
     !POSITIVE_INT.test(value) ||
-    !Number.isSafeInteger(Number(value)) ||
+    Number(value) > MAX_LOOKBACK_DAYS ||
     rest.length > 0
   ) {
     return null;
