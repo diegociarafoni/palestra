@@ -34,11 +34,12 @@ Uno slot `programmata` la cui finestra è tutta passata diventa `da_confermare` 
 
 ## Nella sync
 
-La sync notturna (`src/sync/sync.ts`) crea gli slot mancanti di ogni settimana ISO da oggi meno i giorni di ricerca (14 di default, `npm run sync -- --lookback-days N`) a oggi, senza toccare quelli già presenti; poi abbina le sedute della finestra che nessuno slot riferisce ancora, nuove o già salvate, e segna gli slot scaduti. Ripeterla non cambia nulla: una seduta già abbinata si salta, una extra resta extra.
+La sync notturna (`src/sync/sync.ts`) lavora su una finestra che va dal lunedì della settimana ISO di oggi meno i giorni di ricerca (14 di default, `npm run sync -- --lookback-days N`) fino a oggi: scarica le sedute di tutta la finestra e crea gli slot mancanti di ogni sua settimana, senza toccare quelli già presenti. Partire dal lunedì evita slot di una settimana di cui mancano le sedute dei primi giorni, che diventerebbero `da_confermare` per errore; poi abbina le sedute della finestra che nessuno slot riferisce ancora, nuove o già salvate, e segna gli slot scaduti. Ripeterla non cambia nulla: una seduta già abbinata si salta, una extra resta extra.
 
 - Il modello si valida prima di ogni scrittura: una finestra vuota, un sabato o una domenica in una finestra, o un numero di slot ripetuto fermano la sync (exit 65).
 - Senza modello in `profile` le sedute si salvano comunque e gli slot non si toccano: le abbina la prima sync con il modello. Lo stesso vale per le sedute salvate da una sync fallita prima degli slot (errore di D1).
 - Uno slot `saltata` che riceve una seduta perde il motivo. Il campo `date` (giorno scelto dall'utente) la sync non lo scrive.
+- Abbinamenti e scadenze raggiungono solo le settimane della finestra: dopo giorni senza sync (per esempio con il workflow fermo), una run con `--lookback-days N` più grande recupera le settimane rimaste indietro.
 
 Esempio con un modello fittizio (slot 1 martedì o mercoledì, giorno A; slot 2 giovedì, giorno B; lunedì e venerdì non disponibili):
 

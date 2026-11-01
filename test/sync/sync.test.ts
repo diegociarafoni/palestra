@@ -118,8 +118,8 @@ describe("sync", () => {
 
     expect(result.newSessions).toBe(1);
     expect(calls.getSession).toEqual(["def456"]);
-    // lookbackDays predefinito: 14 giorni.
-    expect(calls.list).toEqual([{ since: "2026-10-22", until: "2026-11-05" }]);
+    // lookbackDays predefinito: 14 giorni (giovedì 22/10), dal lunedì della settimana.
+    expect(calls.list).toEqual([{ since: "2026-10-19", until: "2026-11-05" }]);
     const { results } = await env.DB.prepare(
       "SELECT session_id, date FROM sessions ORDER BY session_id",
     ).all();
@@ -461,6 +461,28 @@ describe("sync", () => {
       newSessions: 0,
       slotsUpdated: 2,
     });
+    const slots = await listSlotsByWeek(env.DB, "2026-W45");
+    expect(slots.map((s) => [s.id, s.status, s.session_id])).toEqual([
+      ["2026-W45-1", "fatta", "s-tue"],
+      ["2026-W45-2", "da_confermare", null],
+    ]);
+  });
+
+  it("sync: window starts on the monday of its week", async () => {
+    await saveTemplate();
+    const { client, calls } = fakeClient([
+      ["s-tue", raw("2026-11-03 18:00:00 +01:00")],
+    ]);
+
+    // Martedì 10/11 meno 6 giorni = mercoledì 4/11 (2026-W45): si parte da lunedì 2/11.
+    const result = await sync(client, env.DB, {
+      today: "2026-11-10",
+      lookbackDays: 6,
+    });
+
+    expect(calls.list).toEqual([{ since: "2026-11-02", until: "2026-11-10" }]);
+    // La seduta di martedì 3/11 riempie lo slot 1 invece di lasciarlo da confermare.
+    expect(result).toEqual({ newSessions: 1, slotsUpdated: 2 });
     const slots = await listSlotsByWeek(env.DB, "2026-W45");
     expect(slots.map((s) => [s.id, s.status, s.session_id])).toEqual([
       ["2026-W45-1", "fatta", "s-tue"],
