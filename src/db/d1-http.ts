@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { AuthError, ParseError, SyncError, TransientError } from "../errors";
+import {
+  AuthError,
+  ParseError,
+  TransientError,
+  UpstreamError,
+} from "../errors";
 import type { Db } from "./types";
 
 const API_BASE = "https://api.cloudflare.com/client/v4";
@@ -179,7 +184,8 @@ export function createD1HttpDb(opts: {
       const failure = FailureSchema.safeParse(json);
       if (!response.ok || failure.success) {
         const codes = failure.data?.errors.map((e) => e.code).join(", ");
-        throw new SyncError(
+        // Risposta di errore non transitoria (errore SQL, rotta inesistente): 69.
+        throw new UpstreamError(
           `D1: HTTP ${response.status}, codici errore: ${codes || "nessuno"}`,
         );
       }

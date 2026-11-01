@@ -1,15 +1,16 @@
 // Backup mensile di D1 su R2: `wrangler d1 export` in una cartella temporanea, upload
 // nel bucket `palestra-backup` (giurisdizione UE), cancellazione del file locale.
 // Uso: npm run backup (nessun argomento). Su stderr solo nome del file e dimensione.
-// Exit code: 0 ok · 64 argomenti · 69 export non riuscito o vuoto, errore di R2 · 75 errore
-// transitorio di R2 · 78 variabili mancanti o credenziali rifiutate.
+// Exit code (exitCodeFor, docs/buone-pratiche.md § 8): 0 ok · 64 argomenti · 69 export non
+// riuscito o vuoto, errore di R2 · 75 errore transitorio di R2 · 78 variabili mancanti o
+// credenziali rifiutate.
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { romeDate } from "../domain/dates";
-import { AuthError, SyncError, TransientError } from "../errors";
+import { exitCodeFor, SyncError } from "../errors";
 import { putObject } from "../r2/put-object";
 import { runWrangler } from "./wrangler";
 
@@ -34,14 +35,6 @@ async function exportWithWrangler(output: string): Promise<number> {
     output,
   ]);
   return code;
-}
-
-// docs/buone-pratiche.md § 8.
-// Provvisoria: dopo il merge del Task 6 si importa da src/errors.ts.
-export function exitCodeFor(error: SyncError): number {
-  if (error instanceof AuthError) return 78;
-  if (error instanceof TransientError) return 75;
-  return 69;
 }
 
 export async function main(
