@@ -11,11 +11,17 @@ export default defineConfig({
         test: {
           name: "node",
           include: ["test/**/*.test.ts"],
-          exclude: ["test/store/**", "test/report/run.test.ts"],
+          exclude: [
+            "test/store/**",
+            "test/api/**",
+            "test/sync/**",
+            "test/report/run.test.ts",
+          ],
         },
       },
       {
         // D1 locale di Miniflare con le migrazioni del repository; nessun wrangler.toml.
+        // Vale per test/store e test/api (le rotte del dashboard leggono lo stesso D1).
         plugins: [
           cloudflareTest(async () => ({
             miniflare: {
@@ -29,8 +35,23 @@ export default defineConfig({
         ],
         test: {
           name: "workers",
-          include: ["test/store/**/*.test.ts", "test/report/run.test.ts"],
+          include: [
+            "test/store/**/*.test.ts",
+            "test/api/**/*.test.ts",
+            "test/sync/**/*.test.ts",
+            "test/report/run.test.ts",
+          ],
           setupFiles: ["test/store/setup.ts"],
+        },
+      },
+      {
+        // Frontend: stessi plugin della build (React + React Compiler), DOM di jsdom, API con MSW.
+        extends: "./web/vite.config.ts",
+        test: {
+          name: "web",
+          environment: "jsdom",
+          include: ["test/web/**/*.test.tsx"],
+          setupFiles: ["test/web/setup.ts"],
         },
       },
     ],

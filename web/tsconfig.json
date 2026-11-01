@@ -1,0 +1,13 @@
+{
+  // Frontend e test/web: DOM al posto dei tipi globali dei Workers (in conflitto con lib DOM).
+  // Il codice del server raggiunto da `AppType` importa i tipi D1 da "@cloudflare/workers-types"
+  // (versione importabile, senza globali). web/vite.config.ts gira in Node: lo controlla la root.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": [],
+    "jsx": "react-jsx"
+  },
+  "include": ["src", "../test/web"],
+  "exclude": []
+}
