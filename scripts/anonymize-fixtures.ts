@@ -650,6 +650,29 @@ function findResidue(
 /** La rete di sicurezza ha trovato un residuo: non si scrive nulla (messaggi già stampati). */
 class ResidueError extends ParseError {}
 
+/** Solo questi file entrano nelle fixture; `strength_detail_N.html` con la numerazione. */
+function isAllowedFixture(name: string): boolean {
+  const exact = new Set([
+    "login_form.html",
+    "login_ok.html",
+    "last_sessions.html",
+    "session_cardio_only.json",
+    "session_strength.json",
+    "cardio_timeseries.json",
+    "biometrics.json",
+  ]);
+  return exact.has(name) || /^strength_detail(_\d+)?\.html$/.test(name);
+}
+
+/** In `biometrics.json` ogni `value` numerico diventa un numero sintetico fisso per misura. */
+function syntheticMeasures(json: string): string {
+  let n = 0;
+  return json.replace(
+    /("value"\s*:\s*)-?\d+(?:\.\d+)?/g,
+    (_m, head: string) => `${head}${100 + n++}`,
+  );
+}
+
 const USAGE =
   "Uso: npx tsx scripts/anonymize-fixtures.ts <cartella_probe> <cartella_fixture>";
 const IDENTITIES_FILE = "identities.json";
@@ -678,15 +701,20 @@ async function anonymizeDir(
   deps: Deps,
 ): Promise<number> {
   const identities = await readIdentities(src);
-  const names = (await readdir(src, { withFileTypes: true }))
+  const candidates = (await readdir(src, { withFileTypes: true }))
     .filter((entry) => entry.isFile() && entry.name !== IDENTITIES_FILE)
     .map((entry) => entry.name)
     .filter((name) => [".html", ".json"].includes(extname(name)))
     .sort();
+  // Solo i file in elenco; gli altri si contano senza stamparne il nome (dati personali).
+  const names = candidates.filter(isAllowedFixture);
+  const skipped = candidates.length - names.length;
+  if (skipped > 0) console.error(`${skipped} file ignorati`);
   // Tutto in memoria prima di scrivere: se un profilo non si riduce, nessun file esce.
   const clean: { name: string; text: string }[] = [];
   for (const name of names) {
     let text = await readFile(join(src, name), "utf8");
+    if (name === "biometrics.json") text = syntheticMeasures(text);
     if (extname(name) === ".html") {
       try {
         if (name === "login_ok.html" && readCurrentUser(text) === undefined) {
