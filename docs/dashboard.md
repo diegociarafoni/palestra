@@ -9,19 +9,22 @@ Una SPA React + MUI (`web/`, compilata in `site/` con `npm run build:web`) e un'
 | Pagina | Percorso | Cosa mostra |
 | --- | --- | --- |
 | Settimana | `/` | La settimana di oggi (ora di Roma): per ogni slot la seduta della scheda, i giorni ammessi, lo stato, il giorno in cui è stato svolto ("Svolta") e quello scelto ("Giorno scelto"), il motivo; sotto, le sedute della settimana e il totale dei MOVEs. Tornando sulla pagina in un altro giorno passa da sola alla settimana nuova. |
-| Calendario | `/calendario` | In sola lettura (la scrittura del feedback arriva con il Task 12). Slot del mese per settimana, sedute extra e, per ogni seduta, il suo feedback; i feedback del mese che non appartengono a nessuna seduta mostrata (salvati prima della sync, o di una seduta abbinata a uno slot del mese prima) stanno in "Altri feedback". Parte dal mese corrente. |
+| Calendario | `/calendario` | Nel mese corrente, in cima, il modulo "Come è andata oggi?" (sotto). Slot del mese per settimana, sedute extra e, per ogni seduta, il suo feedback o "Senza feedback", con "Modifica feedback" o "Aggiungi feedback"; i feedback del mese che non appartengono a nessuna seduta mostrata (salvati prima della sync, o di una seduta abbinata a uno slot del mese prima) stanno in "Altri feedback", anche loro modificabili. Uno slot programmato senza seduta ha "Scegli il giorno"; uno da confermare ha "Saltata?". Parte dal mese corrente. |
 | Esercizi | `/esercizi` | Dalle metriche del report: un piccolo grafico dell'e1RM per esercizio (asse y proprio, punti uniti da segmenti dritti), poi la tabella della forza (prima → ultima serie, e1RM, variazione, affidabilità, prossimo passo). Parte dal mese precedente, come il Report. |
 | Misure | `/misure` | Grafico del peso con le sole misure in protocollo, poi la tabella di tutte le misure. |
 | Scheda | `/scheda` | Versione e validità della scheda attiva oggi (ora di Roma), poi il suo Markdown. |
 | Report | `/report` | Report e revisione del mese, dal Markdown salvato in D1. Parte dal mese precedente; il selettore cambia mese. |
 
+- Modulo del feedback (testi approvati, spec § 5): "Come è andata oggi?", le cinque scelte "😀 Ottima · 🙂 Buona · 😐 Normale · 😓 Faticosa · 😣 Pessima", la casella "Ho sentito un fastidio articolare" con il campo "dove", "Note (facoltative)" e "Salva". Se oggi c'è già un feedback, il modulo parte dall'ultimo (il `seq` più alto) e offre anche "Un'altra seduta oggi", che salva gli stessi campi come seduta successiva (`seq` + 1). Per una seduta di un altro giorno lo stesso modulo si apre in un dialogo con il titolo "Come è andata <giorno>?" e salva con giorno e `seq` di quella seduta.
+- "Saltata?" apre un dialogo con il motivo facoltativo (lavoro, stanchezza, fastidio, altro) e "Conferma". "Scegli il giorno" propone la finestra dello slot e il sabato e la domenica della stessa settimana, senza i giorni non disponibili del modello; la scelta si salva subito.
+- Dopo ogni salvataggio riuscito calendario e settimana si ricaricano; il pulsante resta in caricamento fino ad allora. Un errore mostra "Salvataggio non riuscito. Riprova." e lascia il modulo com'era.
 - Navigazione: sotto i 900 px (`md`) una barra in basso con Settimana, Calendario, Esercizi, Misure e "Altro" (Scheda, Report); da `md` in su le schede in alto.
 - Oltre ai dati, ogni pagina ha tre stati: caricamento, "Nessun dato" ed errore con "Riprova".
 - `web/public/_headers`: CSP `default-src 'self'` (niente script, font o immagini esterni), `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`. `robots.txt`: `Disallow: /`.
 
 ### API
 
-Rotte `GET` in `src/api/routes/`:
+Rotte in `src/api/routes/`. In lettura (`GET`):
 
 | Rotta | Risposta 200 | Altri esiti |
 | --- | --- | --- |
@@ -29,10 +32,19 @@ Rotte `GET` in `src/api/routes/`:
 | `/api/scheda` | `{ version, valid_from, valid_to, md, json }` della scheda attiva oggi (Europe/Rome) | 404 se nessuna scheda è attiva |
 | `/api/reports/:month` (`AAAA-MM`) | `{ month, report, revisione }`: Markdown oppure `null` | 400 mese non valido · 404 né report né revisione |
 | `/api/week?date=AAAA-MM-GG` | `{ slots, sessions, moves_total }`: slot della settimana ISO di `date`, ciascuno con `session: { date, seq }` della seduta abbinata (o `null`); sedute da lunedì a domenica (date di Roma) | 400 data non valida |
-| `/api/calendar?month=AAAA-MM` | `{ slots, extra, feedback }`: slot del mese con `session` come sopra; sedute del mese che nessuno slot cita, ciascuna con il suo `seq`; feedback del mese più quello dei giorni del mese dopo in cui cadono le sedute degli slot del mese | 400 mese non valido |
+| `/api/calendar?month=AAAA-MM` | `{ slots, extra, feedback, unavailable }`: slot del mese con `session` come sopra; sedute del mese che nessuno slot cita, ciascuna con il suo `seq`; feedback del mese più quello dei giorni del mese dopo in cui cadono le sedute degli slot del mese; giorni della settimana non disponibili nel modello (`profile`, `settimana_tipo`; vuoto senza modello) | 400 mese non valido |
 | `/api/exercises?month=AAAA-MM` | `{ strength_table, e1rm_series }` dalle metriche del mese; liste vuote se il report manca | 400 mese non valido |
 
-- Errori con corpo fisso, senza dati: `{"error":"bad_request"}` 400, `{"error":"unauthorized"}` 401, `{"error":"forbidden"}` 403, `{"error":"not_found"}` 404 (anche per una rotta inesistente), `{"error":"internal"}` 500. Nel log delle Functions un errore interno è una sola riga, `api: internal <nome dell'errore>`.
+Rotte di scrittura (corpo JSON con `Content-Type: application/json`, validato con gli schemi di `src/domain/dashboard.ts`, senza chiavi in più; ogni scrittura riuscita aggiunge una riga in `audit` con autore l'e-mail di Access, nello stesso batch):
+
+| Rotta | Corpo | Risposta 200 | Altri esiti |
+| --- | --- | --- | --- |
+| `PUT /api/feedback` | `{ date, class, joint_pain, joint_where?, notes?, seq? }`: `class` fra `ottima`, `buona`, `normale`, `faticosa`, `pessima`; "dove" fino a 80 caratteri, salvato solo con `joint_pain`; note fino a 1000; testi vuoti → `null`; `seq` intero ≥ 1, di default 1 | il feedback salvato (uno per giorno e `seq`: un secondo PUT lo modifica) | 400 corpo non valido o `date` dopo oggi (Europe/Rome) |
+| `PATCH /api/slots/:id` | `{ status: "saltata", reason? }` con `reason` fra `lavoro`, `stanchezza`, `fastidio`, `altro` (senza: `null`), **oppure** `{ date }`: un giorno della finestra o il sabato o la domenica della stessa settimana ISO, non tra quelli non disponibili del modello | lo slot aggiornato | 400 corpo non valido o giorno non ammesso · 404 slot inesistente · 409 slot fatto, spostato o con una seduta abbinata (anche se la sync l'ha abbinata durante la richiesta: nessuna riga `audit`) |
+
+- Le scelte sugli slot valgono solo per quelli senza seduta (`programmata`, `da_confermare`, `saltata`): sugli altri la sync riscriverebbe stato e motivo.
+- Niente intestazioni CORS: un altro sito non può inviare PUT o PATCH con il JSON (servirebbe un preflight che l'API non concede), e un corpo non dichiarato JSON è un 400.
+- Errori con corpo fisso, senza dati: `{"error":"bad_request"}` 400 (anche per un JSON non valido), `{"error":"unauthorized"}` 401, `{"error":"forbidden"}` 403, `{"error":"not_found"}` 404 (anche per una rotta inesistente), `{"error":"conflict"}` 409, `{"error":"internal"}` 500. Nel log delle Functions un errore interno è una sola riga, `api: internal <nome dell'errore>`.
 - Feedback e sedute si abbinano per giorno e numero della seduta nel giorno (`seq`, contando tutte le sedute del giorno in ordine di orario), non per il giorno scelto dello slot, che la sync non scrive ([decisione](../kb/decisioni/2026-11-01-feedback-abbinato-per-giorno-e-ordine.md)).
 - Ogni risposta di `/api/*` ha `Cache-Control: no-store`: i dati di salute non restano nella cache del telefono né dei proxy.
 - Access è verificato anche dalle Functions (`src/api/access.ts`), non solo dall'applicazione Access davanti all'hostname. Ogni richiesta deve portare in `Cf-Access-Jwt-Assertion` un JWT RS256 firmato con le chiavi del team (`https://<ACCESS_TEAM_DOMAIN>/cdn-cgi/access/certs`), con emittente `https://<ACCESS_TEAM_DOMAIN>`, audience `ACCESS_AUD`, scadenza `exp` ed e-mail uguale a `ALLOWED_EMAIL` (maiuscole e minuscole indifferenti). Token assente o non valido → 401; e-mail diversa → 403; variabili mancanti o con spazi ai bordi → 500 (fail closed). Così non legge dati nemmeno una richiesta arrivata per un'altra via, per esempio `*.pages.dev`.
@@ -122,6 +134,8 @@ Exit code della guardia: 0 ok · 64 argomenti non previsti · 70 errore inatteso
 ### Sessione scaduta
 
 Ogni richiesta del frontend all'API porta `X-Requested-With: XMLHttpRequest`. A un 401 o 403 la pagina si ricarica, al massimo una volta al minuto, e passa di nuovo da Access; un secondo 401/403 entro il minuto mostra "Sessione non valida. Chiudi e riapri la dashboard.". Motivazioni e limiti: [Con la sessione di Access scaduta la dashboard ricarica la pagina al massimo una volta al minuto](../kb/decisioni/2026-11-01-sessione-access-scaduta.md). La risposta 401 di Access è controllata dalla verifica finale di `publish.yml`.
+
+Limite noto sulle scritture: se la sessione è scaduta quando si preme "Salva" (o "Conferma", o si sceglie un giorno), la pagina si ricarica e ciò che era scritto nel modulo si perde; il salvataggio non avviene e va rifatto dopo il login. La sessione di Access dura un mese (passo 4), quindi succede di rado.
 
 ### Grafici
 

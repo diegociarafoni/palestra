@@ -4,7 +4,7 @@ import { useId } from "react";
 import type { CalendarResponse } from "../../../../src/domain/dashboard";
 import { Elenco } from "../../componenti/Elenco";
 import { testi } from "../../testi";
-import { FeedbackSeduta } from "./FeedbackSeduta";
+import { FeedbackModificabile } from "./FeedbackModificabile";
 import { SettimanaSlot, type SlotWithFeedback } from "./SettimanaSlot";
 import { VoceExtra } from "./VoceExtra";
 import { VoceFeedback } from "./VoceFeedback";
@@ -27,12 +27,13 @@ function byWeek(slots: SlotWithFeedback[]) {
 type MeseCalendarioProps = { month: string; calendar: CalendarResponse };
 
 /**
- * Il mese del calendario: slot per settimana e sedute extra, ognuno con il suo feedback; poi i
+ * Il mese del calendario: slot per settimana (con la scelta del giorno o "Saltata?" se non hanno
+ * la seduta) e sedute extra, ognuna con il suo feedback da aggiungere o modificare; poi i
  * feedback del mese che non hanno una seduta qui (salvati prima della sync, o di una seduta di
- * uno slot di un altro mese), per data.
+ * uno slot di un altro mese), per data, anche loro modificabili.
  */
 export function MeseCalendario({ month, calendar }: MeseCalendarioProps) {
-  const { slots, extra, feedback } = calendar;
+  const { slots, extra, feedback, unavailable } = calendar;
   const slotsId = useId();
   const extraId = useId();
   const othersId = useId();
@@ -64,7 +65,12 @@ export function MeseCalendario({ month, calendar }: MeseCalendarioProps) {
           <Typography>{testi.state.empty}</Typography>
         ) : (
           weeks.map(({ week, slots }) => (
-            <SettimanaSlot key={week} week={week} slots={slots} />
+            <SettimanaSlot
+              key={week}
+              week={week}
+              slots={slots}
+              unavailable={unavailable}
+            />
           ))
         )}
       </Stack>
@@ -76,17 +82,16 @@ export function MeseCalendario({ month, calendar }: MeseCalendarioProps) {
           <Typography>{testi.state.empty}</Typography>
         ) : (
           <Elenco>
-            {extra.map((session, index) => {
-              const sessionFeedback = extraFeedback[index];
-              return (
-                // Il riassunto non ha id: data e posizione, in una lista che non si riordina.
-                <VoceExtra key={`${session.date} ${index}`} session={session}>
-                  {sessionFeedback && (
-                    <FeedbackSeduta feedback={sessionFeedback} />
-                  )}
-                </VoceExtra>
-              );
-            })}
+            {extra.map((session, index) => (
+              // Il riassunto non ha id: data e posizione, in una lista che non si riordina.
+              <VoceExtra key={`${session.date} ${index}`} session={session}>
+                <FeedbackModificabile
+                  date={session.date}
+                  seq={session.seq}
+                  feedback={extraFeedback[index]}
+                />
+              </VoceExtra>
+            ))}
           </Elenco>
         )}
       </Stack>

@@ -20,6 +20,15 @@ Ogni settimana ISO (da lunedì a domenica) il sistema crea uno **slot** per ogni
 
 Uno slot è **non fatto** finché non diventa `fatta` o `spostata`: quindi `programmata`, `da_confermare` e `saltata`.
 
+## Scelte dell'utente dal calendario
+
+Dalla pagina Calendario della dashboard l'utente può, solo su uno slot non fatto e senza seduta abbinata:
+
+- confermare che è saltato, con motivo facoltativo (lavoro, stanchezza, fastidio, altro): lo stato diventa `saltata`;
+- fissare o spostare il giorno (campo `date` dello slot): un giorno della finestra oppure il sabato o la domenica della stessa settimana ISO, mai un giorno non disponibile del modello.
+
+Ogni scelta lascia una riga in `audit`. Uno slot con la seduta appartiene alla sync: una scelta dell'utente verrebbe sovrascritta, quindi l'API la rifiuta (409), anche quando la sync abbina la seduta mentre la richiesta è in corso. Codice: `src/api/routes/slots.ts`, `updateSlotByUser` in `src/store/manual.ts`, `choosableDays` in `src/domain/planning.ts`.
+
 ## Abbinamento di una seduta
 
 La data della seduta è quella di Roma (una seduta delle 23:30 UTC di giovedì in inverno è di venerdì). Le regole si applicano nell'ordine:

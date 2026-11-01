@@ -4,11 +4,15 @@ import type { AppType } from "../../../src/api/app";
 import {
   CalendarResponseSchema,
   ExercisesResponseSchema,
+  type FeedbackBody,
   MeasuresResponseSchema,
   ReportsResponseSchema,
   SchedaResponseSchema,
+  type SlotPatchBody,
   WeekResponseSchema,
 } from "../../../src/domain/dashboard";
+import { PlannedSlotSchema } from "../../../src/domain/planning";
+import { FeedbackSchema } from "../../../src/domain/types";
 import { browser, SessionError } from "./session";
 
 // Unico client dell'API (docs/buone-pratiche-react.md § 5): percorsi e tipi arrivano da `AppType`,
@@ -69,6 +73,16 @@ async function read<T>(
   return schema.parse(await response.json());
 }
 
+/** Come `read` per una scrittura: anche il 404 (slot che non c'è più) è un errore. */
+async function write<T>(
+  request: Promise<ApiResponse>,
+  schema: z.ZodType<T>,
+): Promise<T> {
+  const body = await read(request, schema);
+  if (body === null) throw new Error("API: risposta 404");
+  return body;
+}
+
 /** Tutte le misure, in ordine di data. */
 export async function getMeasures() {
   const body = await read(api.measures.$get(), MeasuresResponseSchema);
@@ -104,4 +118,17 @@ export function getExercises(month: string) {
 /** Slot, sedute extra e feedback del mese (`AAAA-MM`). */
 export function getCalendar(month: string) {
   return read(api.calendar.$get({ query: { month } }), CalendarResponseSchema);
+}
+
+/** Salva il feedback di una seduta (giorno e `seq`): il feedback salvato. */
+export function putFeedback(body: FeedbackBody) {
+  return write(api.feedback.$put({ json: body }), FeedbackSchema);
+}
+
+/** Conferma lo slot `id` saltato, o il suo giorno scelto: lo slot aggiornato. */
+export function patchSlot(id: string, body: SlotPatchBody) {
+  return write(
+    api.slots[":id"].$patch({ param: { id }, json: body }),
+    PlannedSlotSchema,
+  );
 }
