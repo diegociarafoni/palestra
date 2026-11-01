@@ -504,6 +504,152 @@ function reduceCurrentUser(html: string): string {
   );
 }
 
+/**
+ * Toglie i commenti HTML e gli elementi `<script>` che non contengono `EU.currentUser`:
+ * nessun parser li legge, ma trasportano array di nomi di mese, id di analytics e dati di
+ * profilo che la rete di sicurezza altrimenti bloccherebbe.
+ */
+function stripNonProfile(html: string): string {
+  return html
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, (m) =>
+      /EU\.currentUser/.test(m) ? m : "",
+    );
+}
+
+const ENTITY_DECODE: Record<string, string> = {
+  apos: "'",
+  quot: '"',
+  amp: "&",
+  lt: "<",
+  gt: ">",
+};
+for (const [ch, name] of Object.entries(NAMED_ENTITIES)) {
+  if (!(name in ENTITY_DECODE)) ENTITY_DECODE[name] = ch;
+}
+
+/** Decodifica entità HTML decimali, esadecimali e con nome. */
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&#x([0-9a-fA-F]+);/g, (_m, h: string) =>
+      String.fromCodePoint(Number.parseInt(h, 16)),
+    )
+    .replace(/&#(\d+);/g, (_m, d: string) => String.fromCodePoint(Number(d)))
+    .replace(/&([a-zA-Z]+);/g, (m, name: string) => ENTITY_DECODE[name] ?? m);
+}
+
+/** Decodifica le sequenze `%HH` (anche multi-byte UTF-8); lascia il resto invariato. */
+function decodePercent(text: string): string {
+  return text.replace(/(?:%[0-9a-fA-F]{2})+/g, (m) => {
+    try {
+      return decodeURIComponent(m);
+    } catch {
+      return m;
+    }
+  });
+}
+
+/**
+ * Forma normalizzata per la rete di sicurezza: decodifica entità HTML, escape JS/JSON e
+ * percento finché il testo non cambia più, toglie gli accenti e porta in minuscolo.
+ */
+function normalizeForCheck(text: string): string {
+  let s = text;
+  for (let i = 0; i < 5; i++) {
+    const next = decodePercent(decodeJsString(decodeHtmlEntities(s)));
+    if (next === s) break;
+    s = next;
+  }
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+const strip = (s: string): string =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+const MONTH_FULL = [...MONTHS.it.full, ...MONTHS.en.full].map(strip);
+const WEEKDAY_FULL = [...WEEKDAYS.it.full, ...WEEKDAYS.en.full].map(strip);
+const MONTH_ABBR = [...MONTHS.it.abbr, ...MONTHS.en.abbr].map(strip);
+const WEEKDAY_ABBR = [...WEEKDAYS.it.abbr, ...WEEKDAYS.en.abbr].map(strip);
+
+const FLAG_FULL_NAMES = new RegExp(
+  `(?<!\\p{L})(?:${[...new Set([...MONTH_FULL, ...WEEKDAY_FULL])].join("|")})(?!\\p{L})`,
+  "u",
+);
+const FLAG_ABBR_COMBO = new RegExp(
+  `(?<!\\p{L})(?:${[...new Set(WEEKDAY_ABBR)].join("|")})\\.?\\s+\\d{1,2}\\s+(?:${[...new Set(MONTH_ABBR)].join("|")})(?!\\p{L})`,
+  "u",
+);
+const FLAG_RELATIVE =
+  /(?<!\p{L})(?:oggi|ieri|giorni fa|today|yesterday|days ago)(?!\p{L})/u;
+const FLAG_DDMMYY = /(?<!\d)\d{1,2}\/\d{1,2}\/\d{2}(?!\d)/;
+const FLAG_EPOCH = /(?<!\d)(\d{13}|\d{10})(?!\d)/g;
+
+/** Vero se la riga normalizzata contiene una data che non deve mai raggiungere le fixture. */
+function hasDateResidue(line: string): boolean {
+  if (
+    FLAG_FULL_NAMES.test(line) ||
+    FLAG_ABBR_COMBO.test(line) ||
+    line.includes("/date(") ||
+    FLAG_RELATIVE.test(line) ||
+    FLAG_DDMMYY.test(line)
+  ) {
+    return true;
+  }
+  for (const [, digits] of line.matchAll(FLAG_EPOCH)) {
+    if (!digits) continue;
+    const ms = digits.length === 13 ? Number(digits) : Number(digits) * 1000;
+    const year = new Date(ms).getUTCFullYear();
+    if (year >= 2015 && year <= 2035) return true;
+  }
+  return false;
+}
+
+/** Matcher di un'identità residua sulla riga normalizzata (confini di lettera per i nomi). */
+function identityCheckers(identities: string[]): RegExp[] {
+  const checks: RegExp[] = [];
+  for (const identity of identities) {
+    const s = strip(identity);
+    if (s.length < MIN_IDENTITY_LENGTH) continue;
+    if (NAME_LIKE.test(identity)) {
+      checks.push(new RegExp(`(?<!\\p{L})${escapeRegExp(s)}(?!\\p{L})`, "u"));
+      for (const word of identity.match(/\p{L}{3,}/gu) ?? []) {
+        checks.push(
+          new RegExp(`(?<!\\p{L})${escapeRegExp(strip(word))}(?!\\p{L})`, "u"),
+        );
+      }
+    } else {
+      checks.push(new RegExp(escapeRegExp(s), "u"));
+    }
+  }
+  return checks;
+}
+
+type Residue = { file: string; line: number; kind: "identity" | "date" };
+
+/** Rete di sicurezza: cerca identità o date residue in ogni output, per file e riga. */
+function findResidue(
+  outputs: { name: string; text: string }[],
+  identities: string[],
+): Residue[] {
+  const idChecks = identityCheckers(identities);
+  const hits: Residue[] = [];
+  for (const { name, text } of outputs) {
+    text.split(/\r?\n/).forEach((raw, i) => {
+      const line = normalizeForCheck(raw);
+      if (idChecks.some((re) => re.test(line))) {
+        hits.push({ file: name, line: i + 1, kind: "identity" });
+      }
+      if (hasDateResidue(line)) {
+        hits.push({ file: name, line: i + 1, kind: "date" });
+      }
+    });
+  }
+  return hits;
+}
+
+/** La rete di sicurezza ha trovato un residuo: non si scrive nulla (messaggi già stampati). */
+class ResidueError extends ParseError {}
+
 const USAGE =
   "Uso: npx tsx scripts/anonymize-fixtures.ts <cartella_probe> <cartella_fixture>";
 const IDENTITIES_FILE = "identities.json";
@@ -546,7 +692,7 @@ async function anonymizeDir(
         if (name === "login_ok.html" && readCurrentUser(text) === undefined) {
           throw new ParseError("EU.currentUser non trovato");
         }
-        text = reduceCurrentUser(text);
+        text = stripNonProfile(reduceCurrentUser(text));
       } catch (error) {
         if (!(error instanceof ParseError)) throw error;
         throw new ParseError(`${name}: ${error.message}`, { cause: error });
@@ -561,14 +707,24 @@ async function anonymizeDir(
     const dayMap = buildDayMap(days, deps.randomInt ?? randomInt);
     mapDay = (iso) => dayMap.get(iso) ?? iso;
   }
-  await mkdir(dest, { recursive: true });
-  let count = 0;
-  for (const { name, text } of clean) {
-    await writeFile(join(dest, name), anonymize(text, { identities, mapDay }));
-    console.log(name);
-    count++;
+  const outputs = clean.map(({ name, text }) => ({
+    name,
+    text: anonymize(text, { identities, mapDay }),
+  }));
+  // Rete di sicurezza: su un residuo non si scrive nulla, solo `file:riga: tipo`.
+  const residue = findResidue(outputs, identities);
+  if (residue.length > 0) {
+    for (const { file, line, kind } of residue) {
+      console.error(`${file}:${line}: ${kind}`);
+    }
+    throw new ResidueError("residuo trovato");
   }
-  return count;
+  await mkdir(dest, { recursive: true });
+  for (const { name, text } of outputs) {
+    await writeFile(join(dest, name), text);
+    console.log(name);
+  }
+  return outputs.length;
 }
 
 export async function main(argv: string[], deps: Deps = {}): Promise<number> {
@@ -588,6 +744,7 @@ export async function main(argv: string[], deps: Deps = {}): Promise<number> {
     console.log(`${count} file anonimizzati`);
     return 0;
   } catch (error) {
+    if (error instanceof ResidueError) return 65; // messaggi già stampati
     if (!(error instanceof ParseError)) throw error;
     console.error(error.message);
     return 65;

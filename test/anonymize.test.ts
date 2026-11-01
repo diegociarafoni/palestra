@@ -361,6 +361,52 @@ EU.currentUser = JSON.parse('{\"id\":\"00000000-0000-4000-8000-000000000002\",\"
     );
   });
 
+  it("anonymize-fixtures: exit 65, writes nothing, on a leftover month name", async () => {
+    writeFileSync(join(src, "identities.json"), "[]");
+    // "gennaio" senza giorno/anno non è una data mappabile: resta e la rete di sicurezza
+    // scatta. Il nome del mese è sulla seconda riga.
+    writeFileSync(
+      join(src, "session_cardio_only.json"),
+      '{\n  "note":"sessione di gennaio scorso"\n}',
+    );
+    expect(await main([src, dest], { randomInt: minRandomInt })).toBe(65);
+    expect(existsSync(dest)).toBe(false);
+    // Solo percorso, riga e tipo: mai il testo trovato.
+    expect(stderr.mock.calls).toEqual([["session_cardio_only.json:2: date"]]);
+  });
+
+  it("anonymize-fixtures: exit 65 on an in-range epoch, even after mapping", async () => {
+    writeFileSync(join(src, "identities.json"), "[]");
+    writeFileSync(join(src, "session_strength.json"), '{"t":1772378228000}');
+    expect(await main([src, dest], { randomInt: minRandomInt })).toBe(65);
+    expect(existsSync(dest)).toBe(false);
+    expect(stderr.mock.calls).toEqual([["session_strength.json:1: date"]]);
+  });
+
+  it("anonymize-fixtures: strips non-profile scripts and HTML comments before writing", async () => {
+    writeFileSync(
+      join(src, "identities.json"),
+      JSON.stringify(["Mario Rossi"]),
+    );
+    writeFileSync(
+      join(src, "login_ok.html"),
+      [
+        String.raw`<script>EU.currentUser = JSON.parse('{\"id\":\"${USER_ID}\",\"token\":\"tok0\",\"culture\":\"it-IT\"}');</script>`,
+        `<script>window.MESI=["gennaio","febbraio"];</script>`,
+        "<!-- nota interna: Mario Rossi -->",
+        "<p>ciao</p>",
+      ].join("\n"),
+    );
+    expect(await main([src, dest], { randomInt: minRandomInt })).toBe(0);
+    const out = readFileSync(join(dest, "login_ok.html"), "utf8");
+    expect(out).toContain("EU.currentUser");
+    expect(out).toContain("<p>ciao</p>");
+    expect(out).not.toContain("gennaio");
+    expect(out).not.toContain("<!--");
+    expect(out).not.toContain("Mario");
+    expect(stderr).not.toHaveBeenCalled();
+  });
+
   it("anonymize-fixtures: exit 78 without identities.json", async () => {
     writeFileSync(join(src, "login_ok.html"), LOGIN_OK);
     expect(await main([src, dest], {})).toBe(78);
