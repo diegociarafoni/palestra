@@ -311,10 +311,10 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 **Accettazione:** run `workflow_dispatch` verde che salva il report del mese indicato in D1 (verifica con il connettore o nella dashboard).
 
 **Files:**
-- Modify: `.github/workflows/sync.yml`
+- Create: `.github/workflows/report.yml` (al posto di Modify `sync.yml`, che non era ancora su `main`: nota [kb/decisioni/2026-11-01-report-mensile-in-workflow-separato.md](../../../kb/decisioni/2026-11-01-report-mensile-in-workflow-separato.md)); sezione «Report mensile» in `docs/dashboard.md`
 
-- [ ] **Step 1:** step `npm run report -- --month <mese precedente>` quando `date -u +%d` è `01`, e su `workflow_dispatch` con input facoltativo `month`; stesse variabili d'ambiente del sync, nessun output oltre al conteggio.
-- [ ] **Step 2:** verifica; commit `ci: monthly report step`.
+- [x] **Step 1:** `npm run report -- --month <mese precedente>` il 1° del mese (05:37 UTC, dopo la sync) e su `workflow_dispatch` con input facoltativo `month`; stesse variabili d'ambiente del sync, nessun output oltre all'esito.
+- [ ] **Step 2:** verifica; commit `ci: monthly report step`. La run di accettazione scrive nel D1 reale: la lancia l'utente (o Claude con il suo permesso) dopo la prima sync.
 
 ---
 
