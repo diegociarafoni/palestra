@@ -114,6 +114,65 @@ describe("anonymize", () => {
       ].join("\n"),
     );
   });
+
+  it("anonymize: matches identities encoded as HTML entities, JS escapes and without GUID dashes", () => {
+    const input = [
+      String.raw`Niccol&ograve; Niccol&#242; Niccol&#xF2; Niccolò Niccol\\u00F2 Niccol%C3%B2`,
+      `${USER_ID} 3f2a9c1e7b4d4e8a9c6f1d2e3f4a5b6c`,
+      String.raw`path\/a token&apos;s and &quot;quoted&quot;`,
+    ].join("\n");
+    const output = anonymize(input, {
+      identities: [
+        "Niccolò",
+        USER_ID,
+        "path/a",
+        "token's",
+        '"quoted"',
+        "",
+        "ab",
+      ],
+      mapDay: (iso) => iso,
+    });
+    const guid = "00000000-0000-4000-8000-000000000002";
+    expect(output).toBe(
+      [
+        "anon-1 anon-1 anon-1 anon-1 anon-1 anon-1",
+        `${guid} ${guid}`,
+        "anon-3 anon-4 and anon-5",
+      ].join("\n"),
+    );
+  });
+
+  it("anonymize: replaces name words at letter boundaries only", () => {
+    const input = [
+      "Mario Rossi, poi solo Rossi e solo Mario.",
+      "non toccare: calendario, MaxHr, attivo, Rossinante",
+    ].join("\n");
+    const output = anonymize(input, {
+      identities: ["Mario Rossi"],
+      mapDay: (iso) => iso,
+    });
+    // La parola "Rossi" dentro "Rossinante" e "Mario" dentro parole non si toccano.
+    expect(output).toBe(
+      [
+        "anon-1, poi solo anon-1 e solo anon-1.",
+        "non toccare: calendario, MaxHr, attivo, Rossinante",
+      ].join("\n"),
+    );
+  });
+
+  it("anonymize: replaces e-mails in @, %40, %2540 and HTML-entity forms", () => {
+    const input = [
+      "a user@club.it b user%40club.it c user%2540club.it",
+      "d user&#64;club.it e user&#x40;club.it",
+    ].join("\n");
+    expect(anonymize(input, { identities: [], mapDay: (iso) => iso })).toBe(
+      [
+        "a utente@example.com b utente%40example.com c utente%2540example.com",
+        "d utente&#64;example.com e utente&#x40;example.com",
+      ].join("\n"),
+    );
+  });
 });
 
 describe("anonymize-fixtures", () => {
