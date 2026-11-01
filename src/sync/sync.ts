@@ -137,7 +137,8 @@ async function updateSlots(
   for (let day = since; day <= today; day = addDays(day, 1)) {
     await slotsOf(isoWeek(day));
   }
-  // In ordine di inizio: il sabato recupera lo slot 1 prima che la domenica recuperi il 2.
+  // In ordine di inizio (listSessionStarts): il sabato recupera lo slot 1 prima che la
+  // domenica recuperi il 2.
   const sessions = await listSessionStarts(db, since);
   for (const s of sessions) await slotsOf(isoWeek(romeDate(s.started_at)));
   const referenced = new Set(
@@ -145,7 +146,8 @@ async function updateSlots(
   );
   let updated = 0;
   for (const session of sessions) {
-    // Già abbinata, o extra: riesaminare una extra dà di nuovo extra.
+    // Già abbinata: si salta. Una extra non è riferita da nessuno slot e si riesamina a ogni
+    // run, con lo stesso esito.
     if (referenced.has(session.session_id)) continue;
     const date = romeDate(session.started_at);
     const slots = await slotsOf(isoWeek(date));
@@ -176,11 +178,11 @@ async function updateSlots(
 /**
  * Salva in D1 le sedute nuove degli ultimi `lookbackDays` giorni (fino a `today`, data di
  * Roma), a partire dal lunedì della settimana ISO del primo giorno, e aggiorna gli slot
- * programmati. Le sedute già presenti non si scaricano di nuovo:
- * ripetere la sync non cambia nulla. Il modello settimanale si legge e tutte le sedute nuove
- * si scaricano prima di ogni scrittura: un modello non valido o un errore di Mywellness non
- * scrive nulla. Se D1 fallisce dopo il salvataggio delle sedute, o se il modello manca, la
- * sync successiva con il modello abbina comunque le sedute della finestra rimaste senza slot.
+ * programmati. Le sedute già presenti non si scaricano di nuovo: ripetere la sync non cambia
+ * nulla. Il modello settimanale si legge e tutte le sedute nuove si scaricano prima di ogni
+ * scrittura: un modello non valido o un errore di Mywellness non scrive nulla. Se D1 fallisce
+ * dopo il salvataggio delle sedute, o se il modello manca, la sync successiva con il modello
+ * abbina comunque le sedute della finestra rimaste senza slot.
  */
 export async function sync(
   client: SyncClient,
