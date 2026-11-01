@@ -1,8 +1,9 @@
 // Rapporto della forma dei dati di Mywellness (Task 0): legge le risposte grezze del probe
 // (probe_out/, che resta sul computer dell'utente) e scrive un file Markdown con la sola forma,
 // da committare al posto delle fixture reali: nomi di campi, tag e attributi e il formato di
-// ogni valore, con ogni lettera resa `a`/`A` e ogni cifra resa `9`; in chiaro restano solo le
-// parole di VOCAB. Vedi docs/probe-mywellness.md § 2 e
+// ogni valore, con ogni parola resa `a`/`A` e le cifre rese `9`; in chiaro restano solo le
+// parole di VOCAB e i nomi che passano `plainName` (dei valori, solo quelli di `name`, `type`,
+// `method` e `property`). Vedi docs/probe-mywellness.md § 2 e
 // kb/decisioni/2026-11-01-forma-dei-dati-al-posto-delle-fixture-reali.md.
 // Uso: npx tsx scripts/shape-report.ts <cartella_probe> <file_md>
 // Legge solo i file in INPUTS (gli altri non li apre né li conta) e scrive una sezione per
@@ -226,7 +227,7 @@ const KEY = /^[A-Za-z_$][A-Za-z0-9_$]{0,63}$/;
 /**
  * Chiavi il cui valore è il nome di una grandezza di Mywellness (es. `HDistance`), su cui
  * `src/mywellness/normalize.ts` sceglie i dati: il valore resta scritto se ha la forma di un
- * nome senza spazi, come i valori di `class` o `name` nell'HTML.
+ * nome senza spazi, come i valori di `name` o `type` nell'HTML.
  */
 const PROPERTY_KEYS = new Set(["physicalProperty", "property"]);
 const PROPERTY_VALUE = /^[A-Za-z][A-Za-z0-9]{0,40}$/;
@@ -839,12 +840,12 @@ const HEADER = [
   "",
   "File generato da `scripts/shape-report.ts` (Task 0) con le risposte del probe, che restano sul computer dell'utente. Mostra solo la forma dei dati, con una sezione per famiglia di file e, in ogni sezione, le forme diverse dei suoi file in ordine alfabetico:",
   "",
-  "- restano scritti i nomi dei campi JSON, dei tag e degli attributi HTML noti e i valori di attributi come `class`, `id` e `name` e dei campi `physicalProperty` e `property`, se hanno la forma di un nome, con ogni cifra resa `9`; gli altri sono mascherati tra `«»`;",
+  "- restano scritti i nomi dei campi JSON, dei tag e degli attributi HTML noti e, degli attributi, solo i valori di `name`, `type` e `method`, oltre ai valori dei campi `physicalProperty` e `property`, se hanno la forma di un nome, con ogni sequenza di cifre resa `99`; un nome è mascherato tra `«»`, come ogni altro valore, se ha 3 o più cifre, 4 o più parti di 1 o 2 lettere, una parte che è un mese, un giorno o un momento del giorno (in italiano, inglese, tedesco, francese o spagnolo), le iniziali dell'utente o una parola delle sue identità; in un elemento con `\\\"` o `\\'` negli attributi tutti i valori sono mascherati;",
   "- nei valori ogni parola diventa `a` (se comincia con una minuscola) o `A` (se comincia con una maiuscola); una sequenza di 1 o 2 cifre diventa `99`, una più lunga ha un `9` per cifra (al massimo 20, poi `…`); i numeri JSON diventano `numero 9`, `numero 9.9` o `numero -9`;",
   "- restano scritte solo le parole del vocabolario `VOCAB` dello script (unità di misura, parole della tabella delle serie e dell'interfaccia, tipi di esercizio), la punteggiatura e i simboli ASCII, pochi segni tipografici e la `T` e la `Z` delle date ISO; ogni altro carattere diventa `?`;",
-  "- elementi fratelli con lo stesso tag, voci con la chiave mascherata ed elementi di una lista compaiono una volta per forma, in ordine alfabetico e al massimo 5 (poi `… altre varianti`), senza dire quanti sono; le celle di una riga di tabella restano tutte, nell'ordine delle colonne; `(ripetuto)` segna un fratello o una voce che si ripete; il contenuto degli script è omesso, tranne la forma di `EU.currentUser`.",
+  "- elementi fratelli con lo stesso tag (anche le celle di una riga di tabella), voci con la chiave mascherata ed elementi di una lista compaiono una volta per forma, in ordine alfabetico e al massimo 5 (poi `… altre varianti`), senza dire quanti sono; solo nella tabella delle serie, quella con un'intestazione `th` che contiene `seri`, le celle di una riga restano nell'ordine delle colonne, al massimo 12 (poi `… altre colonne`); `(ripetuto)` segna un fratello o una voce che si ripete; anche le forme di una sezione sono al massimo 5 (poi `… altre varianti`); il contenuto degli script è omesso, tranne la forma di `EU.currentUser`; un elemento con attributi che il parser non sa leggere compare con `«attributi non leggibili»`.",
   "",
-  "Dell'ordine della pagina resta solo l'ordine in cui compaiono per la prima volta i tag diversi tra fratelli. Nient'altro: nessun nome, data, numero o identificativo.",
+  "Dell'ordine della pagina restano solo l'ordine in cui compaiono per la prima volta i tag diversi tra fratelli e l'ordine delle colonne della tabella delle serie. Nient'altro: nessun nome, data, numero o identificativo.",
 ].join("\n");
 
 /**
