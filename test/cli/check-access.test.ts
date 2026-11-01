@@ -270,6 +270,35 @@ describe("check-access", () => {
     },
   );
 
+  it("check-access: every request has a 15 s timeout of its own", async () => {
+    // Il segnale scaduto sostituisce l'attesa vera: fetch fallisce come al timeout di 15 s.
+    const expired = AbortSignal.abort(
+      new DOMException(
+        "The operation was aborted due to timeout",
+        "TimeoutError",
+      ),
+    );
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(expired);
+    const signals: (AbortSignal | null | undefined)[] = [];
+    // Come fetch: con un segnale già scaduto rifiuta con il suo motivo.
+    const honouringFetch = async (
+      _input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      signals.push(init?.signal);
+      if (init?.signal?.aborted) throw init.signal.reason;
+      return toAccessLogin();
+    };
+    expect(await main([], ENV, { fetch: honouringFetch })).toBe(75);
+    expect(timeout).toHaveBeenCalledWith(15_000);
+    expect(signals).toEqual([expired]);
+    expect(stderr.mock.calls).toEqual([
+      [
+        "Richiesta a / non riuscita: errore di rete o timeout (rilanciare; se si ripete, controllare dominio e DNS)",
+      ],
+    ]);
+  });
+
   it("check-access: an unexpected error is not reported as a network error", async () => {
     const buggyFetch = async (): Promise<Response> => {
       throw new RangeError("errore inatteso");

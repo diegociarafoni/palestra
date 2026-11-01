@@ -11,6 +11,9 @@ import { pathToFileURL } from "node:url";
 import { exitCodeFor, TransientError } from "../errors";
 
 const PATHS = ["/", "/api/measures"] as const;
+// Timeout di ogni richiesta: quelli di undici per intestazioni e corpo (300 s) supererebbero il
+// timeout del passo nel workflow, e il 75 promesso per il timeout non arriverebbe mai.
+const TIMEOUT_MS = 15_000;
 // Solo un nome host (etichette DNS separate da punti): niente schema, percorso, porta o spazi.
 const HOSTNAME =
   /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i;
@@ -52,6 +55,7 @@ async function get(
     return await fetchFn(`https://${host}${path}`, {
       redirect: "manual",
       headers,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (error) {
     if (!isNetworkError(error)) throw error;
