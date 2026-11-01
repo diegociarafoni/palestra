@@ -304,6 +304,40 @@ describe("report", () => {
     expect(section(perSet, 1)).toContain(
       "| Tonnellaggio settimanale | 90 kg | da 100 kg · -10 % · kg per serie (serie con carico) 100 → 90 | ● |",
     );
+    // Arrotondata anche l'ultima settimana: 100 → 89,96, mostrati 100 → 90 (●, non "!").
+    const lastRounded = renderReport({
+      ...input,
+      sessions: [
+        at("sess-t07", "2026-11-03T18:00:00+01:00", [
+          ex(1, "Leg Press", 1, 10),
+        ]),
+        at("sess-t08", "2026-11-10T18:00:00+01:00", [
+          ex(1, "Leg Press", 1, 8.996),
+        ]),
+      ],
+    });
+    expect(section(lastRounded, 1)).toContain(
+      "| Tonnellaggio settimanale | 90 kg | da 100 kg · -10 % · kg per serie (serie con carico) 100 → 90 | ● |",
+    );
+    // Rapporti a due decimali, non a uno: 11/20 = 0,55 (●, a un decimale 0,6 sarebbe ✓);
+    // 26/25 = 1,04 (●, a un decimale 1 sarebbe ✓).
+    const nearRatios = renderReport({
+      ...input,
+      sessions: [
+        at("sess-t09", "2026-11-03T18:00:00+01:00", [
+          ex(1, "Leg Press", 20, 60),
+          ex(2, "Leg Curl", 1, 30),
+          ex(3, "Chest Press", 26, 30),
+          ex(4, "Lat Machine", 25, 40),
+        ]),
+      ],
+    });
+    expect(section(nearRatios, 1)).toContain(
+      "| Rapporto femorali/quadricipiti | 0,55 | serie, indiretto incluso | ● |",
+    );
+    expect(section(nearRatios, 1)).toContain(
+      "| Rapporto spinta/tirata | 1,04 | — | ● |",
+    );
     // Rapporti a due decimali: 125/210 = 0,595 → 0,6; 202/201 = 1,005 → 1.
     const balanced = renderReport({
       ...input,
