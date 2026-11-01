@@ -25,17 +25,20 @@ const HOSTNAME =
 // anteprima (`<hash>.<sottodominio>.pages.dev`) passa da un'altra applicazione Access.
 const PAGES_HOSTNAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?\.pages\.dev$/i;
 
-/** Vero se la risposta è un redirect verso il login di Access (`https://*.cloudflareaccess.com`). */
-function redirectsToAccess(response: Response, url: string): boolean {
-  if (response.status < 300 || response.status > 399) return false;
+/**
+ * L'host del login di Access (`<team>.cloudflareaccess.com`) se la risposta è un redirect verso
+ * `https://*.cloudflareaccess.com`, altrimenti null.
+ */
+function accessLoginHost(response: Response, url: string): string | null {
+  if (response.status < 300 || response.status > 399) return null;
   const location = response.headers.get("location");
-  if (location === null) return false;
+  if (location === null) return null;
   // `URL.parse` e non `new URL`: l'errore di `new URL` riporta input e base, cioè l'hostname.
   const target = URL.parse(location, url);
-  return (
-    target?.protocol === "https:" &&
+  return target?.protocol === "https:" &&
     target.hostname.endsWith(".cloudflareaccess.com")
-  );
+    ? target.hostname
+    : null;
 }
 
 /**
@@ -94,13 +97,24 @@ async function check(
     dashboard,
     { host: pagesHost, label: "pages.dev" },
   ];
-  // Solo percorsi e stati nei messaggi: l'hostname e il Location (che lo contiene) mai.
+  // Le applicazioni Access di uno stesso account hanno tutte il team di `/` sull'hostname: un
+  // altro team vuol dire che quel dominio è protetto da un altro account.
+  let team: string | undefined;
+  // Solo percorsi e stati nei messaggi: gli host e il Location (che li contiene) mai.
   for (const target of targets) {
     for (const path of PATHS) {
       const response = await get(fetchFn, target, path);
-      if (!redirectsToAccess(response, `https://${target.host}${path}`)) {
+      const login = accessLoginHost(response, `https://${target.host}${path}`);
+      if (login === null) {
         console.error(
           `Access non attivo su ${target.label}${path}: risposta ${response.status}, atteso un redirect al login di Access (*.cloudflareaccess.com)`,
+        );
+        return 78;
+      }
+      team ??= login;
+      if (login !== team) {
+        console.error(
+          `Access su ${target.label}${path}: il redirect porta al login di un team Access diverso da quello di / (atteso lo stesso team dell'account: docs/dashboard.md, «Se il deploy fallisce»)`,
         );
         return 78;
       }

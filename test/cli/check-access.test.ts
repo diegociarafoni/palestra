@@ -132,6 +132,54 @@ describe("check-access", () => {
     expect(output()).not.toContain(HOST);
   });
 
+  // Le applicazioni Access di uno stesso account condividono il team: un login di un altro team
+  // vuol dire che quel dominio non è protetto da questo account (per esempio un PAGES_HOSTNAME
+  // sbagliato che punta al progetto di qualcun altro).
+  const OTHER_TEAM_LOGIN = `https://altro-team.cloudflareaccess.com/cdn-cgi/access/login/${PAGES_DEV}?kid=aud-altrui`;
+  it.each([
+    { argv: [], host: PAGES_DEV, label: "pages.dev", path: "/" },
+    { argv: [], host: PAGES_DEV, label: "pages.dev", path: "/api/measures" },
+    {
+      argv: ["--after-deploy"],
+      host: PAGES_DEV,
+      label: "pages.dev",
+      path: "/",
+    },
+    {
+      argv: ["--after-deploy"],
+      host: PAGES_DEV,
+      label: "pages.dev",
+      path: "/api/measures",
+    },
+    { argv: [], host: HOST, label: "", path: "/api/measures" },
+  ])(
+    "check-access: $argv exit 78 when $path on $host redirects to another Access team",
+    async ({ argv, host, label, path }) => {
+      // Prima la risposta del caso: a parità di percorso vince il primo handler.
+      server.use(
+        http.get(
+          `https://${host}${path}`,
+          () =>
+            new HttpResponse(null, {
+              status: 302,
+              headers: { Location: OTHER_TEAM_LOGIN },
+            }),
+        ),
+        http.get(`https://${HOST}/`, toAccessLogin),
+        http.get(`https://${HOST}/api/measures`, toAccessLogin),
+      );
+      expect(await main(argv, ENV)).toBe(78);
+      expect(stderr.mock.calls).toEqual([
+        [
+          `Access su ${label}${path}: il redirect porta al login di un team Access diverso da quello di / (atteso lo stesso team dell'account: docs/dashboard.md, «Se il deploy fallisce»)`,
+        ],
+      ]);
+      for (const name of [HOST, PAGES_DEV, "altro-team", "esempio"]) {
+        expect(output()).not.toContain(name);
+      }
+    },
+  );
+
   it("check-access: exit 75 when pages.dev does not answer", async () => {
     server.use(
       http.get(`https://${HOST}/`, toAccessLogin),
