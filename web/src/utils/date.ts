@@ -50,6 +50,26 @@ export function chartDate(date: string): Date {
   return new Date(`${date}T00:00:00Z`);
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Estremi di un asse di giorni, dalla prima all'ultima data. Una data sola ha un giorno per lato:
+ * un asse ridotto a un punto non ha tacche e la data non si leggerebbe.
+ */
+export function dayAxisBounds(
+  first: string,
+  last: string,
+): { min: Date; max: Date } {
+  const min = chartDate(first);
+  const max = chartDate(last);
+  return first === last
+    ? {
+        min: new Date(min.getTime() - DAY_MS),
+        max: new Date(max.getTime() + DAY_MS),
+      }
+    : { min, max };
+}
+
 /** Data di un asse del tempo → "3 nov 2026". */
 export function formatChartDate(value: Date): string {
   return shortDate.format(value);

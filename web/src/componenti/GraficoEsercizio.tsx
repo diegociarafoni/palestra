@@ -4,7 +4,7 @@ import Typography from "@mui/material/Typography";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { useId } from "react";
 import { testi } from "../testi";
-import { chartDate, formatDayAxis } from "../utils/date";
+import { chartDate, dayAxisBounds, formatDayAxis } from "../utils/date";
 import { formatNumber } from "../utils/numeri";
 
 type GraficoEsercizioProps = {
@@ -39,8 +39,7 @@ export function GraficoEsercizio({
           {
             scaleType: "utc",
             data: points.map((p) => chartDate(p.date)),
-            min: chartDate(from),
-            max: chartDate(to),
+            ...dayAxisBounds(from, to),
             tickMinStep: 24 * 60 * 60 * 1000,
             // Etichette delle tacche ben distanziate: a due giorni l'una "6 ott" e "8 ott" si
             // toccherebbero (a 1024 px); MUI nasconde quelle più vicine di così.

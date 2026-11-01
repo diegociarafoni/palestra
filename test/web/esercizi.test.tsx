@@ -412,6 +412,31 @@ describe("web", () => {
     expect(within(latMachine).getByText("10 nov")).toBeTruthy();
   });
 
+  it("web: esercizi chart with a single date", async () => {
+    // Tutte le sedute del mese nello stesso giorno: l'asse del tempo non si riduce a un punto
+    // senza tacche, la data della seduta si legge.
+    phoneWidth();
+    server.use(
+      http.get("/api/exercises", () =>
+        HttpResponse.json({
+          strength_table: [],
+          e1rm_series: [
+            {
+              slug: "lat-machine",
+              name: "Lat Machine",
+              points: [{ date: "2026-11-03", e1rm_kg: 42 }],
+            },
+          ],
+        }),
+      ),
+    );
+    renderConTema(<Esercizi />);
+
+    const chart = await screen.findByRole("region", { name: "Lat Machine" });
+    await waitFor(() => expect(marks(chart, 1)).toHaveLength(1));
+    expect(within(chart).getByText("3 nov")).toBeTruthy();
+  });
+
   it("web: esercizi table rows headed by exercise", async () => {
     // Il nome dell'esercizio è l'intestazione della sua riga: un lettore di schermo lo ripete
     // davanti a ogni valore.
