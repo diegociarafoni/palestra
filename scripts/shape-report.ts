@@ -284,7 +284,14 @@ function parseNested(text: string): object | undefined {
   }
 }
 
-function jsonBlock(value: unknown, ctx: ShapeContext): Block {
+/** Oltre 40 livelli di oggetti, liste o elementi, una riga `(troppo profondo)`. */
+const MAX_DEPTH = 40;
+const TOO_DEEP = "(troppo profondo)";
+
+function jsonBlock(value: unknown, ctx: ShapeContext, depth: number): Block {
+  if (typeof value === "object" && value !== null && depth >= MAX_DEPTH) {
+    return { head: TOO_DEEP, body: [] };
+  }
   if (value === null) return { head: "null", body: [] };
   if (typeof value === "boolean") return { head: "booleano", body: [] };
   if (typeof value === "number") {
@@ -296,13 +303,16 @@ function jsonBlock(value: unknown, ctx: ShapeContext): Block {
   if (typeof value === "string") {
     const nested = parseNested(value);
     if (nested !== undefined) {
-      return { head: "json in stringa:", body: shapeOfJson(nested, ctx) };
+      return {
+        head: "json in stringa:",
+        body: shapeOfJson(nested, ctx, depth + 1),
+      };
     }
     return { head: `"${maskText(value, ctx.vocab)}"`, body: [] };
   }
   if (Array.isArray(value)) {
     if (value.length === 0) return { head: "[]", body: [] };
-    return { head: "", body: arrayLines(value, ctx) };
+    return { head: "", body: arrayLines(value, ctx, depth) };
   }
   if (typeof value === "object") {
     const entries = Object.entries(value);
@@ -322,7 +332,7 @@ function jsonBlock(value: unknown, ctx: ShapeContext): Block {
       const { head, body } =
         property !== undefined
           ? { head: `"${property}"`, body: [] }
-          : jsonBlock(item, ctx);
+          : jsonBlock(item, ctx, depth + 1);
       const entry = [
         head === "" ? `${name}:` : `${name}: ${head}`,
         ...indent(body),
@@ -367,9 +377,13 @@ function variantLines(items: readonly string[][], repeated: boolean): string[] {
 }
 
 /** Le forme diverse degli elementi; mai la lunghezza della lista. */
-function arrayLines(items: unknown[], ctx: ShapeContext): string[] {
+function arrayLines(
+  items: unknown[],
+  ctx: ShapeContext,
+  depth: number,
+): string[] {
   const elements = items.map((item) => {
-    const { head, body } = jsonBlock(item, ctx);
+    const { head, body } = jsonBlock(item, ctx, depth + 1);
     // Un oggetto o una lista comincia sulla riga del trattino, come in YAML.
     return head === ""
       ? [`- ${body[0] ?? ""}`, ...indent(body.slice(1))]
@@ -379,8 +393,12 @@ function arrayLines(items: unknown[], ctx: ShapeContext): string[] {
 }
 
 /** La forma di un valore JSON, una riga per campo, indentata di 2 spazi per livello. */
-export function shapeOfJson(value: unknown, ctx: ShapeContext): string[] {
-  const { head, body } = jsonBlock(value, ctx);
+export function shapeOfJson(
+  value: unknown,
+  ctx: ShapeContext,
+  depth = 0,
+): string[] {
+  const { head, body } = jsonBlock(value, ctx, depth);
   return head === "" ? body : [head, ...indent(body)];
 }
 
@@ -507,7 +525,7 @@ function elementLine(element: HTMLElement, ctx: ShapeContext): string {
 }
 
 /** Di uno script solo la forma di `EU.currentUser`, decodificato come fa il client. */
-function scriptLines(text: string, ctx: ShapeContext): string[] {
+function scriptLines(text: string, ctx: ShapeContext, depth: number): string[] {
   let user: unknown;
   try {
     user = readCurrentUser(text);
@@ -516,18 +534,19 @@ function scriptLines(text: string, ctx: ShapeContext): string[] {
     return ["EU.currentUser:", "  (JSON non valido)"];
   }
   if (user === undefined) return [OMITTED];
-  return ["EU.currentUser:", ...indent(shapeOfJson(user, ctx))];
+  return ["EU.currentUser:", ...indent(shapeOfJson(user, ctx, depth))];
 }
 
-function nodeLines(node: Node, ctx: ShapeContext): string[] {
+function nodeLines(node: Node, ctx: ShapeContext, depth: number): string[] {
   if (node instanceof HTMLElement) {
+    if (depth >= MAX_DEPTH) return [TOO_DEEP];
     const tag = node.rawTagName.toLowerCase();
     const inner =
       tag === "script"
-        ? scriptLines(node.rawText, ctx)
+        ? scriptLines(node.rawText, ctx, depth + 1)
         : tag === "style"
           ? [OMITTED]
-          : childLines(node.childNodes, ctx);
+          : childLines(node.childNodes, ctx, depth + 1);
     return [elementLine(node, ctx), ...indent(inner)];
   }
   if (node.nodeType !== NodeType.TEXT_NODE) return [];
@@ -540,10 +559,10 @@ function nodeLines(node: Node, ctx: ShapeContext): string[] {
  * la prima volta; in ogni gruppo le forme diverse secondo `variantLines`. Resta visibile solo
  * l'ordine della prima comparsa dei tag diversi.
  */
-function childLines(nodes: Node[], ctx: ShapeContext): string[] {
+function childLines(nodes: Node[], ctx: ShapeContext, depth: number): string[] {
   const groups = new Map<string, string[][]>();
   for (const node of nodes) {
-    const own = nodeLines(node, ctx);
+    const own = nodeLines(node, ctx, depth);
     if (own.length === 0) continue;
     const tag =
       node instanceof HTMLElement ? node.rawTagName.toLowerCase() : "#text";
@@ -557,7 +576,7 @@ function childLines(nodes: Node[], ctx: ShapeContext): string[] {
 /** La forma di una pagina HTML: un elemento per riga, indentato di 2 spazi per livello. */
 export function shapeOfHtml(html: string, ctx: ShapeContext): string[] {
   // Con le opzioni predefinite i commenti non entrano nell'albero.
-  return childLines(parse(html).childNodes, ctx);
+  return childLines(parse(html).childNodes, ctx, 0);
 }
 
 export type Hit = { line: number; kind: "identity" | "number" | "date" };

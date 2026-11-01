@@ -622,6 +622,18 @@ describe("shape", () => {
     expect(maskText("Kg ✓ 😀 × § \uE000 \uD800", VOCAB)).toBe("Kg ? ? ? ? ? ?");
   });
 
+  it("shape: depth is capped at 40", () => {
+    const json = JSON.parse(`${"[".repeat(45)}1${"]".repeat(45)}`);
+    expect(shapeOfJson(json, ctx)).toEqual([
+      `${"- ".repeat(40)}(troppo profondo)`,
+    ]);
+    const html = `${"<div>".repeat(45)}x${"</div>".repeat(45)}`;
+    expect(shapeOfHtml(html, ctx)).toEqual([
+      ...Array.from({ length: 40 }, (_, depth) => `${"  ".repeat(depth)}div`),
+      `${"  ".repeat(40)}(troppo profondo)`,
+    ]);
+  });
+
   it("shape: letters without a decomposition are folded too", () => {
     const lines = [
       "Łukasz",
