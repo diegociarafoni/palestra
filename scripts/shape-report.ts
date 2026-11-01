@@ -884,15 +884,21 @@ function shapeOfFile(name: string, text: string, ctx: ShapeContext): string[] {
   return shapeOfJson(value, ctx);
 }
 
-/** Le righe di una sezione: il titolo e ogni forma diversa una volta, in ordine alfabetico. */
+/**
+ * Le righe di una sezione: il titolo e ogni forma diversa una volta, in ordine alfabetico e al
+ * massimo MAX_VARIANTS, poi `… altre varianti`.
+ */
 function sectionLines(heading: string, shapes: readonly string[][]): string[] {
   const distinct = new Map(shapes.map((shape) => [shape.join("\n"), shape]));
-  return [
+  const keys = [...distinct.keys()].sort();
+  const lines = [
     `## ${heading}`,
-    ...[...distinct.keys()]
-      .sort()
+    ...keys
+      .slice(0, MAX_VARIANTS)
       .flatMap((key) => ["", "```text", ...(distinct.get(key) ?? []), "```"]),
   ];
+  if (keys.length > MAX_VARIANTS) lines.push("", MORE_VARIANTS);
+  return lines;
 }
 
 type Deps = Partial<{ vocab: readonly string[] }>;

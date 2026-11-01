@@ -1072,4 +1072,51 @@ describe("shape", () => {
     expect(stdout.mock.calls).toEqual([[`rapporto scritto: ${dest}`]]);
     expect(stderr).not.toHaveBeenCalled();
   });
+
+  it("cli: a section shows at most 5 shapes", async () => {
+    const dest = join(dir, "forma.md");
+    const src = probeOut({
+      "strength_detail.html": "<p>Kg</p>",
+      "strength_detail_2.html": "<p>Serie</p>",
+      "strength_detail_3.html": "<p>a</p>",
+      "strength_detail_4.html": "<p>A</p>",
+      "strength_detail_5.html": "<p>1</p>",
+      "strength_detail_6.html": "<p>Kg 1</p>",
+    });
+    expect(await main([src, dest])).toBe(0);
+    const text = readFileSync(dest, "utf8");
+    expect(text.slice(text.indexOf("## strength_detail"))).toBe(
+      [
+        "## strength_detail*.html",
+        "",
+        "```text",
+        "p",
+        '  "99"',
+        "```",
+        "",
+        "```text",
+        "p",
+        '  "A"',
+        "```",
+        "",
+        "```text",
+        "p",
+        '  "Kg 99"',
+        "```",
+        "",
+        "```text",
+        "p",
+        '  "Kg"',
+        "```",
+        "",
+        "```text",
+        "p",
+        '  "Serie"',
+        "```",
+        "",
+        "… altre varianti",
+        "",
+      ].join("\n"),
+    );
+  });
 });
