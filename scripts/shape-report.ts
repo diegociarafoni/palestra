@@ -5,9 +5,11 @@
 // parole di VOCAB. Vedi docs/probe-mywellness.md § 2 e
 // kb/decisioni/2026-11-01-forma-dei-dati-al-posto-delle-fixture-reali.md.
 // Uso: npx tsx scripts/shape-report.ts <cartella_probe> <file_md>
-// Legge solo i file in INPUTS (degli altri stampa il numero su stderr) e identities.json, che
-// serve solo al controllo finale: prima di scrivere cerca nel rapporto identità, numeri e nomi
-// di mesi o giorni; se ne trova non scrive nulla e stampa solo `file:riga: tipo`.
+// Legge solo i file in INPUTS (gli altri non li apre né li conta) e identities.json, che serve
+// solo al controllo finale: una sezione per famiglia, con un titolo fisso e le forme diverse
+// dei suoi file in ordine alfabetico. Prima di scrivere cerca nelle sezioni identità, numeri e
+// nomi di mesi o giorni; se ne trova non scrive nulla e stampa solo `sezione:riga: tipo`.
+// Su stdout solo `rapporto scritto: <file_md>`.
 // Exit code: 0 ok · 64 argomenti · 65 identities.json non interpretabile o controllo finale
 // fallito (nessun file scritto) · 70 errore imprevisto (solo un messaggio fisso e il codice
 // dell'errore del file system) · 78 identities.json mancante.
@@ -692,38 +694,35 @@ export function checkReport(
 
 const USAGE = "Uso: npx tsx scripts/shape-report.ts <cartella_probe> <file_md>";
 const IDENTITIES_FILE = "identities.json";
-/** I soli file del probe che il rapporto legge, nell'ordine delle sezioni. */
-const INPUTS = [
-  /^login_form\.html$/,
-  /^login_ok\.html$/,
-  /^last_sessions(?:_(\d+))?\.html$/,
-  /^session_strength\.json$/,
-  /^session_cardio_only\.json$/,
-  /^strength_detail(?:_(\d+))?\.html$/,
-  /^cardio_timeseries\.json$/,
-  /^biometrics\.json$/,
+/**
+ * Le sole famiglie di file del probe che il rapporto legge, nell'ordine delle sezioni, con il
+ * titolo fisso della sezione: né il numero né il nome dei file entrano nel rapporto.
+ */
+const INPUTS: readonly { heading: string; file: RegExp }[] = [
+  { heading: "login_form.html", file: /^login_form\.html$/ },
+  { heading: "login_ok.html", file: /^login_ok\.html$/ },
+  { heading: "last_sessions*.html", file: /^last_sessions(?:_\d+)?\.html$/ },
+  { heading: "session_strength.json", file: /^session_strength\.json$/ },
+  { heading: "session_cardio_only.json", file: /^session_cardio_only\.json$/ },
+  {
+    heading: "strength_detail*.html",
+    file: /^strength_detail(?:_\d+)?\.html$/,
+  },
+  { heading: "cardio_timeseries.json", file: /^cardio_timeseries\.json$/ },
+  { heading: "biometrics.json", file: /^biometrics\.json$/ },
 ];
 const HEADER = [
   "# Forma dei dati di Mywellness",
   "",
-  "File generato da `scripts/shape-report.ts` (Task 0) con le risposte del probe, che restano sul computer dell'utente. Mostra solo la forma dei dati:",
+  "File generato da `scripts/shape-report.ts` (Task 0) con le risposte del probe, che restano sul computer dell'utente. Mostra solo la forma dei dati, con una sezione per famiglia di file e, in ogni sezione, le forme diverse dei suoi file in ordine alfabetico:",
   "",
-  "- restano scritti i nomi dei campi JSON, dei tag e degli attributi HTML e i valori di attributi come `class`, `id` e `name` e dei campi `physicalProperty` e `property`, se hanno la forma di un nome; gli altri sono mascherati tra `«»`;",
-  "- nei valori ogni parola diventa `a` (se comincia con una minuscola) o `A` (se comincia con una maiuscola) e ogni cifra diventa `9`;",
-  "- restano scritte solo le parole del vocabolario `VOCAB` dello script (unità di misura, parole della tabella delle serie e dell'interfaccia, tipi di esercizio), la punteggiatura, i simboli e la `T` e la `Z` delle date ISO;",
-  "- liste e righe ripetute (`(ripetuto)`) non dicono quanti elementi hanno; il contenuto degli script è omesso, tranne la forma di `EU.currentUser`.",
+  "- restano scritti i nomi dei campi JSON, dei tag e degli attributi HTML noti e i valori di attributi come `class`, `id` e `name` e dei campi `physicalProperty` e `property`, se hanno la forma di un nome, con ogni cifra resa `9`; gli altri sono mascherati tra `«»`;",
+  "- nei valori ogni parola diventa `a` (se comincia con una minuscola) o `A` (se comincia con una maiuscola); una sequenza di 1 o 2 cifre diventa `99`, una più lunga ha un `9` per cifra (al massimo 20, poi `…`); i numeri JSON diventano `numero 9`, `numero 9.9` o `numero -9`;",
+  "- restano scritte solo le parole del vocabolario `VOCAB` dello script (unità di misura, parole della tabella delle serie e dell'interfaccia, tipi di esercizio), la punteggiatura e i simboli ASCII, pochi segni tipografici e la `T` e la `Z` delle date ISO; ogni altro carattere diventa `?`;",
+  "- elementi fratelli con lo stesso tag, voci con la chiave mascherata ed elementi di una lista compaiono una volta per forma, in ordine alfabetico e al massimo 5 (poi `… altre varianti`), senza dire quanti sono; `(ripetuto)` segna un fratello o una voce che si ripete; il contenuto degli script è omesso, tranne la forma di `EU.currentUser`.",
   "",
-  "Nient'altro: nessun nome, data, numero o identificativo.",
+  "Dell'ordine della pagina resta solo l'ordine in cui compaiono per la prima volta i tag diversi tra fratelli. Nient'altro: nessun nome, data, numero o identificativo.",
 ].join("\n");
-
-/** Famiglia (posizione in INPUTS) e numero (1 senza suffisso) di un file del probe. */
-function inputOrder(name: string): [number, number] | undefined {
-  for (const [family, input] of INPUTS.entries()) {
-    const match = input.exec(name);
-    if (match) return [family, Number(match[1] ?? 1)];
-  }
-  return undefined;
-}
 
 export async function readIdentities(src: string): Promise<string[]> {
   const text = await readFile(join(src, IDENTITIES_FILE), "utf8");
@@ -748,25 +747,15 @@ function shapeOfFile(name: string, text: string, ctx: ShapeContext): string[] {
   return shapeOfJson(value, ctx);
 }
 
-/** Una sezione del rapporto; `equalTo`: il file precedente della stessa famiglia, se uguale. */
-type Section = {
-  name: string;
-  family: number;
-  shape: string[];
-  equalTo?: string;
-};
-
-function render(sections: Section[]): string {
-  const parts = [HEADER];
-  for (const { name, shape, equalTo } of sections) {
-    parts.push(
-      `## ${name}`,
-      equalTo
-        ? `Uguale a ${equalTo}.`
-        : ["```text", ...shape, "```"].join("\n"),
-    );
-  }
-  return `${parts.join("\n\n")}\n`;
+/** Le righe di una sezione: il titolo e ogni forma diversa una volta, in ordine alfabetico. */
+function sectionLines(heading: string, shapes: readonly string[][]): string[] {
+  const distinct = new Map(shapes.map((shape) => [shape.join("\n"), shape]));
+  return [
+    `## ${heading}`,
+    ...[...distinct.keys()]
+      .sort()
+      .flatMap((key) => ["", "```text", ...(distinct.get(key) ?? []), "```"]),
+  ];
 }
 
 type Deps = Partial<{ vocab: readonly string[] }>;
@@ -812,44 +801,33 @@ async function report(src: string, dest: string, deps: Deps): Promise<number> {
   const ctx = shapeContext(identities);
   // Solo per i test: un vocabolario dato, senza togliere le parole delle identità.
   if (deps.vocab) ctx.vocab = deps.vocab;
+  // Gli altri file (session_<n>.json…) non si leggono né si contano.
   const entries = await readdir(src);
-  const inputs = entries
-    .flatMap((name) => {
-      const order = inputOrder(name);
-      return order ? [{ name, order }] : [];
-    })
-    .sort((a, b) => a.order[0] - b.order[0] || a.order[1] - b.order[1]);
-  // Gli altri file (session_<n>.json…) non si leggono; identities.json non è una sezione.
-  const skipped = entries.length - inputs.length - 1;
-  const sections: Section[] = [];
-  for (const { name, order } of inputs) {
-    const text = new TextDecoder().decode(await readFile(join(src, name)));
-    const shape = shapeOfFile(name, text, ctx);
-    const previous = sections.findLast((s) => s.family === order[0]);
-    const equal = previous?.shape.join("\n") === shape.join("\n");
-    sections.push({
-      name,
-      family: order[0],
-      shape,
-      ...(previous && equal ? { equalTo: previous.name } : {}),
-    });
+  const sections: { heading: string; lines: string[] }[] = [];
+  for (const { heading, file } of INPUTS) {
+    const shapes: string[][] = [];
+    for (const name of entries.filter((entry) => file.test(entry))) {
+      const text = new TextDecoder().decode(await readFile(join(src, name)));
+      shapes.push(shapeOfFile(name, text, ctx));
+    }
+    if (shapes.length > 0) {
+      sections.push({ heading, lines: sectionLines(heading, shapes) });
+    }
   }
-  // Fail closed: un solo risultato e non si scrive nulla; su stderr mai il testo trovato.
-  const hits = sections.flatMap(({ name, shape, equalTo }) =>
-    equalTo
-      ? []
-      : checkReport(shape, identities).map(
-          ({ line, kind }) => `${name}:${line}: ${kind}`,
-        ),
+  // Fail closed sulle sezioni come saranno scritte, titoli compresi: un solo risultato e non
+  // si scrive nulla; su stderr mai il testo trovato.
+  const hits = sections.flatMap(({ heading, lines }) =>
+    checkReport(lines, identities).map(
+      ({ line, kind }) => `${heading}:${line}: ${kind}`,
+    ),
   );
   if (hits.length > 0) {
     for (const hit of hits) console.error(hit);
     return 65;
   }
-  await writeFile(dest, render(sections));
+  const parts = [HEADER, ...sections.map(({ lines }) => lines.join("\n"))];
+  await writeFile(dest, `${parts.join("\n\n")}\n`);
   console.log(`rapporto scritto: ${dest}`);
-  console.log(`sezioni: ${sections.length}`);
-  if (skipped > 0) console.error(`file ignorati: ${skipped}`);
   return 0;
 }
 

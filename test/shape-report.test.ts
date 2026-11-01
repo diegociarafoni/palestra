@@ -714,7 +714,8 @@ describe("shape", () => {
     const dest = join(dir, "forma.md");
     expect(await main([src, dest], { vocab: [...VOCAB, "mario"] })).toBe(65);
     expect(existsSync(dest)).toBe(false);
-    expect(stderr.mock.calls).toEqual([["login_ok.html:2: identity"]]);
+    // Il controllo vede la sezione com'è scritta, titolo compreso: riga 5.
+    expect(stderr.mock.calls).toEqual([["login_ok.html:5: identity"]]);
     expect(stdout).not.toHaveBeenCalled();
   });
 
@@ -789,25 +790,41 @@ describe("shape", () => {
       }),
       "strength_detail.html": table(1, 60),
       "strength_detail_2.html": table(2, 55),
+      "strength_detail_3.html": "<p>Nessuna serie</p>",
+      "last_sessions_2.html": "<p>Kg</p>",
       // Fuori elenco: la seduta grezza e una seconda serie cardio.
       "session_1.json": '{"data":{}}',
       "cardio_timeseries_2.json": "{}",
     });
     expect(await main([src, dest])).toBe(0);
+    // Una sezione per famiglia, con un titolo fisso; le forme diverse dei suoi file una volta,
+    // in ordine alfabetico: né quanti file né quali.
     expect(readFileSync(dest, "utf8")).toBe(
       [
         "# Forma dei dati di Mywellness",
         "",
-        "File generato da `scripts/shape-report.ts` (Task 0) con le risposte del probe, che restano sul computer dell'utente. Mostra solo la forma dei dati:",
+        "File generato da `scripts/shape-report.ts` (Task 0) con le risposte del probe, che restano sul computer dell'utente. Mostra solo la forma dei dati, con una sezione per famiglia di file e, in ogni sezione, le forme diverse dei suoi file in ordine alfabetico:",
         "",
-        "- restano scritti i nomi dei campi JSON, dei tag e degli attributi HTML e i valori di attributi come `class`, `id` e `name` e dei campi `physicalProperty` e `property`, se hanno la forma di un nome; gli altri sono mascherati tra `«»`;",
-        "- nei valori ogni parola diventa `a` (se comincia con una minuscola) o `A` (se comincia con una maiuscola) e ogni cifra diventa `9`;",
-        "- restano scritte solo le parole del vocabolario `VOCAB` dello script (unità di misura, parole della tabella delle serie e dell'interfaccia, tipi di esercizio), la punteggiatura, i simboli e la `T` e la `Z` delle date ISO;",
-        "- liste e righe ripetute (`(ripetuto)`) non dicono quanti elementi hanno; il contenuto degli script è omesso, tranne la forma di `EU.currentUser`.",
+        "- restano scritti i nomi dei campi JSON, dei tag e degli attributi HTML noti e i valori di attributi come `class`, `id` e `name` e dei campi `physicalProperty` e `property`, se hanno la forma di un nome, con ogni cifra resa `9`; gli altri sono mascherati tra `«»`;",
+        "- nei valori ogni parola diventa `a` (se comincia con una minuscola) o `A` (se comincia con una maiuscola); una sequenza di 1 o 2 cifre diventa `99`, una più lunga ha un `9` per cifra (al massimo 20, poi `…`); i numeri JSON diventano `numero 9`, `numero 9.9` o `numero -9`;",
+        "- restano scritte solo le parole del vocabolario `VOCAB` dello script (unità di misura, parole della tabella delle serie e dell'interfaccia, tipi di esercizio), la punteggiatura e i simboli ASCII, pochi segni tipografici e la `T` e la `Z` delle date ISO; ogni altro carattere diventa `?`;",
+        "- elementi fratelli con lo stesso tag, voci con la chiave mascherata ed elementi di una lista compaiono una volta per forma, in ordine alfabetico e al massimo 5 (poi `… altre varianti`), senza dire quanti sono; `(ripetuto)` segna un fratello o una voce che si ripete; il contenuto degli script è omesso, tranne la forma di `EU.currentUser`.",
         "",
-        "Nient'altro: nessun nome, data, numero o identificativo.",
+        "Dell'ordine della pagina resta solo l'ordine in cui compaiono per la prima volta i tag diversi tra fratelli. Nient'altro: nessun nome, data, numero o identificativo.",
         "",
-        "## strength_detail.html",
+        "## last_sessions*.html",
+        "",
+        "```text",
+        "p",
+        '  "Kg"',
+        "```",
+        "",
+        "## strength_detail*.html",
+        "",
+        "```text",
+        "p",
+        '  "A serie"',
+        "```",
         "",
         "```text",
         "table[class=sets]",
@@ -820,10 +837,6 @@ describe("shape", () => {
         "    th",
         '      "Serie"',
         "```",
-        "",
-        "## strength_detail_2.html",
-        "",
-        "Uguale a strength_detail.html.",
         "",
         "## biometrics.json",
         "",
@@ -838,11 +851,8 @@ describe("shape", () => {
         "",
       ].join("\n"),
     );
-    expect(stdout.mock.calls).toEqual([
-      [`rapporto scritto: ${dest}`],
-      ["sezioni: 3"],
-    ]);
-    // Dei file fuori elenco solo il numero, mai il nome.
-    expect(stderr.mock.calls).toEqual([["file ignorati: 2"]]);
+    // Su stdout solo la destinazione; dei file fuori elenco nemmeno il numero.
+    expect(stdout.mock.calls).toEqual([[`rapporto scritto: ${dest}`]]);
+    expect(stderr).not.toHaveBeenCalled();
   });
 });
