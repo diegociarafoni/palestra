@@ -516,6 +516,49 @@ describe("api", () => {
     });
   });
 
+  it("api: calendar survives an invalid template", async () => {
+    // Il calendario legge solo i giorni non disponibili: un modello con uno slot non valido (un
+    // sabato nella finestra) li dà lo stesso; se mancano o non sono validi, nessuno. La PATCH di
+    // un giorno resta severa (test/api/slots.test.ts).
+    const cases: [string, string[]][] = [
+      [
+        JSON.stringify({
+          slots: [{ slot: 1, days: ["sat"], scheda_day: "A" }],
+          unavailable: ["mon", "fri"],
+        }),
+        ["mon", "fri"],
+      ],
+      [
+        JSON.stringify({
+          slots: [{ slot: 1, days: ["tue"], scheda_day: "A" }],
+          unavailable: ["lun"],
+        }),
+        [],
+      ],
+      [JSON.stringify({ slots: [] }), []],
+      ["{non è JSON", []],
+    ];
+    for (const [json, unavailable] of cases) {
+      await env.DB.prepare(
+        "INSERT OR REPLACE INTO profile (key, json) VALUES ('settimana_tipo', ?1)",
+      )
+        .bind(json)
+        .run();
+      const res = await app.request(
+        "/api/calendar?month=2026-11",
+        { headers: withToken },
+        bindings,
+      );
+      expect(res.status, json).toBe(200);
+      expect(await res.json(), json).toEqual({
+        slots: [],
+        extra: [],
+        feedback: [],
+        unavailable,
+      });
+    }
+  });
+
   it("api: calendar gives day and order of each slot session", async () => {
     // Il 3/11 una seduta libera alle 9 (extra, prima del giorno) e quella di W45-1 alle 18:30.
     await seedSlots(env.DB, slots);
