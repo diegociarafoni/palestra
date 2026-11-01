@@ -22,7 +22,7 @@ Il Task 0 prevedeva fixture reali: `scripts/anonymize-fixtures.ts` sostituiva ne
   - la `T` e la `Z` delle date ISO;
   - la punteggiatura e i simboli ASCII e « » – — € ° · ’ ‘ “ ” … (ogni altro simbolo diventa `?`);
   - le parole del rapporto stesso: `numero`, `booleano`, `null`, `json in stringa`, `EU.currentUser`, `(contenuto omesso)`, `(JSON non valido)`, `(ripetuto)`, `… altre varianti`, `(troppo profondo)`, l'intestazione e i titoli fissi delle sezioni (una per famiglia di file, come `strength_detail*.html`).
-- Né conteggi né posizioni: i numeri JSON diventano `numero 9`, `numero 9.9` o `numero -9`, una sequenza di 1 o 2 cifre diventa `99`; fratelli HTML con lo stesso tag, voci con la chiave mascherata ed elementi delle liste compaiono una volta per forma, in ordine alfabetico e al massimo 5; ogni sezione ha le forme diverse dei suoi file, in ordine alfabetico; su stdout lo script stampa solo il file scritto.
+- Né conteggi né posizioni: i numeri JSON diventano `numero 9`, `numero 9.9` o `numero -9`, una sequenza di 1 o 2 cifre diventa `99`; fratelli HTML con lo stesso tag, voci con la chiave mascherata ed elementi delle liste compaiono una volta per forma, in ordine alfabetico e al massimo 5 (fanno eccezione le celle di una riga di tabella, che restano tutte e nell'ordine delle colonne: sono struttura, e i loro valori sono mascherati); ogni sezione ha le forme diverse dei suoi file, in ordine alfabetico; su stdout lo script stampa solo il file scritto.
 - Prima di scrivere, un controllo finale cerca nelle sezioni, come saranno scritte, le identità di `identities.json`, i numeri non mascherati e i nomi di mesi e giorni, anche abbreviati. Se trova qualcosa non scrive nulla (fail closed) e stampa solo `sezione:riga:tipo`. Con le maschere corrette non trova mai nulla: è la rete per un difetto dello script. Nel dubbio lo script maschera di più, non si ferma.
 - Le fixture di `test/fixtures/mywellness/` restano sintetiche: dopo il probe Claude le adegua al rapporto (Task 0, Step 5).
 
@@ -36,10 +36,8 @@ Il Task 0 prevedeva fixture reali: `scripts/anonymize-fixtures.ts` sostituiva ne
 - Il rapporto non dice quanti elementi hanno le liste né quante volte si ripete una forma, e degli script mostra solo la forma di `EU.currentUser`.
 - Costi noti:
   - resta l'ordine in cui compaiono per la prima volta i tag diversi tra fratelli HTML (e l'ordine delle chiavi JSON in chiaro);
-  - per la stessa ragione il rapporto non mostra l'ordine delle colonne della tabella delle serie: le celle `th` sono in ordine alfabetico;
   - restano le lunghezze delle sequenze di 3 o più cifre nelle stringhe (`2026` diventa `9999`): dicono il formato e l'ordine di grandezza, non il valore;
-  - il probe raccoglie tra le identità ogni valore del profilo il cui campo ha un nome come `name`, `card` o `city` (`IDENTITY_KEY`), anche quando non identifica la persona (per esempio il nome della palestra): i nomi del rapporto che ne contengono le parole si mascherano. Costa solo leggibilità e resta com'è;
-  - le iniziali si ricavano solo da un'identità di almeno due parole: se il profilo ha nome e cognome solo in campi separati, una parte come `MR` resta scritta.
+  - il probe raccoglie tra le identità ogni valore del profilo il cui campo ha un nome come `name`, `card` o `city` (`IDENTITY_KEY`), anche quando non identifica la persona (per esempio il nome della palestra): i nomi del rapporto che ne contengono le parole si mascherano. Costa solo leggibilità e resta com'è.
 
 ## Riferimenti
 `scripts/shape-report.ts`, `test/shape-report.test.ts`, [`docs/probe-mywellness.md`](../../docs/probe-mywellness.md) § 2 ("Come eseguire il probe"), piano Task 0, [specifica del repository pubblico](../../docs/superpowers/specs/2026-10-31-repo-pubblico-e-database-design.md) § 6, [Il probe di Mywellness gira solo sul computer dell'utente](2026-10-31-probe-mywellness-in-locale.md).

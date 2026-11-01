@@ -161,16 +161,25 @@ function identityWordsOf(identities: readonly string[]): Set<string> {
   );
 }
 
-/** Le prime lettere delle prime due parole di ogni nome tra le identità. */
+/**
+ * Le iniziali: le prime lettere delle prime due parole di ogni nome tra le identità e, poiché il
+ * probe raccoglie nome e cognome anche in campi separati, di ogni coppia di nomi di una parola.
+ */
 function initialsOf(identities: readonly string[]): Set<string> {
-  return new Set(
-    identities.flatMap((raw) => {
-      const identity = fold(raw);
-      if (!NAME_LIKE.test(identity)) return [];
-      const match = /^[^\p{L}]*(\p{L})\S*\s+[^\p{L}]*(\p{L})/u.exec(identity);
+  const names = identities.map(fold).filter((name) => NAME_LIKE.test(name));
+  const single = names.flatMap((name) => {
+    const match = /^[^\p{L}]*(\p{L})\S*$/u.exec(name.trim());
+    return match?.[1] ? [match[1]] : [];
+  });
+  return new Set([
+    ...names.flatMap((name) => {
+      const match = /^[^\p{L}]*(\p{L})\S*\s+[^\p{L}]*(\p{L})/u.exec(name);
       return match ? [`${match[1]}${match[2]}`] : [];
     }),
-  );
+    ...single.flatMap((a, i) =>
+      single.flatMap((b, j) => (i === j ? [] : [`${a}${b}`])),
+    ),
+  ]);
 }
 
 /** Contesto delle maschere: il vocabolario senza le parole delle identità. */
@@ -550,7 +559,9 @@ function nodeLines(node: Node, ctx: ShapeContext, depth: number): string[] {
         ? scriptLines(node.rawText, ctx, depth + 1)
         : tag === "style"
           ? [OMITTED]
-          : childLines(node.childNodes, ctx, depth + 1);
+          : tag === "tr"
+            ? cellLines(node.childNodes, ctx, depth + 1)
+            : childLines(node.childNodes, ctx, depth + 1);
     return [elementLine(node, ctx), ...indent(inner)];
   }
   if (node.nodeType !== NodeType.TEXT_NODE) return [];
@@ -575,6 +586,15 @@ function childLines(nodes: Node[], ctx: ShapeContext, depth: number): string[] {
     else groups.set(tag, [own]);
   }
   return [...groups.values()].flatMap((group) => variantLines(group, true));
+}
+
+/**
+ * Le celle di una riga di tabella nell'ordine della pagina, tutte: ordine e numero delle colonne
+ * sono struttura, e i valori sono comunque mascherati. Le righe restano raggruppate come gli altri
+ * fratelli, così il numero di serie o di sedute non si legge.
+ */
+function cellLines(nodes: Node[], ctx: ShapeContext, depth: number): string[] {
+  return nodes.flatMap((node) => nodeLines(node, ctx, depth));
 }
 
 /** La forma di una pagina HTML: un elemento per riga, indentato di 2 spazi per livello. */
@@ -720,7 +740,7 @@ const HEADER = [
   "- restano scritti i nomi dei campi JSON, dei tag e degli attributi HTML noti e i valori di attributi come `class`, `id` e `name` e dei campi `physicalProperty` e `property`, se hanno la forma di un nome, con ogni cifra resa `9`; gli altri sono mascherati tra `«»`;",
   "- nei valori ogni parola diventa `a` (se comincia con una minuscola) o `A` (se comincia con una maiuscola); una sequenza di 1 o 2 cifre diventa `99`, una più lunga ha un `9` per cifra (al massimo 20, poi `…`); i numeri JSON diventano `numero 9`, `numero 9.9` o `numero -9`;",
   "- restano scritte solo le parole del vocabolario `VOCAB` dello script (unità di misura, parole della tabella delle serie e dell'interfaccia, tipi di esercizio), la punteggiatura e i simboli ASCII, pochi segni tipografici e la `T` e la `Z` delle date ISO; ogni altro carattere diventa `?`;",
-  "- elementi fratelli con lo stesso tag, voci con la chiave mascherata ed elementi di una lista compaiono una volta per forma, in ordine alfabetico e al massimo 5 (poi `… altre varianti`), senza dire quanti sono; `(ripetuto)` segna un fratello o una voce che si ripete; il contenuto degli script è omesso, tranne la forma di `EU.currentUser`.",
+  "- elementi fratelli con lo stesso tag, voci con la chiave mascherata ed elementi di una lista compaiono una volta per forma, in ordine alfabetico e al massimo 5 (poi `… altre varianti`), senza dire quanti sono; le celle di una riga di tabella restano tutte, nell'ordine delle colonne; `(ripetuto)` segna un fratello o una voce che si ripete; il contenuto degli script è omesso, tranne la forma di `EU.currentUser`.",
   "",
   "Dell'ordine della pagina resta solo l'ordine in cui compaiono per la prima volta i tag diversi tra fratelli. Nient'altro: nessun nome, data, numero o identificativo.",
 ].join("\n");

@@ -310,21 +310,48 @@ describe("shape", () => {
     );
   });
 
+  it("shape: table cells keep their column order", () => {
+    // Le celle di una riga sono le colonne: ordine e numero sono struttura, non dati, e il
+    // Task 0 Step 5 deve sapere in che ordine stanno le colonne della tabella delle serie.
+    expect(
+      shapeOfHtml(
+        "<table><tr><th>Serie</th><th>Ripetizioni</th><th>Carico</th></tr><tr><td>1</td><td>12</td><td>Mario</td></tr></table>",
+        ctx,
+      ),
+    ).toEqual([
+      "table",
+      "  tr",
+      "    td",
+      '      "99"',
+      "    td",
+      '      "99"',
+      "    td",
+      '      "A"',
+      "  tr",
+      "    th",
+      '      "Serie"',
+      "    th",
+      '      "Ripetizioni"',
+      "    th",
+      '      "Carico"',
+    ]);
+  });
+
   it("shape: siblings show neither their order nor their number", () => {
     // Fratelli raggruppati per tag, nell'ordine della prima comparsa del tag; in un gruppo ogni
     // forma una volta, in ordine alfabetico, con `(ripetuto)` se compare più di una volta.
     expect(
       shapeOfHtml(
-        "<tr><td>12</td><th>Kg</th><td>Mario</td><td>60</td><td>5</td><th>Kg</th></tr>",
+        "<div><span>12</span><b>Kg</b><span>Mario</span><span>60</span><span>5</span><b>Kg</b></div>",
         ctx,
       ),
     ).toEqual([
-      "tr",
-      "  td (ripetuto)",
+      "div",
+      "  span (ripetuto)",
       '    "99"',
-      "  td",
+      "  span",
       '    "A"',
-      "  th (ripetuto)",
+      "  b (ripetuto)",
       '    "Kg"',
     ]);
     expect(shapeOfHtml("<p>Kg<br>Km<br>Kg</p>", ctx)).toEqual([
@@ -479,6 +506,11 @@ describe("shape", () => {
       "userId: numero 9",
       "«a_a»: numero 9",
     ]);
+    // Il probe raccoglie nome e cognome anche in campi separati: le iniziali vengono anche dalle
+    // coppie di identità di una parola sola (qui solo "Mario" e "Rossi", in `ctx`).
+    expect(
+      shapeOfHtml('<span class="initials-MR"></span><b class="RM"></b>', ctx),
+    ).toEqual(["span[class=«a-A»]", "b[class=«A»]"]);
   });
 
   it("shape: keeps the property names the parser reads", () => {
@@ -574,18 +606,22 @@ describe("shape", () => {
       "        weight: numero 9.9",
       "    a[class=profile-link, href=«/a/A/99a99a99a99a-99a99a-99a99a-99a99a-99a99a99a99a99a99a»]",
       '      "A A"',
-      // Le righe e le celle in ordine alfabetico: 1, 12 e 60 hanno la stessa forma.
+      // Le righe in ordine alfabetico e senza numero; le celle di una riga nell'ordine delle colonne.
       "    table[class=sets]",
       "      tr (ripetuto)",
-      "        td (ripetuto)",
+      "        td",
+      '          "99"',
+      "        td",
+      '          "99"',
+      "        td",
       '          "99"',
       "      tr",
       "        th",
-      '          "Carico"',
+      '          "Serie"',
       "        th",
       '          "Ripetizioni"',
       "        th",
-      '          "Serie"',
+      '          "Carico"',
       "    input[type=hidden, name=hdSessionIdCR, value=«9999»]",
       "    div[id=«a-a», data-user=«A», role=note, hidden]",
       '      "A A!"',
@@ -830,7 +866,7 @@ describe("shape", () => {
         "- restano scritti i nomi dei campi JSON, dei tag e degli attributi HTML noti e i valori di attributi come `class`, `id` e `name` e dei campi `physicalProperty` e `property`, se hanno la forma di un nome, con ogni cifra resa `9`; gli altri sono mascherati tra `«»`;",
         "- nei valori ogni parola diventa `a` (se comincia con una minuscola) o `A` (se comincia con una maiuscola); una sequenza di 1 o 2 cifre diventa `99`, una più lunga ha un `9` per cifra (al massimo 20, poi `…`); i numeri JSON diventano `numero 9`, `numero 9.9` o `numero -9`;",
         "- restano scritte solo le parole del vocabolario `VOCAB` dello script (unità di misura, parole della tabella delle serie e dell'interfaccia, tipi di esercizio), la punteggiatura e i simboli ASCII, pochi segni tipografici e la `T` e la `Z` delle date ISO; ogni altro carattere diventa `?`;",
-        "- elementi fratelli con lo stesso tag, voci con la chiave mascherata ed elementi di una lista compaiono una volta per forma, in ordine alfabetico e al massimo 5 (poi `… altre varianti`), senza dire quanti sono; `(ripetuto)` segna un fratello o una voce che si ripete; il contenuto degli script è omesso, tranne la forma di `EU.currentUser`.",
+        "- elementi fratelli con lo stesso tag, voci con la chiave mascherata ed elementi di una lista compaiono una volta per forma, in ordine alfabetico e al massimo 5 (poi `… altre varianti`), senza dire quanti sono; le celle di una riga di tabella restano tutte, nell'ordine delle colonne; `(ripetuto)` segna un fratello o una voce che si ripete; il contenuto degli script è omesso, tranne la forma di `EU.currentUser`.",
         "",
         "Dell'ordine della pagina resta solo l'ordine in cui compaiono per la prima volta i tag diversi tra fratelli. Nient'altro: nessun nome, data, numero o identificativo.",
         "",
@@ -851,13 +887,15 @@ describe("shape", () => {
         "```text",
         "table[class=sets]",
         "  tr",
-        "    td (ripetuto)",
+        "    td",
+        '      "99"',
+        "    td",
         '      "99"',
         "  tr",
         "    th",
-        '      "Kg"',
-        "    th",
         '      "Serie"',
+        "    th",
+        '      "Kg"',
         "```",
         "",
         "## biometrics.json",
