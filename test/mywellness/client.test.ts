@@ -142,6 +142,26 @@ describe("client", () => {
     );
   });
 
+  it("client: token outside printable ascii raises ParseError", async () => {
+    // `\\n` nella stringa JS della pagina: un a capo nel token decodificato. Finirebbe
+    // in `::add-mask::` spezzando il comando.
+    useLogin(
+      fixture("login_ok.html").replace(
+        "synthetic-token-0001",
+        "synthetic-\\\\ntoken",
+      ),
+    );
+
+    const error = await newClient()
+      .login()
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ParseError);
+    expect((error as Error).message).toBe(
+      "Mywellness: utente corrente inatteso",
+    );
+  });
+
   it("client: login failure", async () => {
     useLogin(fixture("login_form.html"));
 

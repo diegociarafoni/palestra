@@ -71,6 +71,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 - Modify (anonimizzazione: il nome e cognome → "l'utente"; dominio e hostname → `<DASHBOARD_HOSTNAME>`): tutti i `.md` che li contengono; `CLAUDE.md`, `docs/buone-pratiche.md`, `.claude/settings.json` con le regole nuove (sotto)
 
 - [ ] **Step 1 (utente):** creare il repository pubblico vuoto; su Cloudflare: database D1 `palestra`, bucket R2 `palestra-backup` con **giurisdizione EU** (i backup contengono dati sanitari), regola di ciclo di vita 365 giorni e URL pubblico disattivato, token `CF_TOKEN_D1` (D1 Edit), `CF_TOKEN_PAGES` (Pages Edit), chiavi R2 limitate al bucket; inserirli nei Secrets del nuovo repository insieme a `MYWELLNESS_EMAIL`, `MYWELLNESS_PASSWORD`, `CLOUDFLARE_ACCOUNT_ID`, `PII_PATTERNS` (un'espressione per riga: nome, cognome, e-mail, telefono, dominio, data di nascita); variabile `D1_DATABASE_ID`.
+> Nota (2026-11-01): `D1_DATABASE_ID` è un GitHub Secret, non una variabile (impostato così dall'utente); i workflow lo leggono da `secrets.`.
 - [ ] **Step 2: Scrivere `scripts/check-public-tree.mjs DIR`** che fallisce (exit 1, stampa solo percorso e numero di riga, mai la corrispondenza) se trova: file sotto `data/`, `reports/` diversi da `TEMPLATE.md`, `scheda/` diversi da `SCHEMA.md`, `*.sqlite`, `kb/profilo.md`; occorrenze dei pattern letti dalla variabile `PII_PATTERNS` o dal file `~/.config/palestra/identificativi.txt`. Test manuale: un file temporaneo con un pattern → exit 1; albero pulito → `0 problemi`.
 - [ ] **Step 3: Regole.** In `CLAUDE.md`: comandi npm (Global Constraints); regola 10 diventa "Igiene TypeScript" (strict, Biome, lockfile, `zod` ai confini, exit code § 8); "Confini – Mai" aggiunge: dati personali in file, commit, log, artifact o issue; `DELETE`/`DROP` su D1 senza conferma; scrivere su `sessions`/`timeseries` a mano. Sezione "Dati manuali" e "Revisione mensile": lettura e scrittura via connettore Cloudflare su D1 (tabelle `measures`, `recovery`, `feedback`, `profile`, `scheda`, `reports`, sempre con riga `audit`). In `.claude/settings.json`: deny Edit/Write su `data/**`, `reports/*.md` tranne il template, `scheda/scheda.*`, `**/*.sqlite`, `kb/profilo.md`; deny `Bash(npm publish*)`; ask `Bash(npm install*)`, `Bash(wrangler d1 execute*)`; togliere le regole `uv`/`pip`.
 - [ ] **Step 4: `.githooks/pre-push`**: esegue `node scripts/check-public-tree.mjs .` e `gitleaks git --staged` se installato; istruzioni di attivazione (`git config core.hooksPath .githooks`) in `docs/migrazione.md`.
@@ -240,7 +241,11 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 - Consumes: `MywellnessClient` (2), `normalizeSession` (3), `romeDate` (1b), `Db`, `knownSessionIds`, `upsertSession`, `getProfile` (1b), `weekSlots`, `matchSession`, `overdue` (4b); store degli slot: `ensureWeekSlots(db, week, tpl)`, `updateSlot(db, id, patch)` da aggiungere in `src/store/planning.ts`. La sync abbina le sedute nuove una alla volta in ordine crescente di `started_at`, applicando ogni esito agli slot prima della chiamata successiva, e chiama `overdue` dopo gli abbinamenti.
 - Produces: `sync(client: MywellnessClient, db: Db, opts?: { lookbackDays?: number; today?: string }): Promise<{ newSessions: number; slotsUpdated: number }>` (default `lookbackDays` 14); `main(argv: string[], env: Record<string, string | undefined>): Promise<number>` (`--lookback-days N`).
 
-- [ ] **Step 1: Test:**
+> Nota (2026-11-01): firme reali. `sync(client: SyncClient, db: Db, opts?: { lookbackDays?: number; today?: string })`, con `SyncClient` = i quattro metodi di `MywellnessClient` usati dalla sync (`listSessionIds({ since, until })`, `getSession(id)`, `getStrengthDetailHtml(activityId, day)`, `getCardioTimeseries(analyticsId, facilityId)`): i test passano un oggetto finto e il login lo fa la CLI. `main(argv, env, deps?)`: `deps.makeClient` costruisce il client nei test; senza `deps`, `new MywellnessClient({ email, password })`. `ensureWeekSlots(db, week, tpl): Promise<void>` (`INSERT … ON CONFLICT DO NOTHING`) e `updateSlot(db, id, patch: { status?; session_id?; reason? }): Promise<void>`; `WeekTemplateSchema` in `src/domain/planning.ts`. `MywellnessClient` espone `get token()`: con `GITHUB_ACTIONS=true` la CLI scrive `::add-mask::<token>` come prima riga di stdout. I test della sync girano nel progetto workers (D1 di Miniflare, `vitest.config.ts`), quelli della CLI nel progetto node con MSW per Mywellness e per l'API D1. Lo step degli slot legge le sedute della finestra con `listSessionStarts(db, sinceDate)` (in `src/store/sessions.ts`, sola lettura) e abbina quelle che nessuno slot riferisce; la finestra parte dal lunedì della settimana ISO di oggi meno `lookbackDays` (da 1 a 366). I test sono 26: gli 8 sotto più `sync: fetches strength details and cardio series`, `sync: missing template stores sessions and skips slots`, `sync: fills a skipped slot and clears its reason`, `sync: invalid template writes nothing`, `sync: unexpected payload writes nothing`, `sync: matches stored sessions after a failed slot step`, `sync: matches stored sessions once the template exists`, `sync: window starts on the monday of its week`, `sync: stored extra session stays extra`, `cli sync: manual run on github actions masks the token and prints counts`, `cli sync: scheduled run prints no counts`, `cli sync: lookback days flag`, `cli sync: rejects bad arguments`, `cli sync: lookback days up to 366`, `cli sync: exit 75 on mywellness 5xx`, `cli sync: exit 65 on unexpected payload`, `cli sync: d1 and unexpected errors`, `cli sync: runs only when executed directly`; in più `store: session starts within window` e `client: token outside printable ascii raises ParseError`.
+
+> Nota (2026-11-01, revisione): nelle run pianificate (`GITHUB_ACTIONS=true` e `GITHUB_EVENT_NAME=schedule`) stdout è la riga `::add-mask::` seguita da `sync completata`, senza conteggi, perché ogni notte un conteggio nel log pubblico rivelerebbe i giorni di allenamento (`docs/buone-pratiche.md`: mai date di sedute nei log); le run manuali (`workflow_dispatch`) e locali stampano le due righe dei conteggi dell'accettazione.
+
+- [x] **Step 1: Test:**
   - `sync: skips known sessions` — client finto con `["abc123","def456"]`, `abc123` già in D1 → `newSessions === 1`, `getSession` chiamato solo per `def456`.
   - `sync: idempotent` — seconda esecuzione → `{ newSessions: 0, slotsUpdated: 0 }`.
   - `sync: matches session to slot` (modello di esempio del Task 4b) — seduta di martedì 2026-11-03 → slot `2026-W45-1` `fatta` con `session_id`.
@@ -249,8 +254,8 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
   - `cli sync: exit 78 on auth error` — `login` rifiuta → `78`, stderr contiene "Login Mywellness fallito", nessuna riga in `sessions`, la password non compare in stdout/stderr.
   - `cli sync: exit 78 on missing env` — senza `MYWELLNESS_PASSWORD` → `78`.
   - `cli sync: output has only counts` — stdout corrisponde a `/^(sedute nuove|slot aggiornati): \d+$/m` per ogni riga.
-- [ ] **Step 2:** FAIL → implementare → PASS.
-- [ ] **Step 3: Commit** `feat(sync): idempotent d1 sync with planned sessions`
+- [x] **Step 2:** FAIL → implementare → PASS.
+- [x] **Step 3: Commit** `feat(sync): idempotent d1 sync with planned sessions`
 
 ---
 
@@ -261,9 +266,11 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 **Files:**
 - Create: `.github/workflows/sync.yml`
 
-- [ ] **Step 1:** `on: schedule: - cron: "17 3 * * *"` e `workflow_dispatch`; `permissions: contents: read`; `timeout-minutes: 15`; `concurrency: { group: sync, cancel-in-progress: false }`; checkout e setup-node pinnate a SHA; `npm ci`; `npm run sync` con env `MYWELLNESS_EMAIL`, `MYWELLNESS_PASSWORD`, `CLOUDFLARE_ACCOUNT_ID`, `D1_DATABASE_ID` (variabile), `CF_TOKEN_D1`. Nessun commit, nessun artifact.
-- [ ] **Step 2:** verifiche dell'accettazione dal tab Actions.
-- [ ] **Step 3: Commit** `ci: nightly sync to d1`
+- [x] **Step 1:** `on: schedule: - cron: "17 3 * * *"` e `workflow_dispatch`; `permissions: contents: read`; `timeout-minutes: 15`; `concurrency: { group: sync, cancel-in-progress: false }`; checkout e setup-node pinnate a SHA; `npm ci`; `npm run sync` con env `MYWELLNESS_EMAIL`, `MYWELLNESS_PASSWORD`, `CLOUDFLARE_ACCOUNT_ID`, `D1_DATABASE_ID` (variabile), `CF_TOKEN_D1`. Nessun commit, nessun artifact.
+> Nota (2026-11-01): `D1_DATABASE_ID` è un GitHub Secret (confermato dall'utente), quindi `sync.yml` lo legge da `secrets.` e resta mascherato nei log.
+
+- [ ] **Step 2 (utente):** verifiche dell'accettazione dal tab Actions, dopo il merge del Task 4 (la run notturna fallisce con exit 78 finché mancano Secrets o variabile).
+- [x] **Step 3: Commit** `ci: nightly sync to d1`
 
 ---
 
@@ -311,9 +318,9 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 **Accettazione:** run `workflow_dispatch` verde che salva il report del mese indicato in D1 (verifica con il connettore o nella dashboard).
 
 **Files:**
-- Create: `.github/workflows/report.yml` (al posto di Modify `sync.yml`, che non era ancora su `main`: nota [kb/decisioni/2026-11-01-report-mensile-in-workflow-separato.md](../../../kb/decisioni/2026-11-01-report-mensile-in-workflow-separato.md)); sezione «Report mensile» in `docs/dashboard.md`
+- Create: `.github/workflows/report.yml` (al posto di Modify `sync.yml`, che non era ancora su `main`: nota [kb/decisioni/2026-11-01-report-il-1-e-l-8-del-mese.md](../../../kb/decisioni/2026-11-01-report-il-1-e-l-8-del-mese.md)); sezione «Report mensile» in `docs/dashboard.md`
 
-- [x] **Step 1:** `npm run report -- --month <mese precedente>` il 1° del mese (05:37 UTC, dopo la sync) e su `workflow_dispatch` con input facoltativo `month`; stesse variabili d'ambiente del sync, nessun output oltre all'esito.
+- [x] **Step 1:** `npm run report -- --month <mese precedente>` il 1° e l'8 del mese (05:37 UTC, dopo la sync; l'8 rigenera con l'ultima settimana chiusa) e su `workflow_dispatch` con input facoltativo `month`; stesse variabili d'ambiente del sync (`D1_DATABASE_ID` è un Secret), nessun output oltre all'esito.
 - [ ] **Step 2:** verifica; commit `ci: monthly report step`. La run di accettazione scrive nel D1 reale: la lancia l'utente (o Claude con il suo permesso) dopo la prima sync.
 
 ---
