@@ -32,6 +32,7 @@ const MAX_SESSIONS = 10;
 const MAX_DETAILS = 8;
 const DEFAULT_DAYS = 30;
 const MAX_DAYS = 365;
+const DAY_MS = 86_400_000;
 const USAGE =
   "Uso: MYWELLNESS_EMAIL=… MYWELLNESS_PASSWORD=… npx tsx scripts/probe-mywellness.ts [--days N] (N da 1 a 365)";
 
@@ -194,11 +195,25 @@ function parseDays(argv: string[]): number | undefined {
   return days >= 1 && days <= MAX_DAYS ? days : undefined;
 }
 
-/** `YYYY-MM-DD` di `days` giorni prima, in formato `DD/MM/YYYY`. */
-function dmyBefore(day: string, days: number): string {
-  const date = new Date(Date.parse(`${day}T00:00:00Z`) - days * 86_400_000);
-  const [y, m, d] = date.toISOString().slice(0, 10).split("-");
+function dmy(time: number): string {
+  const [y, m, d] = new Date(time).toISOString().slice(0, 10).split("-");
   return `${d}/${m}/${y}`;
+}
+
+/**
+ * Gli ultimi `days` giorni fino a `today` (`YYYY-MM-DD`) divisi per mese di calendario,
+ * dal più recente, come coppie `DD/MM/YYYY`: gymexport chiede un mese per chiamata.
+ */
+function monthRanges(today: string, days: number): [string, string][] {
+  const start = Date.parse(`${today}T00:00:00Z`) - days * DAY_MS;
+  const ranges: [string, string][] = [];
+  for (let to = Date.parse(`${today}T00:00:00Z`); to >= start; ) {
+    const date = new Date(to);
+    const first = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+    ranges.push([dmy(Math.max(first, start)), dmy(to)]);
+    to = first - DAY_MS;
+  }
+  return ranges;
 }
 
 /** Valori di `<input name="hdSessionIdCR" value="…">`, senza duplicati, nell'ordine. */
@@ -387,24 +402,29 @@ async function probe(
   const json = { headers: { Accept: "application/json" } };
 
   try {
-    // 2. Elenco delle sedute degli ultimi `days` giorni (date di Roma).
+    // 2. Elenco delle sedute degli ultimi `days` giorni (date di Roma), un mese per volta.
     const today = romeDate(opts.now.toISOString());
-    const range = new URLSearchParams({
-      fromDate: dmyBefore(today, opts.days),
-      toDate: dmyBefore(today, 0),
-    });
-    const list = ensureOk(
-      "sessions",
-      await http.send(
-        "sessions",
-        `${SITE}/cloud/Training/LastPerformedWorkoutSession?${range}`,
-      ),
-    );
-    await save("last_sessions.html", list.bytes);
-    const ids = sessionIds(list.text).slice(0, MAX_SESSIONS);
+    const listed: string[] = [];
+    for (const [i, [fromDate, toDate]] of monthRanges(
+      today,
+      opts.days,
+    ).entries()) {
+      const label = `sessions ${i + 1}`;
+      const range = new URLSearchParams({ fromDate, toDate });
+      const list = ensureOk(
+        label,
+        await http.send(
+          label,
+          `${SITE}/cloud/Training/LastPerformedWorkoutSession?${range}`,
+        ),
+      );
+      await save(numbered("last_sessions", i, ".html"), list.bytes);
+      listed.push(...sessionIds(list.text));
+    }
+    const ids = [...new Set(listed)].slice(0, MAX_SESSIONS);
     if (ids.length === 0) {
       note(
-        `nessun id seduta (hdSessionIdCR) in last_sessions.html: nessuna seduta negli ultimi ${opts.days} giorni (provare --days) o formato cambiato`,
+        `nessun id seduta (hdSessionIdCR) nelle pagine last_sessions: nessuna seduta negli ultimi ${opts.days} giorni (provare --days) o formato cambiato`,
       );
     }
 

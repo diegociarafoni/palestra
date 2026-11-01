@@ -225,8 +225,15 @@ describe("probe", () => {
       ),
       http.get(`${SITE}/cloud/`, () => HttpResponse.html("<p>home</p>")),
       http.get(`${SITE}/cloud/Training`, () => HttpResponse.html(training)),
-      http.get(`${SITE}/cloud/Training/LastPerformedWorkoutSession`, () =>
-        HttpResponse.html(list),
+      // Un mese di calendario per richiesta: le sedute sono tutte in ottobre.
+      http.get(
+        `${SITE}/cloud/Training/LastPerformedWorkoutSession`,
+        ({ request }) =>
+          HttpResponse.html(
+            new URL(request.url).searchParams.get("fromDate") === "26/10/2026"
+              ? list
+              : "<p>nessuna seduta</p>",
+          ),
       ),
       http.get(
         `${SERVICES}/Training/User/:userId/GetPerformedWorkoutSessionByIdCr`,
@@ -263,7 +270,7 @@ describe("probe", () => {
       {
         ...deps(),
         fetch: recordingFetch,
-        now: () => new Date("2026-10-31T10:00:00Z"),
+        now: () => new Date("2026-11-02T10:00:00Z"),
       },
     );
     expect(code).toBe(0);
@@ -273,7 +280,8 @@ describe("probe", () => {
       `POST ${SITE}/cloud/User/Login`,
       `GET ${SITE}/cloud/`,
       `GET ${SITE}/cloud/Training`,
-      `GET ${SITE}/cloud/Training/LastPerformedWorkoutSession?fromDate=24%2F10%2F2026&toDate=31%2F10%2F2026`,
+      `GET ${SITE}/cloud/Training/LastPerformedWorkoutSession?fromDate=01%2F11%2F2026&toDate=02%2F11%2F2026`,
+      `GET ${SITE}/cloud/Training/LastPerformedWorkoutSession?fromDate=26%2F10%2F2026&toDate=31%2F10%2F2026`,
       `GET ${SERVICES}/Training/User/${USER_ID}/GetPerformedWorkoutSessionByIdCr?IdCr=333&${auth}`,
       `GET ${SERVICES}/Training/User/${USER_ID}/GetPerformedWorkoutSessionByIdCr?IdCr=111&${auth}`,
       `GET ${SERVICES}/Training/User/${USER_ID}/GetPerformedWorkoutSessionByIdCr?IdCr=222&${auth}`,
@@ -287,6 +295,7 @@ describe("probe", () => {
       "cardio_timeseries.json",
       "identities.json",
       "last_sessions.html",
+      "last_sessions_2.html",
       "login_form.html",
       "login_ok.html",
       "session_111.json",
@@ -317,7 +326,8 @@ describe("probe", () => {
       "login: HTTP 302",
       "login (redirect 1): HTTP 200",
       "training: HTTP 200",
-      "sessions: HTTP 200",
+      "sessions 1: HTTP 200",
+      "sessions 2: HTTP 200",
       "session 1: HTTP 200",
       "session 2: HTTP 200",
       "session 3: HTTP 200",
@@ -325,7 +335,7 @@ describe("probe", () => {
       "cardio timeseries 1: HTTP 200",
       "biometrics services: HTTP 404",
       "biometrics api: HTTP 200",
-      `12 file scritti in ${outDir}`,
+      `13 file scritti in ${outDir}`,
     ]);
     // Nei log mai id, token, date, nomi, e-mail o password.
     const logs = lines.slice(0, -1).join("\n");
@@ -346,7 +356,7 @@ describe("probe", () => {
       expect(logs).not.toContain(secret);
     }
     expect(stderr).not.toHaveBeenCalled();
-    expect(sleeps).toEqual(Array(11).fill(1000));
+    expect(sleeps).toEqual(Array(12).fill(1000));
   });
 
   it.each([
@@ -354,31 +364,31 @@ describe("probe", () => {
       label: "HTTP 503",
       reply: () => new HttpResponse(null, { status: 503 }),
       code: 75,
-      message: "sessions: HTTP 503",
+      message: "sessions 1: HTTP 503",
     },
     {
       label: "HTTP 429",
       reply: () => new HttpResponse(null, { status: 429 }),
       code: 75,
-      message: "sessions: HTTP 429",
+      message: "sessions 1: HTTP 429",
     },
     {
       label: "HTTP 403",
       reply: () => new HttpResponse(null, { status: 403 }),
       code: 78,
-      message: "sessions: accesso negato (HTTP 403)",
+      message: "sessions 1: accesso negato (HTTP 403)",
     },
     {
       label: "HTTP 404",
       reply: () => new HttpResponse(null, { status: 404 }),
       code: 69,
-      message: "sessions: HTTP 404",
+      message: "sessions 1: HTTP 404",
     },
     {
       label: "network error",
       reply: () => HttpResponse.error(),
       code: 75,
-      message: "sessions: errore di rete",
+      message: "sessions 1: errore di rete",
     },
   ])(
     "probe: exit $code when the session list fails ($label)",
