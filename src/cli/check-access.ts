@@ -1,6 +1,7 @@
 // Controllo che Cloudflare Access protegga la dashboard (workflow publish.yml, docs/dashboard.md,
 // «Pubblicazione»): `/` e `/api/measures` devono rispondere con un redirect verso la pagina di
-// login di Access (`https://<team>.cloudflareaccess.com/…`). Con `--after-deploy`, in più,
+// login di Access (`https://<team>.cloudflareaccess.com/…`), sia sull'hostname della dashboard sia
+// su `palestra.pages.dev`, dove si apre anche il deploy di produzione. Con `--after-deploy`, in più,
 // `GET /api/measures` con `X-Requested-With: XMLHttpRequest` e senza cookie deve rispondere 401.
 // Uso: DASHBOARD_HOSTNAME=<nome host> npx --no -- tsx src/cli/check-access.ts [--after-deploy]
 // Su stderr solo percorsi, stati HTTP ed esito: mai l'hostname, gli URL o il Location (il log
@@ -11,6 +12,11 @@ import { pathToFileURL } from "node:url";
 import { exitCodeFor, TransientError } from "../errors";
 
 const PATHS = ["/", "/api/measures"] as const;
+// Il deploy di produzione si apre anche dal dominio pages.dev del progetto, che l'applicazione
+// Access dell'hostname non copre (docs/dashboard.md, «Configurazione», passo 6). Il nome del
+// progetto è già pubblico nel repository; se Cloudflare ha assegnato un altro sottodominio
+// (i nomi pages.dev sono globali) la guardia si ferma e questa costante va cambiata.
+const PAGES_DEV_HOST = "palestra.pages.dev";
 // Timeout di ogni richiesta: quelli di undici per intestazioni e corpo (300 s) supererebbero il
 // timeout del passo nel workflow, e il 75 promesso per il timeout non arriverebbe mai.
 const TIMEOUT_MS = 15_000;
@@ -40,19 +46,22 @@ function isNetworkError(error: unknown): boolean {
   );
 }
 
+/** Un host da controllare e il nome con cui compare nei messaggi (mai l'hostname dell'utente). */
+type Target = { host: string; label: string };
+
 /**
  * GET senza cookie e senza seguire i redirect. Un errore di rete diventa `TransientError`, con
- * l'errore di fetch come causa: il messaggio nomina solo il percorso, la causa nomina l'host.
+ * l'errore di fetch come causa: il messaggio nomina solo percorso e `pages.dev`, la causa l'host.
  */
 async function get(
   fetchFn: typeof fetch,
-  host: string,
+  target: Target,
   path: string,
   headers: Record<string, string> = {},
 ): Promise<Response> {
   try {
     // `manual`: il redirect di Access è proprio la risposta da controllare, non va seguito.
-    return await fetchFn(`https://${host}${path}`, {
+    return await fetchFn(`https://${target.host}${path}`, {
       redirect: "manual",
       headers,
       signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -60,7 +69,7 @@ async function get(
   } catch (error) {
     if (!isNetworkError(error)) throw error;
     throw new TransientError(
-      `Richiesta a ${path} non riuscita: errore di rete o timeout (rilanciare; se si ripete, controllare dominio e DNS)`,
+      `Richiesta a ${target.label}${path} non riuscita: errore di rete o timeout (rilanciare; se si ripete, controllare dominio e DNS)`,
       { cause: error },
     );
   }
@@ -72,25 +81,32 @@ async function check(
   host: string,
   afterDeploy: boolean,
 ): Promise<number> {
+  const dashboard: Target = { host, label: "" };
+  const targets: Target[] = [
+    dashboard,
+    { host: PAGES_DEV_HOST, label: "pages.dev" },
+  ];
   // Solo percorsi e stati nei messaggi: l'hostname e il Location (che lo contiene) mai.
-  for (const path of PATHS) {
-    const response = await get(fetchFn, host, path);
-    if (!redirectsToAccess(response, `https://${host}${path}`)) {
-      console.error(
-        `Access non attivo su ${path}: risposta ${response.status}, atteso un redirect al login di Access (*.cloudflareaccess.com)`,
-      );
-      return 78;
+  for (const target of targets) {
+    for (const path of PATHS) {
+      const response = await get(fetchFn, target, path);
+      if (!redirectsToAccess(response, `https://${target.host}${path}`)) {
+        console.error(
+          `Access non attivo su ${target.label}${path}: risposta ${response.status}, atteso un redirect al login di Access (*.cloudflareaccess.com)`,
+        );
+        return 78;
+      }
     }
   }
+  const active =
+    "Access attivo: / e /api/measures reindirizzano al login di Access, anche su pages.dev";
   if (!afterDeploy) {
-    console.error(
-      "Access attivo: / e /api/measures reindirizzano al login di Access",
-    );
+    console.error(active);
     return 0;
   }
   // Con questa intestazione e senza sessione Access risponde 401 invece del redirect: il
   // frontend ricarica la pagina (kb/decisioni/2026-11-01-sessione-access-scaduta.md).
-  const xhr = await get(fetchFn, host, "/api/measures", {
+  const xhr = await get(fetchFn, dashboard, "/api/measures", {
     "X-Requested-With": "XMLHttpRequest",
   });
   if (xhr.status !== 401) {
@@ -99,9 +115,7 @@ async function check(
     );
     return 78;
   }
-  console.error(
-    "Access attivo: / e /api/measures reindirizzano al login di Access; /api/measures con X-Requested-With risponde 401",
-  );
+  console.error(`${active}; /api/measures con X-Requested-With risponde 401`);
   return 0;
 }
 

@@ -7,6 +7,8 @@ import { setupMswServer } from "../msw";
 const HOST = "dashboard.example.com";
 const ENV = { DASHBOARD_HOSTNAME: HOST };
 const LOGIN = `https://esempio.cloudflareaccess.com/cdn-cgi/access/login/${HOST}?kid=aud-di-prova&redirect_url=%2F`;
+// Il dominio pages.dev del progetto (pubblico nel repository: il nome del progetto è `palestra`).
+const PAGES_DEV = "palestra.pages.dev";
 
 /** Risposta di Access a una richiesta senza sessione: redirect alla pagina di login del team. */
 const toAccessLogin = () =>
@@ -19,6 +21,11 @@ let stdout: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   stderr = vi.spyOn(console, "error").mockImplementation(() => undefined);
   stdout = vi.spyOn(console, "log").mockImplementation(() => undefined);
+  // pages.dev dietro Access in ogni test, salvo quelli che lo cambiano con `server.use`.
+  server.use(
+    http.get(`https://${PAGES_DEV}/`, toAccessLogin),
+    http.get(`https://${PAGES_DEV}/api/measures`, toAccessLogin),
+  );
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -37,7 +44,9 @@ describe("check-access", () => {
     );
     expect(await main([], ENV)).toBe(0);
     expect(stderr.mock.calls).toEqual([
-      ["Access attivo: / e /api/measures reindirizzano al login di Access"],
+      [
+        "Access attivo: / e /api/measures reindirizzano al login di Access, anche su pages.dev",
+      ],
     ]);
     expect(stdout).not.toHaveBeenCalled();
   });
@@ -66,6 +75,73 @@ describe("check-access", () => {
     expect(stderr.mock.calls).toEqual([
       [
         "Access non attivo su /api/measures: risposta 200, atteso un redirect al login di Access (*.cloudflareaccess.com)",
+      ],
+    ]);
+  });
+
+  it.each([
+    { argv: [], path: "/" },
+    { argv: [], path: "/api/measures" },
+    { argv: ["--after-deploy"], path: "/" },
+    { argv: ["--after-deploy"], path: "/api/measures" },
+  ])(
+    "check-access: $argv exit 78 when pages.dev $path answers 200",
+    async ({ argv, path }) => {
+      const xhrHeaders: string[] = [];
+      server.events.on("request:start", ({ request }) => {
+        xhrHeaders.push(request.headers.get("x-requested-with") ?? "-");
+      });
+      server.use(
+        http.get(`https://${HOST}/`, toAccessLogin),
+        http.get(`https://${HOST}/api/measures`, toAccessLogin),
+        http.get(`https://${PAGES_DEV}${path}`, () =>
+          HttpResponse.text("<!doctype html>"),
+        ),
+      );
+      expect(await main(argv, ENV)).toBe(78);
+      server.events.removeAllListeners();
+      expect(stderr.mock.calls).toEqual([
+        [
+          `Access non attivo su pages.dev${path}: risposta 200, atteso un redirect al login di Access (*.cloudflareaccess.com)`,
+        ],
+      ]);
+      expect(xhrHeaders).not.toContain("XMLHttpRequest");
+      expect(output()).not.toContain(HOST);
+    },
+  );
+
+  it("check-access: exit 78 when pages.dev redirects to another host", async () => {
+    server.use(
+      http.get(`https://${HOST}/`, toAccessLogin),
+      http.get(`https://${HOST}/api/measures`, toAccessLogin),
+      http.get(
+        `https://${PAGES_DEV}/`,
+        () =>
+          new HttpResponse(null, {
+            status: 302,
+            headers: { Location: `https://${HOST}/` },
+          }),
+      ),
+    );
+    expect(await main([], ENV)).toBe(78);
+    expect(stderr.mock.calls).toEqual([
+      [
+        "Access non attivo su pages.dev/: risposta 302, atteso un redirect al login di Access (*.cloudflareaccess.com)",
+      ],
+    ]);
+    expect(output()).not.toContain(HOST);
+  });
+
+  it("check-access: exit 75 when pages.dev does not answer", async () => {
+    server.use(
+      http.get(`https://${HOST}/`, toAccessLogin),
+      http.get(`https://${HOST}/api/measures`, toAccessLogin),
+      http.get(`https://${PAGES_DEV}/`, () => HttpResponse.error()),
+    );
+    expect(await main([], ENV)).toBe(75);
+    expect(stderr.mock.calls).toEqual([
+      [
+        "Richiesta a pages.dev/ non riuscita: errore di rete o timeout (rilanciare; se si ripete, controllare dominio e DNS)",
       ],
     ]);
   });
@@ -152,7 +228,7 @@ describe("check-access", () => {
     expect(await main(["--after-deploy"], ENV)).toBe(0);
     expect(stderr.mock.calls).toEqual([
       [
-        "Access attivo: / e /api/measures reindirizzano al login di Access; /api/measures con X-Requested-With risponde 401",
+        "Access attivo: / e /api/measures reindirizzano al login di Access, anche su pages.dev; /api/measures con X-Requested-With risponde 401",
       ],
     ]);
   });
@@ -201,7 +277,7 @@ describe("check-access", () => {
     server.use(http.get(`https://${HOST}/`, toAccessLogin), apiAnswering(302));
     expect(await main([], ENV)).toBe(0);
     server.events.removeAllListeners();
-    expect(requests).toEqual(["-", "-"]);
+    expect(requests).toEqual(["-", "-", "-", "-"]);
   });
 
   it.each([{ argv: ["--after"] }, { argv: ["--after-deploy", "extra"] }])(
@@ -227,7 +303,7 @@ describe("check-access", () => {
   ])(
     "check-access: exit 78 when DASHBOARD_HOSTNAME is $label",
     async ({ env }) => {
-      // Nessun handler: una richiesta qualsiasi farebbe fallire il test (onUnhandledRequest).
+      // Nessun handler per l'host: una sua richiesta farebbe fallire il test (onUnhandledRequest).
       expect(await main([], env)).toBe(78);
       expect(stderr.mock.calls).toEqual([
         [
