@@ -213,7 +213,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
   - `type SlotStatus = "programmata" | "fatta" | "spostata" | "da_confermare" | "saltata"`; `type PlannedSlot = { id: string; week: string; slot: number; window: string[]; date: string | null; scheda_day: string; status: SlotStatus; reason: string | null; session_id: string | null }`.
   - `weekSlots(isoWeek: string, t: WeekTemplate): PlannedSlot[]` (id = `"<week>-<slot>"`, `window` = date della settimana nei giorni dello slot).
   - `matchSession(date: string, slots: PlannedSlot[], t: WeekTemplate): { kind: "slot"; id: string; status: "fatta" | "spostata" } | { kind: "extra" }`.
-  - `overdue(slots: PlannedSlot[], today: string): string[]` — id degli slot `programmata` la cui finestra è finita prima di `today`.
+  - `overdue(slots: PlannedSlot[], today: string): string[]` — id degli slot `programmata` la cui finestra è finita prima di `today`, e anche il giorno scelto (`date`) se c'è (Task 12, scelta dell'utente del 1/11: `kb/decisioni/2026-11-01-giorno-scelto-nell-abbinamento.md`).
 
 - [x] **Step 1: Test** (modello di esempio, fittizio: `tpl = { slots: [{ slot: 1, days: ["tue","wed"], scheda_day: "A" }, { slot: 2, days: ["thu"], scheda_day: "B" }], unavailable: ["mon","fri"] }`):
   - `planning: week slots` — `weekSlots("2026-W45", tpl)` → slot 1 con finestra `["2026-11-03","2026-11-04"]`, slot 2 `["2026-11-05"]`.
