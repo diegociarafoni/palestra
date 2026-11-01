@@ -20,6 +20,11 @@ const SCRIPT = join(
 );
 // Riga finta del backup: non deve mai comparire nell'output dello script.
 const ROW = "INSERT INTO measures VALUES('dato-personale');\n";
+// Dump sintetico nel formato dell'export di D1 (lo stesso dei test di restore-test).
+const DUMP = readFileSync(
+  join(import.meta.dirname, "..", "fixtures", "d1-export-sintetico.sql"),
+  "utf8",
+);
 
 let dir: string;
 let fakeBin: string;
@@ -149,6 +154,36 @@ describe("prova-ripristino", () => {
     expect(readFileSync(join(dir, "env.txt"), "utf8")).toBe(
       "false false\nfalse false\nfalse false\n",
     );
+    expect(readdirSync(tmp)).toEqual([]);
+  });
+
+  it("prova-ripristino: prints the INSERT count of each table of the dump, nothing else", () => {
+    const result = run(["2026-10-31"], { FAKE_DOWNLOAD: DUMP });
+    expect(result.status).toBe(0);
+    // Come restore-test: 3 in audit (non contano la stringa e il trigger dopo i dati),
+    // 2 in sessions, sqlite_sequence escluso; feedback non ha INSERT.
+    expect(result.stdout).toBe(
+      [
+        "tabella                   dump",
+        "audit                        3",
+        "sessions                     2",
+        "Import di palestra-2026-10-31.sql in palestra-restore-test completato; la copia locale è cancellata.",
+        "",
+      ].join("\n"),
+    );
+    expect(result.stderr).not.toContain("dato-personale");
+  });
+
+  it("prova-ripristino: a dump table name that is not an identifier exits 65 before creating", () => {
+    const result = run(["2026-10-31"], {
+      FAKE_DOWNLOAD: 'INSERT INTO "dato personale" ("x") VALUES(1);\n',
+    });
+    expect(result.status).toBe(65);
+    expect(result.stderr).toContain(
+      "Nome di tabella non ammesso nel dump: palestra-2026-10-31.sql",
+    );
+    expect(`${result.stdout}${result.stderr}`).not.toContain("dato personale");
+    expect(calls()).toHaveLength(1);
     expect(readdirSync(tmp)).toEqual([]);
   });
 
