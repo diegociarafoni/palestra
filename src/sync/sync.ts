@@ -45,6 +45,12 @@ function addDays(day: string, n: number): string {
     .slice(0, 10);
 }
 
+/** Lunedì (`YYYY-MM-DD`) della settimana ISO di `day`. */
+function mondayOf(day: string): string {
+  const fromMonday = (new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7;
+  return addDays(day, -fromMonday);
+}
+
 // Campi della seduta grezza che dicono quali pagine scaricare (docs/mywellness-api.md § 2);
 // il resto lo valida normalizeSession. "2026-11-06 18:05:30 +01:00": data e ora del club.
 const RawRefsSchema = z.looseObject({
@@ -169,7 +175,8 @@ async function updateSlots(
 
 /**
  * Salva in D1 le sedute nuove degli ultimi `lookbackDays` giorni (fino a `today`, data di
- * Roma) e aggiorna gli slot programmati. Le sedute già presenti non si scaricano di nuovo:
+ * Roma), a partire dal lunedì della settimana ISO del primo giorno, e aggiorna gli slot
+ * programmati. Le sedute già presenti non si scaricano di nuovo:
  * ripetere la sync non cambia nulla. Il modello settimanale si legge e tutte le sedute nuove
  * si scaricano prima di ogni scrittura: un modello non valido o un errore di Mywellness non
  * scrive nulla. Se D1 fallisce dopo il salvataggio delle sedute, o se il modello manca, la
@@ -181,7 +188,10 @@ export async function sync(
   opts: { lookbackDays?: number; today?: string } = {},
 ): Promise<{ newSessions: number; slotsUpdated: number }> {
   const today = opts.today ?? romeDate(new Date().toISOString());
-  const since = addDays(today, -(opts.lookbackDays ?? DEFAULT_LOOKBACK_DAYS));
+  // Dal lunedì: gli slot di una settimana si creano solo se se ne scaricano tutte le sedute.
+  const since = mondayOf(
+    addDays(today, -(opts.lookbackDays ?? DEFAULT_LOOKBACK_DAYS)),
+  );
   const tpl = await getProfile(db, "settimana_tipo", WeekTemplateSchema);
   const ids = await client.listSessionIds({ since, until: today });
   const known = await knownSessionIds(db, since);
