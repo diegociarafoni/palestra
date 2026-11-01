@@ -240,7 +240,9 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 - Consumes: `MywellnessClient` (2), `normalizeSession` (3), `romeDate` (1b), `Db`, `knownSessionIds`, `upsertSession`, `getProfile` (1b), `weekSlots`, `matchSession`, `overdue` (4b); store degli slot: `ensureWeekSlots(db, week, tpl)`, `updateSlot(db, id, patch)` da aggiungere in `src/store/planning.ts`. La sync abbina le sedute nuove una alla volta in ordine crescente di `started_at`, applicando ogni esito agli slot prima della chiamata successiva, e chiama `overdue` dopo gli abbinamenti.
 - Produces: `sync(client: MywellnessClient, db: Db, opts?: { lookbackDays?: number; today?: string }): Promise<{ newSessions: number; slotsUpdated: number }>` (default `lookbackDays` 14); `main(argv: string[], env: Record<string, string | undefined>): Promise<number>` (`--lookback-days N`).
 
-- [ ] **Step 1: Test:**
+> Nota (2026-11-01): firme reali. `sync(client: SyncClient, db: Db, opts?: { lookbackDays?: number; today?: string })`, con `SyncClient` = i quattro metodi di `MywellnessClient` usati dalla sync (`listSessionIds({ since, until })`, `getSession(id)`, `getStrengthDetailHtml(activityId, day)`, `getCardioTimeseries(analyticsId, facilityId)`): i test passano un oggetto finto e il login lo fa la CLI. `main(argv, env, deps?)`: `deps.makeClient` costruisce il client nei test; senza `deps`, `new MywellnessClient({ email, password })`. `ensureWeekSlots(db, week, tpl): Promise<void>` (`INSERT … ON CONFLICT DO NOTHING`) e `updateSlot(db, id, patch: { status?; session_id?; reason? }): Promise<void>`; `WeekTemplateSchema` in `src/domain/planning.ts`. `MywellnessClient` espone `get token()`: con `GITHUB_ACTIONS=true` la CLI scrive `::add-mask::<token>` come prima riga di stdout. I test della sync girano nel progetto workers (D1 di Miniflare, `vitest.config.ts`), quelli della CLI nel progetto node con MSW per Mywellness e per l'API D1. I test sono 20: gli 8 sotto più `sync: fetches strength details and cardio series`, `sync: missing template stores sessions and skips slots`, `sync: fills a skipped slot and clears its reason`, `sync: invalid template writes nothing`, `sync: unexpected payload writes nothing`, `cli sync: masks the session token on github actions`, `cli sync: lookback days flag`, `cli sync: rejects bad arguments`, `cli sync: exit 75 on mywellness 5xx`, `cli sync: exit 65 on unexpected payload`, `cli sync: d1 and unexpected errors`, `cli sync: runs only when executed directly`.
+
+- [x] **Step 1: Test:**
   - `sync: skips known sessions` — client finto con `["abc123","def456"]`, `abc123` già in D1 → `newSessions === 1`, `getSession` chiamato solo per `def456`.
   - `sync: idempotent` — seconda esecuzione → `{ newSessions: 0, slotsUpdated: 0 }`.
   - `sync: matches session to slot` (modello di esempio del Task 4b) — seduta di martedì 2026-11-03 → slot `2026-W45-1` `fatta` con `session_id`.
@@ -249,8 +251,8 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
   - `cli sync: exit 78 on auth error` — `login` rifiuta → `78`, stderr contiene "Login Mywellness fallito", nessuna riga in `sessions`, la password non compare in stdout/stderr.
   - `cli sync: exit 78 on missing env` — senza `MYWELLNESS_PASSWORD` → `78`.
   - `cli sync: output has only counts` — stdout corrisponde a `/^(sedute nuove|slot aggiornati): \d+$/m` per ogni riga.
-- [ ] **Step 2:** FAIL → implementare → PASS.
-- [ ] **Step 3: Commit** `feat(sync): idempotent d1 sync with planned sessions`
+- [x] **Step 2:** FAIL → implementare → PASS.
+- [x] **Step 3: Commit** `feat(sync): idempotent d1 sync with planned sessions`
 
 ---
 
