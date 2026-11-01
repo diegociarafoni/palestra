@@ -12,7 +12,12 @@ import {
   vi,
 } from "vitest";
 import { main } from "../../src/cli/restore-test";
-import { AuthError, SyncError, TransientError } from "../../src/errors";
+import {
+  AuthError,
+  SyncError,
+  TransientError,
+  UpstreamError,
+} from "../../src/errors";
 
 const ENV = {
   CLOUDFLARE_API_TOKEN: "t",
@@ -399,7 +404,9 @@ describe("restore-test", () => {
   it.each([
     [new AuthError("R2: accesso negato (HTTP 403)"), 78],
     [new TransientError("R2: HTTP 503"), 75],
-    [new SyncError("R2: HTTP 404"), 69],
+    [new UpstreamError("R2: HTTP 404"), 69],
+    // exitCodeFor condiviso (src/errors.ts): un SyncError non previsto dà 70.
+    [new SyncError("imprevisto"), 70],
   ])(
     "restore-test: download error %s exits %i before wrangler",
     async (error, exit) => {

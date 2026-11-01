@@ -122,6 +122,16 @@ describe("cli report", () => {
     );
     expect(io2.stdout()).toBe("");
     expect(io2.stderr()).not.toContain(ENV.CF_TOKEN_D1);
+
+    // Risposta di errore non transitoria di D1: UpstreamError, 69.
+    const io3 = capture();
+    server.use(
+      http.post(QUERY_URL, () => HttpResponse.text("<html/>", { status: 404 })),
+    );
+    expect(await main(["--month", "2026-11"], ENV)).toBe(69);
+    expect(io3.stderr()).toBe(
+      "Report non generato: D1: HTTP 404, codici errore: nessuno",
+    );
   });
 
   it("cli report: unexpected errors print only their name", () => {
