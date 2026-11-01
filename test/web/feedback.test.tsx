@@ -115,7 +115,9 @@ describe("web", () => {
     expect(
       within(form).getByRole("textbox", { name: "Note (facoltative)" }),
     ).toBeTruthy();
-    const save = within(form).getByRole("button", { name: "Salva" });
+    const save = within(form).getByRole<HTMLButtonElement>("button", {
+      name: "Salva",
+    });
     await user.click(save);
 
     // In caricamento durante l'invio.
@@ -128,7 +130,7 @@ describe("web", () => {
       joint_where: "ginocchio",
       notes: null,
     });
-    expect((save as HTMLButtonElement).disabled).toBe(true);
+    expect(save.disabled).toBe(true);
     expect(within(save).getByRole("progressbar")).toBeTruthy();
 
     // Salvato: il calendario si ricarica.
@@ -533,7 +535,9 @@ describe("web", () => {
     await user.click(
       within(reasons).getByRole("radio", { name: "Stanchezza" }),
     );
-    const confirm = within(dialog).getByRole("button", { name: "Conferma" });
+    const confirm = within(dialog).getByRole<HTMLButtonElement>("button", {
+      name: "Conferma",
+    });
     await user.click(confirm);
 
     await waitFor(() => expect(requests).toHaveLength(1));
@@ -541,7 +545,7 @@ describe("web", () => {
       id: "2026-W45-1",
       body: { status: "saltata", reason: "stanchezza" },
     });
-    expect((confirm as HTMLButtonElement).disabled).toBe(true);
+    expect(confirm.disabled).toBe(true);
     expect(within(confirm).getByRole("progressbar")).toBeTruthy();
     response.resolve();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
