@@ -26,6 +26,15 @@ const HOSTNAME =
 const PAGES_HOSTNAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?\.pages\.dev$/i;
 
 /**
+ * Vero se l'host è valido anche per il parser URL, che è più severo della regex (per esempio
+ * `dashboard.123` è un IPv4 non valido): altrimenti fetch fallirebbe con un errore di rete (75)
+ * che rilanciare non risolve.
+ */
+function isUrlHost(host: string): boolean {
+  return URL.canParse(`https://${host}/`);
+}
+
+/**
  * L'host del login di Access (`<team>.cloudflareaccess.com`) se la risposta è un redirect verso
  * `https://*.cloudflareaccess.com`, altrimenti null.
  */
@@ -152,7 +161,7 @@ export async function main(
     return 64;
   }
   const host = env.DASHBOARD_HOSTNAME;
-  if (!host || !HOSTNAME.test(host)) {
+  if (!host || !HOSTNAME.test(host) || !isUrlHost(host)) {
     // Mai stampare il valore ricevuto.
     console.error(
       "DASHBOARD_HOSTNAME mancante o non valido: serve il solo nome host, senza https://, percorso o spazi",
@@ -161,7 +170,7 @@ export async function main(
   }
   // Un Secret come l'hostname: il sottodominio pages.dev non va nel repository pubblico.
   const pagesHost = env.PAGES_HOSTNAME;
-  if (!pagesHost || !PAGES_HOSTNAME.test(pagesHost)) {
+  if (!pagesHost || !PAGES_HOSTNAME.test(pagesHost) || !isUrlHost(pagesHost)) {
     console.error(
       "PAGES_HOSTNAME mancante o non valido: serve il solo nome host <sottodominio>.pages.dev del progetto, senza https://, percorso o spazi",
     );

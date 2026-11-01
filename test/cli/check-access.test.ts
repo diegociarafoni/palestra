@@ -374,6 +374,12 @@ describe("check-access", () => {
       label: "with a trailing dot",
       env: { ...ENV, DASHBOARD_HOSTNAME: `${HOST}.` },
     },
+    // Ammesso dalla regex ma non dal parser URL (un'ultima etichetta numerica è un IPv4): un
+    // errore deterministico, non un 75 da rilanciare.
+    {
+      label: "not a valid url host",
+      env: { ...ENV, DASHBOARD_HOSTNAME: "dashboard.123" },
+    },
   ])(
     "check-access: exit 78 when DASHBOARD_HOSTNAME is $label",
     async ({ env }) => {
@@ -427,6 +433,11 @@ describe("check-access", () => {
     {
       label: "with a port",
       env: { ...ENV, PAGES_HOSTNAME: `${PAGES_DEV}:443` },
+    },
+    // Ammesso dalla regex ma non dal parser URL: «xn--a» non è un punycode valido.
+    {
+      label: "not a valid url host",
+      env: { ...ENV, PAGES_HOSTNAME: "xn--a.pages.dev" },
     },
   ])("check-access: exit 78 when PAGES_HOSTNAME is $label", async ({ env }) => {
     const requests = recordRequests();
