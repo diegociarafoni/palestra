@@ -1,7 +1,7 @@
 // Probe locale di Mywellness (Task 0): login con le credenziali dell'utente e salvataggio
 // in probe_out/ (ignorato da git) dei soli corpi grezzi delle risposte, mai degli header,
 // da cui scripts/shape-report.ts ricava il rapporto della forma. Endpoint e parametri:
-// docs/mywellness-api.md (letti dal codice di gymexport, da verificare).
+// docs/probe-mywellness.md § 1 (letti dal codice di gymexport, da verificare).
 // Uso: MYWELLNESS_EMAIL=… MYWELLNESS_PASSWORD=… npx tsx scripts/probe-mywellness.ts [--days N]
 // Un login per esecuzione, almeno 1 s tra due richieste. Su stdout una riga per richiesta
 // (etichetta, stato HTTP, byte), su stderr le note; mai corpi, id, date, nomi o password.
@@ -379,7 +379,7 @@ async function login(
   return { user, profile: profile.data };
 }
 
-/** Candidati in sola lettura (docs/mywellness-api.md): un fallimento è solo una nota. */
+/** Candidati in sola lettura (docs/probe-mywellness.md § 1): un fallimento è solo una nota. */
 async function probeBiometrics(
   http: Http,
   save: Saver,

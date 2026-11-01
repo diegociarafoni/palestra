@@ -31,4 +31,4 @@ Il Task 0 prevedeva fixture reali: `scripts/anonymize-fixtures.ts` sostituiva ne
 - Il rapporto non dice quanti elementi hanno le liste né quante righe si ripetono, e degli script mostra solo la forma di `EU.currentUser`.
 
 ## Riferimenti
-`scripts/shape-report.ts`, `test/shape-report.test.ts`, [`docs/mywellness-api.md`](../../docs/mywellness-api.md) § 2 ("Come eseguire il probe"), piano Task 0, [specifica del repository pubblico](../../docs/superpowers/specs/2026-10-31-repo-pubblico-e-database-design.md) § 6, [Il probe di Mywellness gira solo sul computer dell'utente](2026-10-31-probe-mywellness-in-locale.md).
+`scripts/shape-report.ts`, `test/shape-report.test.ts`, [`docs/probe-mywellness.md`](../../docs/probe-mywellness.md) § 2 ("Come eseguire il probe"), piano Task 0, [specifica del repository pubblico](../../docs/superpowers/specs/2026-10-31-repo-pubblico-e-database-design.md) § 6, [Il probe di Mywellness gira solo sul computer dell'utente](2026-10-31-probe-mywellness-in-locale.md).

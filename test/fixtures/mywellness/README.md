@@ -1,6 +1,6 @@
 # Fixture Mywellness
 
-Queste fixture sono **sintetiche**: ricostruite dalla struttura documentata delle risposte (dettaglio seduta in JSON, pagina HTML del dettaglio forza, serie temporale cardio; vedi `docs/mywellness-api.md`), con identificativi, date e valori inventati. Non contengono dati personali.
+Queste fixture sono **sintetiche**: ricostruite dalla struttura documentata delle risposte (dettaglio seduta in JSON, pagina HTML del dettaglio forza, serie temporale cardio; vedi `docs/mywellness-api.md` e i parametri da gymexport in `docs/probe-mywellness.md` § 1), con identificativi, date e valori inventati. Non contengono dati personali.
 
 I nomi dei campi e la forma delle risposte sono fatti di interoperabilità ricavati dal progetto pubblico [lcanis/gymexport](https://github.com/lcanis/gymexport) (licenza GPL-3.0): non ne è stato copiato codice.
 

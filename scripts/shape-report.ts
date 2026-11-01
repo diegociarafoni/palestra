@@ -2,7 +2,7 @@
 // (probe_out/, che resta sul computer dell'utente) e scrive un file Markdown con la sola forma,
 // da committare al posto delle fixture reali: nomi di campi, tag e attributi e il formato di
 // ogni valore, con ogni lettera resa `a`/`A` e ogni cifra resa `9`; in chiaro restano solo le
-// parole di VOCAB. Vedi docs/mywellness-api.md § 2 e
+// parole di VOCAB. Vedi docs/probe-mywellness.md § 2 e
 // kb/decisioni/2026-11-01-forma-dei-dati-al-posto-delle-fixture-reali.md.
 // Uso: npx tsx scripts/shape-report.ts <cartella_probe> <file_md>
 // Legge solo i file in INPUTS (degli altri stampa il numero su stderr) e identities.json, che

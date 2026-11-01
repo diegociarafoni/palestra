@@ -20,4 +20,4 @@ aggiornato: 2026-11-01
 - Credenziali in un file `.env` del progetto: un file si committa per errore, l'ambiente della shell no.
 
 ## Riferimenti
-Piano, Task 0; [`docs/mywellness-api.md`](../../docs/mywellness-api.md) § 2, "Come eseguire il probe".
+Piano, Task 0; [`docs/probe-mywellness.md`](../../docs/probe-mywellness.md) § 2, "Come eseguire il probe".
