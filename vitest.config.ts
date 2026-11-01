@@ -11,7 +11,7 @@ export default defineConfig({
         test: {
           name: "node",
           include: ["test/**/*.test.ts"],
-          exclude: ["test/store/**", "test/report/run.test.ts"],
+          exclude: ["test/store/**", "test/sync/**", "test/report/run.test.ts"],
         },
       },
       {
@@ -29,7 +29,11 @@ export default defineConfig({
         ],
         test: {
           name: "workers",
-          include: ["test/store/**/*.test.ts", "test/report/run.test.ts"],
+          include: [
+            "test/store/**/*.test.ts",
+            "test/sync/**/*.test.ts",
+            "test/report/run.test.ts",
+          ],
           setupFiles: ["test/store/setup.ts"],
         },
       },
