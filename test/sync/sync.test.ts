@@ -1,7 +1,8 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Db } from "../../src/db/types";
 import { type Session, SessionSchema } from "../../src/domain/types";
-import { ParseError } from "../../src/errors";
+import { ParseError, TransientError } from "../../src/errors";
 import { listSlotsByWeek } from "../../src/store/planning";
 import { upsertSession } from "../../src/store/sessions";
 import { type SyncClient, sync } from "../../src/sync/sync";
@@ -402,5 +403,68 @@ describe("sync", () => {
               (SELECT COUNT(*) FROM planned_sessions) AS slots`,
     ).all();
     expect(results).toEqual([{ sessions: 0, slots: 0 }]);
+  });
+
+  it("sync: matches stored sessions after a failed slot step", async () => {
+    await saveTemplate();
+    const { client } = fakeClient([
+      ["s-tue", raw("2026-11-03 18:00:00 +01:00")],
+    ]);
+    const opts = { today: "2026-11-06", lookbackDays: 4 };
+    // D1 che fallisce alla prima scrittura su planned_sessions, dopo le sedute.
+    let failed = false;
+    const flaky: Db = {
+      prepare: (sql: string) => {
+        if (!failed && /^\s*(INSERT INTO|UPDATE) planned_sessions/.test(sql)) {
+          failed = true;
+          throw new TransientError("D1: errore simulato");
+        }
+        return env.DB.prepare(sql);
+      },
+      batch: env.DB.batch.bind(env.DB),
+    };
+
+    await expect(sync(client, flaky, opts)).rejects.toBeInstanceOf(
+      TransientError,
+    );
+
+    // La seduta è salvata ma nota: la run successiva la abbina comunque.
+    expect(await sync(client, env.DB, opts)).toEqual({
+      newSessions: 0,
+      slotsUpdated: 2,
+    });
+    const slots = await listSlotsByWeek(env.DB, "2026-W45");
+    expect(slots.map((s) => [s.id, s.status, s.session_id])).toEqual([
+      ["2026-W45-1", "fatta", "s-tue"],
+      ["2026-W45-2", "da_confermare", null],
+    ]);
+    expect(await sync(client, env.DB, opts)).toEqual({
+      newSessions: 0,
+      slotsUpdated: 0,
+    });
+  });
+
+  it("sync: matches stored sessions once the template exists", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { client } = fakeClient([
+      ["s-tue", raw("2026-11-03 18:00:00 +01:00")],
+    ]);
+    const opts = { today: "2026-11-06", lookbackDays: 4 };
+    expect(await sync(client, env.DB, opts)).toEqual({
+      newSessions: 1,
+      slotsUpdated: 0,
+    });
+
+    await saveTemplate();
+
+    expect(await sync(client, env.DB, opts)).toEqual({
+      newSessions: 0,
+      slotsUpdated: 2,
+    });
+    const slots = await listSlotsByWeek(env.DB, "2026-W45");
+    expect(slots.map((s) => [s.id, s.status, s.session_id])).toEqual([
+      ["2026-W45-1", "fatta", "s-tue"],
+      ["2026-W45-2", "da_confermare", null],
+    ]);
   });
 });
