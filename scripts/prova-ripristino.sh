@@ -7,8 +7,9 @@
 #
 # Scarica palestra-AAAA-MM-GG.sql dal bucket privato in una cartella temporanea, conta le
 # righe INSERT di ogni tabella del dump (come restore-test), crea il database vuoto
-# palestra-restore-test e vi importa il file; la cartella si cancella sempre. Su stdout solo
-# nomi delle tabelle e conteggi del dump, da confrontare con le righe di palestra-restore-test.
+# palestra-restore-test e vi importa il file; la cartella si cancella sempre. Su stdout, a
+# import riuscito, solo l'intestazione, i nomi delle tabelle con i conteggi del dump (da
+# confrontare con le righe di palestra-restore-test) e la riga finale di esito.
 # L'output di wrangler non si mostra mai: in caso di errore può contenere righe del backup.
 # Non usa mai il database palestra e non cancella palestra-restore-test.
 # Exit code: 0 import completato · 64 argomenti non validi · 65 nome di tabella non ammesso
@@ -56,7 +57,9 @@ echo "Scaricato $key ($(wc -c <"$file" | tr -d ' ') byte)" >&2
 # trigger può contenere un'INSERT). Escluse sqlite_* e _cf_*; un nome che non è un
 # identificatore semplice non si stampa e ferma la prova (65). Stesse regole e stesso ordine
 # dei nomi di src/cli/restore-test.ts (casi in test/fixtures/d1-export-casi-limite.sql), in awk
-# POSIX per funzionare anche con l'awk di macOS; `[ \t\r\f\v]` è il `\s` di JavaScript in ASCII.
+# POSIX, pensato anche per l'awk di macOS; `[ \t\r\f\v]` è il `\s` di JavaScript in ASCII.
+# Il confronto è sui byte: a differenza di restore-test, un BOM iniziale e gli spazi Unicode non
+# si riconoscono (l'export di D1 inizia con PRAGMA e usa parole chiave ASCII).
 # Lo stderr di awk si scarta: in un errore di memoria può citare una riga del backup.
 rc=0
 counts="$(LC_ALL=C awk '
