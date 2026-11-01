@@ -198,31 +198,52 @@ const PROPERTY_KEYS = new Set(["physicalProperty", "property"]);
 const PROPERTY_VALUE = /^[A-Za-z][A-Za-z0-9]{0,40}$/;
 
 /**
- * Un nome (chiave, tag, attributo, valore di `class`…) si stampa com'è solo se ha la forma
- * attesa, meno di 3 cifre in tutto e niente delle identità. Le cifre si contano in tutto, non
- * solo di fila: un id esadecimale può non averne 3 consecutive. Le parti sono le sequenze di
- * lettere, spezzate anche tra minuscola e maiuscola: in `marioRossi` il controllo finale, che
- * cerca le parole tra confini di lettera, non vedrebbe il nome. Una parte non può essere
- * parola di un'identità, né, se è di 2 maiuscole, le sue iniziali (`MR`); una parola di
- * un'identità di 4 o più lettere non può stare in nessun punto delle lettere unite del nome
- * (`mariorossi`, `user_mrossi`).
+ * Un nome (chiave, tag, attributo, valore di `class`…) si stampa, con ogni cifra resa `9`, solo
+ * se ha la forma attesa, meno di 3 cifre in tutto e niente delle identità o delle date;
+ * altrimenti `undefined`. Le cifre si contano in tutto, non solo di fila: un id esadecimale
+ * può non averne 3 consecutive. Le parti sono le sequenze di lettere, spezzate anche tra
+ * minuscola e maiuscola: in `marioRossi` il controllo finale, che cerca le parole tra confini
+ * di lettera, non vedrebbe il nome. Una parte non può essere parola di un'identità, mese o
+ * giorno, anche abbreviato (`fc-day-wed`, `Oct29`), né, se è di 2 maiuscole, le iniziali di un
+ * nome (`MR`); una parola di un'identità di 4 o più lettere non può stare in nessun punto
+ * delle lettere unite del nome (`mariorossi`, `user_mrossi`).
  */
-function isPlainName(name: string, shape: RegExp, ctx: ShapeContext): boolean {
-  if (!shape.test(name) || (name.match(/\d/g)?.length ?? 0) >= 3) return false;
+function plainName(
+  name: string,
+  shape: RegExp,
+  ctx: ShapeContext,
+): string | undefined {
+  if (!shape.test(name) || (name.match(/\d/g)?.length ?? 0) >= 3) {
+    return undefined;
+  }
   const parts = name.split(/[^\p{L}]+|(?<=\p{Ll})(?=\p{Lu})/u);
   if (
-    parts.some(
-      (part) =>
-        ctx.identityWords.has(fold(part)) ||
-        (/^\p{Lu}{2}$/u.test(part) && ctx.initials.has(fold(part))),
-    )
+    parts.some((part) => {
+      const word = fold(part);
+      return (
+        ctx.identityWords.has(word) ||
+        DATE_WORDS.has(word) ||
+        DATE_ABBREVIATIONS.has(word) ||
+        (/^\p{Lu}{2}$/u.test(part) && ctx.initials.has(word))
+      );
+    })
   ) {
-    return false;
+    return undefined;
   }
   const letters = (fold(name).match(/\p{L}+/gu) ?? []).join("");
-  return ![...ctx.identityWords].some(
-    (word) => word.length >= 4 && letters.includes(word),
-  );
+  if (
+    [...ctx.identityWords].some(
+      (word) => word.length >= 4 && letters.includes(word),
+    )
+  ) {
+    return undefined;
+  }
+  return name.replace(/\d/g, "9");
+}
+
+/** Il nome com'è secondo `plainName`, o la sua maschera tra `«»`. */
+function shownName(name: string, shape: RegExp, ctx: ShapeContext): string {
+  return plainName(name, shape, ctx) ?? `«${maskText(name, ctx.vocab)}»`;
 }
 
 /** Riga di intestazione e righe interne (non indentate) di un valore JSON. */
@@ -269,16 +290,16 @@ function jsonBlock(value: unknown, ctx: ShapeContext): Block {
     const lines: string[] = [];
     let previous: string | undefined;
     for (const [key, item] of entries) {
-      const plain = isPlainName(key, KEY, ctx);
-      const name = plain ? key : `«${maskText(key, ctx.vocab)}»`;
+      const plain = plainName(key, KEY, ctx) !== undefined;
+      const name = shownName(key, KEY, ctx);
       const property =
-        plain &&
-        PROPERTY_KEYS.has(key) &&
-        typeof item === "string" &&
-        isPlainName(item, PROPERTY_VALUE, ctx);
-      const { head, body } = property
-        ? { head: `"${item}"`, body: [] }
-        : jsonBlock(item, ctx);
+        plain && PROPERTY_KEYS.has(key) && typeof item === "string"
+          ? plainName(item, PROPERTY_VALUE, ctx)
+          : undefined;
+      const { head, body } =
+        property !== undefined
+          ? { head: `"${property}"`, body: [] }
+          : jsonBlock(item, ctx);
       const entry = [
         head === "" ? `${name}:` : `${name}: ${head}`,
         ...indent(body),
@@ -342,23 +363,31 @@ const NAMING_ATTRIBUTES = new Set([
 const NAMING_VALUE = /^[A-Za-z][A-Za-z0-9_. :-]{0,60}$/;
 const OMITTED = "(contenuto omesso)";
 
+/** Una classe di una lista `class`, giudicata da sola. */
+const CLASS_TOKEN = /^[A-Za-z][A-Za-z0-9_.:-]{0,60}$/;
+
 function attributeText(name: string, value: string, ctx: ShapeContext): string {
-  const plain = isPlainName(name, ATTRIBUTE, ctx);
-  const shown = plain ? name : `«${maskText(name, ctx.vocab)}»`;
+  const plain = plainName(name, ATTRIBUTE, ctx);
+  const shown = plain ?? `«${maskText(name, ctx.vocab)}»`;
   if (value === "") return shown;
   // Tutti gli altri valori, compresi href, src, action e data-*, sono mascherati.
-  const keep =
-    plain &&
-    NAMING_ATTRIBUTES.has(name.toLowerCase()) &&
-    isPlainName(value, NAMING_VALUE, ctx);
-  return `${shown}=${keep ? value : `«${maskText(value, ctx.vocab)}»`}`;
+  if (plain === undefined || !NAMING_ATTRIBUTES.has(plain.toLowerCase())) {
+    return `${shown}=«${maskText(value, ctx.vocab)}»`;
+  }
+  // Le classi una per una: `fc-day` resta scritta, `fc-day-wed` no.
+  const kept =
+    plain.toLowerCase() === "class"
+      ? value
+          .trim()
+          .split(/\s+/)
+          .map((token) => shownName(token, CLASS_TOKEN, ctx))
+          .join(" ")
+      : shownName(value, NAMING_VALUE, ctx);
+  return `${shown}=${kept}`;
 }
 
 function elementLine(element: HTMLElement, ctx: ShapeContext): string {
-  const tag = element.rawTagName.toLowerCase();
-  const shown = isPlainName(tag, TAG, ctx)
-    ? tag
-    : `«${maskText(tag, ctx.vocab)}»`;
+  const shown = shownName(element.rawTagName.toLowerCase(), TAG, ctx);
   const attributes = Object.entries(element.attributes).map(([name, value]) =>
     attributeText(name, value, ctx),
   );

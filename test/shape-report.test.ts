@@ -329,15 +329,41 @@ describe("shape", () => {
     expect(lines).toEqual([
       '«999999»: "a"',
       "«9999-99-99»:",
-      "  hr2: numero 9",
+      "  hr9: numero 9",
       '«9999-99-99»: "a"',
       '«a999999»: "a"',
       '«a99a99a99a99a»: "a"',
       "«A»: numero 9",
       "«a»: numero 9",
       "«a a»: numero 9",
-      "hr2: numero 9",
+      "hr9: numero 9",
     ]);
+  });
+
+  it("shape: printed names carry no digits or dates", () => {
+    // Ogni cifra di un nome diventa `9`; un nome con una parte che è un mese o un giorno, anche
+    // abbreviato, si maschera.
+    expect(
+      shapeOfJson({ hr2: 1, Oct29: 2, wed: "x", ott: true, dayWed: 5 }, ctx),
+    ).toEqual([
+      "hr9: numero 9",
+      "«A99»: numero 9",
+      '«a»: "a"',
+      "«a»: booleano",
+      "«a»: numero 9",
+    ]);
+    expect(shapeOfJson({ property: "Hr2Max" }, ctx)).toEqual([
+      'property: "Hr9Max"',
+    ]);
+    expect(shapeOfJson({ property: "MonRpm" }, ctx)).toEqual(['property: "A"']);
+    // Le classi si giudicano una per una.
+    expect(
+      shapeOfHtml(
+        '<div class="fc-day fc-day-wed col-md-6 h2o" name="hr2" id="Oct29"></div>',
+        ctx,
+      ),
+    ).toEqual(["div[class=fc-day «a-a-a» col-md-9 h9o, name=hr9, id=«A99»]"]);
+    expect(shapeOfHtml("<h2>Serie</h2>", ctx)).toEqual(["h9", '  "Serie"']);
   });
 
   it("shape: names glued to the user's name are masked", () => {
