@@ -92,6 +92,8 @@ export type ShapeContext = {
   identityWords: ReadonlySet<string>;
   /** Iniziali dei nomi tra le identità (`mr` per "Mario Rossi"), in minuscolo. */
   initials: ReadonlySet<string>;
+  /** Note fisse per stderr, raccolte durante il rapporto (HEADER_NOTE). */
+  notes: Set<string>;
 };
 
 /**
@@ -141,9 +143,16 @@ function fold(text: string): string {
 /** Un'identità fatta solo di lettere, spazi, apostrofi, punti e trattini: un nome. */
 const NAME_LIKE = /^[\p{L} '.-]+$/u;
 
+/** Parole comuni degli indirizzi, che non identificano nessuno. */
+const ADDRESS_WORDS: ReadonlySet<string> = new Set([
+  ...["via", "viale", "piazza", "piazzale", "corso", "largo", "vicolo"],
+  ...["strada", "del", "dei", "della", "delle", "degli", "dello"],
+]);
+
 /**
- * Parole di 3 o più lettere (più corte non identificano nessuno) dei nomi tra le identità e
- * della parte locale dell'e-mail. Token, cookie, URL e GUID non si spezzano in parole: restano
+ * Parole di 3 o più lettere (più corte non identificano nessuno) dei nomi tra le identità, delle
+ * identità con spazi (un indirizzo con il numero civico) e della parte locale dell'e-mail,
+ * tranne ADDRESS_WORDS. Token, cookie, URL e GUID non si spezzano in parole: restano
  * sottostringhe per il controllo finale, e parole come "user" o "https" prese da un URL
  * maschererebbero nomi utili come `userId`.
  */
@@ -152,12 +161,15 @@ function identityWordsOf(identities: readonly string[]): Set<string> {
     identities.flatMap((raw) => {
       const identity = fold(raw);
       const at = identity.indexOf("@");
-      const source = NAME_LIKE.test(identity)
-        ? identity
-        : at > 0
-          ? identity.slice(0, at)
-          : "";
-      return source.match(/\p{L}{3,}/gu) ?? [];
+      const source =
+        NAME_LIKE.test(identity) || /\s/u.test(identity.trim())
+          ? identity
+          : at > 0
+            ? identity.slice(0, at)
+            : "";
+      return (source.match(/\p{L}{3,}/gu) ?? []).filter(
+        (word) => !ADDRESS_WORDS.has(word),
+      );
     }),
   );
 }
@@ -191,6 +203,7 @@ export function shapeContext(identities: readonly string[]): ShapeContext {
     vocab: VOCAB.filter((word) => !identityWords.has(word)),
     identityWords,
     initials: initialsOf(identities),
+    notes: new Set(),
   };
 }
 
@@ -236,6 +249,22 @@ const CAMEL_PARTS =
   /[^\p{L}]+|(?<=\p{Ll})(?=\p{Lu})|(?<=\p{Lu})(?=\p{Lu}\p{Ll})/u;
 /** Da questa lunghezza un nome con cifre è più probabilmente un token che un campo. */
 const LONG_NAME = 12;
+/** 5 consonanti di fila (la `y` conta come vocale): `lengths` sì, `XMLHttpRequest` no. */
+const CONSONANTS = /[^aeiouy]{5}/u;
+/**
+ * Le parti dei nomi delle grandezze di Mywellness che non sono in VOCAB (`Avg` in `AvgRpm`, `H`
+ * in `HDistance`, `Fat` e `Mass` in `FatMass`), minuscole: un valore di `physicalProperty` o
+ * `property` resta scritto solo se ogni sua parte è qui o in VOCAB.
+ */
+const PROPERTY_WORDS: ReadonlySet<string> = new Set([
+  ...["active", "age", "avg", "body", "bone", "bmi", "bmr", "cadence"],
+  ...["concentric", "eccentric", "effort", "elevation", "energy", "execution"],
+  ...["exercise", "fat", "free", "h", "heart", "height", "hr", "incline"],
+  ...["index", "intensity", "iso", "lean", "mass", "max", "met", "metabolic"],
+  ...["mode", "muscle", "pace", "peak", "percent", "percentage", "range"],
+  ...["rate", "resting", "steps", "stroke", "strokes", "total", "visceral"],
+  ...["water", "zone", "zones"],
+]);
 /** I tag dei titoli, gli unici le cui cifre restano scritte: dicono il livello. */
 const HEADING = /^h[1-6]$/;
 
@@ -247,6 +276,7 @@ const HEADING = /^h[1-6]$/;
  * anche tra minuscola e maiuscola (in `marioRossi` il controllo finale, che cerca le parole tra
  * confini di lettera, non vedrebbe il nome). Il nome si maschera se:
  * - ha almeno LONG_NAME caratteri e una cifra (`xkqzvbnmwplrtyhgf7ds`, un token);
+ * - una parte in camelCase ha 5 consonanti di fila (`xkqzvbnmwplrtyhgfds`, lettere a caso);
  * - una parte è una parola di DATE_PARTS (`fc-day-wed`, `Oct29`, `mon-picker`); per i tag non
  *   le forme di 2 lettere dei giorni: `th` resta;
  * - almeno 4 parti hanno 1 o 2 lettere (`AbCdEfGh9j`, un token);
@@ -266,7 +296,8 @@ function plainName(
   if (
     !shape.test(name) ||
     digits >= 3 ||
-    (digits > 0 && name.length >= LONG_NAME)
+    (digits > 0 && name.length >= LONG_NAME) ||
+    name.split(CAMEL_PARTS).some((part) => CONSONANTS.test(fold(part)))
   ) {
     return undefined;
   }
@@ -303,15 +334,19 @@ function plainName(
 }
 
 /**
- * Il valore di `physicalProperty` o `property` com'è secondo `plainName`, se ha almeno 2 parti
- * in camelCase (`AvgRpm`) o è una parola di VOCAB (`Duration`): una parola sola potrebbe essere
- * il nome di un'altra persona. Altrimenti `undefined`.
+ * Il valore di `physicalProperty` o `property` com'è secondo `plainName`, se ogni sua parte in
+ * camelCase è una parola di VOCAB o di PROPERTY_WORDS (`Duration`, `AvgRpm`, `HDistance`): non
+ * il nome di un'altra persona, una categoria del profilo o lettere a caso. Altrimenti
+ * `undefined`.
  */
 function propertyName(value: string, ctx: ShapeContext): string | undefined {
   const plain = plainName(value, PROPERTY_VALUE, ctx);
   const parts = value.split(CAMEL_PARTS).filter((part) => part !== "");
   return plain !== undefined &&
-    (parts.length >= 2 || ctx.vocab.includes(fold(value)))
+    parts.every((part) => {
+      const word = fold(part);
+      return ctx.vocab.includes(word) || PROPERTY_WORDS.has(word);
+    })
     ? plain
     : undefined;
 }
@@ -607,14 +642,14 @@ function nodeLines(node: Node, ctx: ShapeContext, depth: number): string[] {
   if (node instanceof HTMLElement) {
     if (depth >= MAX_DEPTH) return [TOO_DEEP];
     const tag = node.rawTagName.toLowerCase();
-    const columns = tag === "tr" ? headerCells(node, ctx.vocab) : undefined;
+    const columns = tag === "tr" ? headerTexts(node, ctx) : undefined;
     const inner =
       tag === "script"
         ? scriptLines(node.rawText, ctx, depth + 1)
         : tag === "style"
           ? [OMITTED]
           : columns
-            ? columnLines(columns, ctx, depth + 1)
+            ? columnLines(columns, ctx)
             : childLines(node.childNodes, ctx, depth + 1);
     return [elementLine(node, ctx), ...indent(inner)];
   }
@@ -666,20 +701,28 @@ function cellText(cell: HTMLElement, depth = 0): string | undefined {
   return parts.join(" ").replace(/\s+/g, " ").trim();
 }
 
+/** Su stderr se una riga di soli `th` con parole di VOCAB non resta in ordine. */
+const HEADER_NOTE =
+  "Nota: una riga di intestazioni ha parole fuori da VOCAB, quindi le sue colonne non sono in ordine nel rapporto: tenere probe_out/ e scrivere a Claude le intestazioni della tabella delle serie.";
+
 /**
- * Le celle di una riga d'intestazione, l'unica che resta nell'ordine della pagina: il Task 0
- * Step 5 deve sapere in che ordine stanno serie, ripetizioni e kg. È tale una riga di almeno 2
- * `th`, senza altri elementi né testo, i cui testi sono diversi tra loro, senza cifre e fatti
- * solo di parole di VOCAB (`Serie`, `Kg eseguiti`). Altrimenti `undefined`: le celle si
- * raggruppano come gli altri fratelli, perché in un calendario la posizione di una cella
- * direbbe un giorno. Si guarda solo la riga, mai il resto della tabella.
+ * Il testo delle celle di una riga d'intestazione, l'unica che resta nell'ordine della pagina:
+ * il Task 0 Step 5 deve sapere in che ordine stanno serie, ripetizioni e kg. È tale una riga di
+ * almeno 2 `th`, senza altri elementi né testo, i cui testi sono senza cifre, fatti solo di
+ * parole di VOCAB (`Serie`, `Kg eseguiti`) e diversi tra loro anche senza punteggiatura e
+ * parole ripetute. Altrimenti `undefined`: le celle si raggruppano come gli altri fratelli,
+ * perché in un calendario la posizione di una cella direbbe un giorno. Si guarda solo la riga,
+ * mai il resto della tabella. Una riga di soli `th` che ha parole di VOCAB ma non passa aggiunge
+ * HEADER_NOTE: l'utente deve sapere che l'ordine delle colonne manca.
  */
-function headerCells(
+function headerTexts(
   row: HTMLElement,
-  vocab: readonly string[],
-): HTMLElement[] | undefined {
-  const cells: HTMLElement[] = [];
-  const texts = new Set<string>();
+  ctx: ShapeContext,
+): string[] | undefined {
+  const texts: string[] = [];
+  const keys = new Set<string>();
+  let header = true;
+  let known = false;
   for (const node of row.childNodes) {
     if (!(node instanceof HTMLElement)) {
       if (node.nodeType === NodeType.TEXT_NODE && node.text.trim() !== "") {
@@ -688,33 +731,37 @@ function headerCells(
       continue;
     }
     if (node.rawTagName.toLowerCase() !== "th") return undefined;
-    const text = cellText(node);
-    const words = text?.match(/[\p{L}\p{M}]+/gu) ?? [];
+    const text = cellText(node) ?? "";
+    const words = (text.match(/[\p{L}\p{M}]+/gu) ?? []).map(fold);
+    const key = [...new Set(words)].join(" ");
+    if (words.some((word) => ctx.vocab.includes(word))) known = true;
     if (
-      text === undefined ||
       /\p{N}/u.test(text) ||
       words.length === 0 ||
-      !words.every((word) => vocab.includes(fold(word))) ||
-      texts.has(fold(text))
+      !words.every((word) => ctx.vocab.includes(word)) ||
+      keys.has(key)
     ) {
-      return undefined;
+      header = false;
     }
-    texts.add(fold(text));
-    cells.push(node);
+    keys.add(key);
+    texts.push(text);
   }
-  return cells.length >= 2 ? cells : undefined;
+  if (texts.length < 2) return undefined;
+  if (header) return texts;
+  if (known) ctx.notes.add(HEADER_NOTE);
+  return undefined;
 }
 
-/** Le celle di una riga d'intestazione nell'ordine delle colonne, al massimo MAX_COLUMNS. */
-function columnLines(
-  cells: readonly HTMLElement[],
-  ctx: ShapeContext,
-  depth: number,
-): string[] {
-  const lines = cells
+/**
+ * Le celle di una riga d'intestazione nell'ordine delle colonne, al massimo MAX_COLUMNS: di
+ * ognuna solo `th` e il testo, senza attributi né elementi, che direbbero quale colonna è
+ * segnata.
+ */
+function columnLines(texts: readonly string[], ctx: ShapeContext): string[] {
+  const lines = texts
     .slice(0, MAX_COLUMNS)
-    .flatMap((cell) => nodeLines(cell, ctx, depth));
-  if (cells.length > MAX_COLUMNS) lines.push(MORE_COLUMNS);
+    .flatMap((text) => ["th", `  "${maskText(text, ctx.vocab)}"`]);
+  if (texts.length > MAX_COLUMNS) lines.push(MORE_COLUMNS);
   return lines;
 }
 
@@ -819,6 +866,16 @@ const DATE_PART_SET: ReadonlySet<string> = new Set(DATE_PARTS);
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const ALL_DIGITS = /^\p{N}+$/u;
 
+/** Lettere che sono anche maschere: la `a` di ogni parola, la `T` e la `Z` delle date ISO. */
+const MASK_LETTERS = new Set(["a", "t", "z"]);
+
+/** Un'identità (già in minuscolo) con lettere che non sono maschere né parole di VOCAB. */
+function hasOwnLetters(identity: string): boolean {
+  return (identity.match(/\p{L}+/gu) ?? []).some(
+    (run) => !MASK_LETTERS.has(run) && !VOCAB.includes(run),
+  );
+}
+
 /**
  * Controllo finale, fail closed, su righe già mascherate: identità (parole di 3 o più
  * lettere dei nomi e della parte locale dell'e-mail, tra confini di lettera; e-mail e sua
@@ -847,9 +904,9 @@ export function checkReport(
   }
   // Le stesse identità scritte con i 9: una cifra per `9`, e ogni sequenza di cifre per `99`
   // come nei nomi stampati, così un token con 1 o 2 cifre non passa per un nome. Solo per le
-  // identità con almeno 2 lettere di fila: con i 9 una data di nascita o un telefono hanno la
-  // forma di ogni data e di ogni numero del rapporto.
-  for (const text of [...substrings].filter((s) => /\p{L}{2}/u.test(s))) {
+  // identità con lettere proprie (`hasOwnLetters`): con i 9 una data di nascita, un telefono o un
+  // peso (`75 kg`) hanno la forma di ogni data e di ogni numero del rapporto.
+  for (const text of [...substrings].filter(hasOwnLetters)) {
     substrings.add(text.replace(/\p{N}/gu, "9"));
     substrings.add(text.replace(/\p{N}+/gu, "99"));
   }
@@ -1035,6 +1092,7 @@ async function report(src: string, dest: string, deps: Deps): Promise<number> {
   const parts = [HEADER, ...sections.map(({ lines }) => lines.join("\n"))];
   await writeFile(dest, `${parts.join("\n\n")}\n`);
   console.log(`rapporto scritto: ${dest}`);
+  for (const note of ctx.notes) console.error(note);
   return 0;
 }
 

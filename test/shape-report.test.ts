@@ -374,11 +374,26 @@ describe("shape", () => {
       "    th",
       '      "Serie"',
       "    th",
-      "      span",
-      '        "Ripetizioni"',
-      '      "eseguite"',
+      '      "Ripetizioni eseguite"',
       "    th",
       '      "Carico"',
+    ]);
+    // Di una cella d'intestazione restano solo `th` e il testo: né attributi né elementi, che
+    // nell'ordine delle colonne direbbero quale colonna è segnata.
+    expect(
+      shapeOfHtml(
+        '<table><tr><th class="d">Cardio</th><th class="d done">Forza<span class="dot"></span></th><th class="d">Move</th></tr></table>',
+        ctx,
+      ),
+    ).toEqual([
+      "table",
+      "  tr",
+      "    th",
+      '      "Cardio"',
+      "    th",
+      '      "Forza"',
+      "    th",
+      '      "Move"',
     ]);
     const words = ["Serie", "Kg", "Rip", "Reps", "Durata", "Calorie", "Tempo"];
     const more = ["Distanza", "Potenza", "Rpm", "Watt", "Livello", "Peso"];
@@ -460,6 +475,28 @@ describe("shape", () => {
       '      "Cardio"',
       "    th",
       '      "Forza"',
+    ]);
+  });
+
+  it("shape: header texts must differ in their words", () => {
+    // Punteggiatura e parole ripetute non bastano a rendere diversi due testi: la riga si
+    // raggruppa.
+    expect(
+      shapeOfHtml(
+        "<table><tr><th>move</th><th>done.</th><th>move move</th><th>done</th></tr></table>",
+        ctx,
+      ),
+    ).toEqual([
+      "table",
+      "  tr",
+      "    th",
+      '      "done"',
+      "    th",
+      '      "done."',
+      "    th",
+      '      "move move"',
+      "    th",
+      '      "move"',
     ]);
   });
 
@@ -646,6 +683,15 @@ describe("shape", () => {
         ["12/04/1985", "+39 333 1234567", "2026-11-01T10:00:00Z"],
       ),
     ).toEqual([]);
+    // Neanche un'identità le cui lettere sono parole di VOCAB, come un peso.
+    expect(checkReport(['weight: "99 kg"'], ["75 kg"])).toEqual([]);
+    // Un codice con lettere sole, come una tessera, resta un'identità scritto con i 9.
+    expect(
+      checkReport(["A99B99: numero 9", "input[name=B-99]"], ["A1B2", "B-7"]),
+    ).toEqual([
+      { line: 1, kind: "identity" },
+      { line: 2, kind: "identity" },
+    ]);
     // Scritte come sono, restano identità.
     expect(checkReport(['born: "12/04/1985"'], ["12/04/1985"])).toEqual([
       { line: 1, kind: "identity" },
@@ -771,6 +817,30 @@ describe("shape", () => {
     ).toEqual(["div[name=«A», type=userId]"]);
   });
 
+  it("shape: words of an address are identity words", () => {
+    // Un'identità con spazi e cifre (un indirizzo) dà le sue parole, tranne via, corso e simili.
+    const address = shapeContext(["Via Garibaldi 5"]);
+    expect(
+      shapeOfJson(
+        { garibaldi: 1, viaCount: 2, property: "ViaGaribaldi" },
+        address,
+      ),
+    ).toEqual(["«a»: numero 9", "viaCount: numero 9", 'property: "A"']);
+    expect(checkReport(["garibaldi: numero 9"], ["Via Garibaldi 5"])).toEqual([
+      { line: 1, kind: "identity" },
+    ]);
+  });
+
+  it("shape: names with five consonants in a row are masked", () => {
+    // Lettere a caso, non un nome: `XMLHttpRequest` ha parti di al massimo 4 consonanti.
+    expect(
+      shapeOfHtml(
+        '<input name="_xkqzvbnmwplrtyhgfds" type="XMLHttpRequest">',
+        ctx,
+      ),
+    ).toEqual(["input[name=«_a», type=XMLHttpRequest]"]);
+  });
+
   it("shape: names glued to a 3-letter name are masked", () => {
     expect(
       shapeOfJson({ profileeva: 1, evabadge: "x" }, shapeContext(["Eva"])),
@@ -819,11 +889,35 @@ describe("shape", () => {
       '- property: "AvgRpm"',
       '- property: "a99a99a99"',
     ]);
-    // Una parola sola resta scritta solo se è di VOCAB: non il nome di un'altra persona.
-    expect(shapeOfJson({ property: "Giulia" }, ctx)).toEqual(['property: "A"']);
+    // Resta scritto solo se ogni parte è di VOCAB o di PROPERTY_WORDS: non il nome di un'altra
+    // persona, una categoria del profilo o lettere a caso.
     expect(
-      shapeOfJson({ physicalProperty: "Duration", property: "FatMass" }, ctx),
-    ).toEqual(['physicalProperty: "Duration"', 'property: "FatMass"']);
+      shapeOfJson(
+        [
+          { property: "Giulia" },
+          { property: "LuigiVerdi" },
+          { property: "MaleAdult" },
+          { property: "XkqZvbNmw" },
+        ],
+        ctx,
+      ),
+    ).toEqual(['- property: "A"']);
+    expect(
+      shapeOfJson(
+        [
+          { physicalProperty: "Duration" },
+          { property: "FatMass" },
+          { physicalProperty: "TotalIsoWeight" },
+          { property: "MetabolicAge" },
+        ],
+        ctx,
+      ),
+    ).toEqual([
+      '- physicalProperty: "Duration"',
+      '- physicalProperty: "TotalIsoWeight"',
+      '- property: "FatMass"',
+      '- property: "MetabolicAge"',
+    ]);
   });
 
   it("shape: json inside a string", () => {
@@ -895,7 +989,7 @@ describe("shape", () => {
       "        weight: numero 9.9",
       "    a[class=«a-a», href=«/a/A/99a99a99a99a-99a99a-99a99a-99a99a-99a99a99a99a99a99a»]",
       '      "A A"',
-      // Le righe in ordine alfabetico e senza numero; le celle di una riga nell'ordine delle colonne.
+      // Righe e celle di dati in ordine alfabetico e senza numero; la riga di `th` nell'ordine delle colonne.
       "    table[class=«sets»]",
       "      tr (ripetuto)",
       "        td (ripetuto)",
@@ -1197,6 +1291,29 @@ describe("shape", () => {
     // Su stdout solo la destinazione; dei file fuori elenco nemmeno il numero.
     expect(stdout.mock.calls).toEqual([[`rapporto scritto: ${dest}`]]);
     expect(stderr).not.toHaveBeenCalled();
+  });
+
+  it("cli: a header row with words outside VOCAB is reported", async () => {
+    // Senza ordine delle colonne lo Step 5 non sa dove stanno serie e kg: una nota fissa su
+    // stderr dice di tenere probe_out/. Una riga di giorni, senza parole di VOCAB, non la dà.
+    const dest = join(dir, "forma.md");
+    const days = probeOut({
+      "strength_detail.html":
+        "<table><tr><th>Lun</th><th>Mar</th></tr></table>",
+    });
+    expect(await main([days, dest])).toBe(0);
+    expect(stderr).not.toHaveBeenCalled();
+    rmSync(days, { recursive: true });
+    const header = probeOut({
+      "strength_detail.html":
+        "<table><tr><th>N°</th><th>Kg eseguiti</th></tr></table>",
+    });
+    expect(await main([header, dest])).toBe(0);
+    expect(stderr.mock.calls).toEqual([
+      [
+        "Nota: una riga di intestazioni ha parole fuori da VOCAB, quindi le sue colonne non sono in ordine nel rapporto: tenere probe_out/ e scrivere a Claude le intestazioni della tabella delle serie.",
+      ],
+    ]);
   });
 
   it("cli: a section shows at most 5 shapes", async () => {
