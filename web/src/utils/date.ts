@@ -21,6 +21,11 @@ const monthName = new Intl.DateTimeFormat("it-IT", {
   month: "long",
   year: "numeric",
 });
+const dayMonth = new Intl.DateTimeFormat("it-IT", {
+  timeZone: TIME_ZONE,
+  day: "numeric",
+  month: "short",
+});
 const dayOfWeek = new Intl.DateTimeFormat("it-IT", {
   timeZone: TIME_ZONE,
   weekday: "short",
@@ -48,6 +53,11 @@ export function chartDate(date: string): Date {
 /** Data di un asse del tempo → "3 nov 2026". */
 export function formatChartDate(value: Date): string {
   return shortDate.format(value);
+}
+
+/** Data di un asse del tempo senza anno → "3 nov" (tacche dentro un mese). */
+export function formatChartDay(value: Date): string {
+  return dayMonth.format(value);
 }
 
 /** `2026-11-03`, `08:00` → "3 nov 2026, 08:00"; senza ora solo la data. L'ora (`HH:MM`, scritta a mano) resta com'è. */

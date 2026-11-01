@@ -166,35 +166,39 @@ describe("web", () => {
     ]);
   });
 
-  it("web: esercizi chart shows one line per exercise", async () => {
+  it("web: esercizi one chart per exercise", async () => {
     server.use(http.get("/api/exercises", () => HttpResponse.json(EXERCISES)));
     renderConTema(<Esercizi />);
 
-    const chart = await screen.findByRole("region", {
+    const section = await screen.findByRole("region", {
       name: "e1RM per esercizio",
     });
-    // Legenda (un elenco): solo gli esercizi con almeno un punto (Chest Press non ne ha).
-    const legend = within(chart).getByRole("list");
+    // Un grafico per esercizio con almeno un punto, nell'ordine della lista (Chest Press non ne
+    // ha): ognuno è una regione con il nome dell'esercizio come titolo.
     expect(
-      within(legend)
-        .getAllByRole("listitem")
-        .map((item) => item.textContent),
+      within(section)
+        .getAllByRole("heading", { level: 3 })
+        .map((heading) => heading.textContent),
     ).toEqual(["Leg Press", "Lat Machine"]);
-    // Un path SVG non ha ruolo (eccezione di docs/buone-pratiche-mui.md § 9): le linee sono i path
-    // senza riempimento fuori dalla legenda. Il colore segue la posizione dell'esercizio nella
-    // lista (Lat Machine è il terzo), non quella tra le linee disegnate.
-    const strokes = [...chart.querySelectorAll('svg path[fill="none"]')]
-      .filter((path) => path.closest("li") === null)
-      .map((path) => path.getAttribute("stroke"));
-    expect(strokes).toEqual([
-      "var(--mui-palette-grafici-serie1)",
-      "var(--mui-palette-grafici-serie3)",
-    ]);
+    expect(
+      within(section).queryByRole("region", { name: "Chest Press" }),
+    ).toBeNull();
+    for (const name of ["Leg Press", "Lat Machine"]) {
+      const chart = within(section).getByRole("region", { name });
+      // Una serie per grafico: nessuna legenda, un solo colore. Un path SVG non ha ruolo
+      // (eccezione di docs/buone-pratiche-mui.md § 9): la linea è il path senza riempimento.
+      expect(within(chart).queryByRole("list")).toBeNull();
+      expect(
+        [...chart.querySelectorAll('svg path[fill="none"]')].map((path) =>
+          path.getAttribute("stroke"),
+        ),
+      ).toEqual(["var(--mui-palette-grafici-serie1)"]);
+    }
   });
 
-  it("web: esercizi chart keeps eight palette slots", async () => {
-    // Nove esercizi con un punto: la palette ha otto slot e non si ricomincia dal primo (skill
-    // dataviz); il nono resta nella tabella, e il grafico lo dice.
+  it("web: esercizi chart for every exercise", async () => {
+    // Nove esercizi con un punto: un grafico ciascuno, tutti con il primo colore; nessun limite
+    // della palette e nessuna nota.
     const series = Array.from({ length: 9 }, (_, i) => ({
       slug: `esercizio-${i + 1}`,
       name: `Esercizio ${i + 1}`,
@@ -207,13 +211,13 @@ describe("web", () => {
     );
     renderConTema(<Esercizi />);
 
-    const chart = await screen.findByRole("region", {
+    const section = await screen.findByRole("region", {
       name: "e1RM per esercizio",
     });
     expect(
-      within(within(chart).getByRole("list"))
-        .getAllByRole("listitem")
-        .map((item) => item.textContent),
+      within(section)
+        .getAllByRole("heading", { level: 3 })
+        .map((heading) => heading.textContent),
     ).toEqual([
       "Esercizio 1",
       "Esercizio 2",
@@ -223,12 +227,9 @@ describe("web", () => {
       "Esercizio 6",
       "Esercizio 7",
       "Esercizio 8",
+      "Esercizio 9",
     ]);
-    expect(
-      within(chart).getByText(
-        "Il grafico mostra i primi 8 esercizi: tutti sono nella tabella.",
-      ),
-    ).toBeTruthy();
+    expect(within(section).queryByText(/primi 8 esercizi/)).toBeNull();
   });
 
   it("web: esercizi api error shows retry", async () => {
@@ -283,11 +284,110 @@ describe("web", () => {
     server.use(http.get("/api/exercises", () => HttpResponse.json(EXERCISES)));
     renderConTema(<Esercizi />);
 
-    const chart = await screen.findByRole("region", {
-      name: "e1RM per esercizio",
-    });
+    const legPress = await screen.findByRole("region", { name: "Leg Press" });
+    const latMachine = screen.getByRole("region", { name: "Lat Machine" });
+    await waitFor(() => expect(marks(legPress, 1)).toHaveLength(2));
+    expect(marks(latMachine, 1)).toHaveLength(1);
+  });
+
+  it("web: esercizi chart line joins the points", async () => {
+    // Le due sedute di Leg Press sono un solo tratto: un solo "M" (moveto) nel percorso.
+    server.use(http.get("/api/exercises", () => HttpResponse.json(EXERCISES)));
+    renderConTema(<Esercizi />);
+
+    const legPress = await screen.findByRole("region", { name: "Leg Press" });
+    const line = legPress.querySelector('svg path[fill="none"]');
+    expect(line?.getAttribute("d")?.match(/M/g)).toHaveLength(1);
+    expect(line?.getAttribute("d")?.match(/L/g)).toHaveLength(1);
+  });
+
+  it("web: esercizi chart y ticks in italian", async () => {
+    // Ogni grafico ha il suo asse y, con i numeri come nella tabella (it-IT): "42,5", non "42.5".
+    server.use(
+      http.get("/api/exercises", () =>
+        HttpResponse.json({
+          strength_table: [],
+          e1rm_series: [
+            {
+              slug: "lat-machine",
+              name: "Lat Machine",
+              points: [
+                { date: "2026-11-03", e1rm_kg: 42 },
+                { date: "2026-11-10", e1rm_kg: 43 },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+    renderConTema(<Esercizi />);
+
+    const chart = await screen.findByRole("region", { name: "Lat Machine" });
+    for (const tick of ["42", "42,5", "43"]) {
+      expect(within(chart).getByText(tick)).toBeTruthy();
+    }
+    expect(within(chart).queryByText("42.5")).toBeNull();
+  });
+
+  it("web: esercizi chart keeps the best of the day", async () => {
+    // Due sedute di Lat Machine il 3 novembre (40 e 50 kg): un punto solo, il massimo, come la
+    // "serie migliore"; con il 10 novembre i punti sono due.
+    phoneWidth();
+    server.use(
+      http.get("/api/exercises", () =>
+        HttpResponse.json({
+          strength_table: [],
+          e1rm_series: [
+            {
+              slug: "lat-machine",
+              name: "Lat Machine",
+              points: [
+                { date: "2026-11-03", e1rm_kg: 40 },
+                { date: "2026-11-03", e1rm_kg: 50 },
+                { date: "2026-11-10", e1rm_kg: 45 },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+    renderConTema(<Esercizi />);
+
+    const chart = await screen.findByRole("region", { name: "Lat Machine" });
     await waitFor(() => expect(marks(chart, 1)).toHaveLength(2));
-    expect(marks(chart, 3)).toHaveLength(1);
+    // L'asse y va da 45 a 50: il 40 non è un punto del grafico.
+    expect(within(chart).getByText("50")).toBeTruthy();
+    expect(within(chart).queryByText("40")).toBeNull();
+  });
+
+  it("web: esercizi chart dates without year", async () => {
+    // Le tacche dell'asse del tempo sono giorni del mese scelto: l'anno non si ripete.
+    phoneWidth();
+    server.use(http.get("/api/exercises", () => HttpResponse.json(EXERCISES)));
+    renderConTema(<Esercizi />);
+
+    const legPress = await screen.findByRole("region", { name: "Leg Press" });
+    await waitFor(() =>
+      expect(within(legPress).getByText("3 nov")).toBeTruthy(),
+    );
+    expect(within(legPress).getByText("10 nov")).toBeTruthy();
+    expect(within(legPress).queryByText(/2026/)).toBeNull();
+  });
+
+  it("web: esercizi charts share the time axis", async () => {
+    // Stesso asse del tempo per tutti i grafici, dalla prima all'ultima seduta del mese (3 e 10
+    // novembre): la sola seduta di Lat Machine (5 novembre) cade nello stesso punto dell'asse.
+    phoneWidth();
+    server.use(http.get("/api/exercises", () => HttpResponse.json(EXERCISES)));
+    renderConTema(<Esercizi />);
+
+    const latMachine = await screen.findByRole("region", {
+      name: "Lat Machine",
+    });
+    await waitFor(() =>
+      expect(within(latMachine).getByText("3 nov")).toBeTruthy(),
+    );
+    expect(within(latMachine).getByText("10 nov")).toBeTruthy();
   });
 
   it("web: esercizi table readable on a phone", async () => {

@@ -81,8 +81,6 @@ export const testi = {
   },
   exercises: {
     chartTitle: "e1RM per esercizio",
-    chartLimit: (count: number) =>
-      `Il grafico mostra i primi ${count} esercizi: tutti sono nella tabella.`,
     kg: "kg",
     e1rmValue: (kg: string) => `${kg} kg`,
     tableTitle: "Forza per esercizio",
