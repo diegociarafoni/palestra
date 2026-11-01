@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { BAD_NAMES, STOP_LINES } from "../fixtures/d1-export-casi-limite";
 
 const SCRIPT = join(
   import.meta.dirname,
@@ -69,6 +70,15 @@ beforeEach(() => {
     ].join("\n"),
     { mode: 0o755 },
   );
+  // `awk` e `sort` veri, ma solo con LC_ALL=C: l'ordine dei nomi deve essere quello di
+  // restore-test (unità di codice) anche con un locale italiano.
+  for (const tool of ["awk", "sort"]) {
+    writeFileSync(
+      join(fakeBin, tool),
+      `#!/bin/sh\n[ "\${LC_ALL-}" = C ] || exit 9\nexec /usr/bin/${tool} "$@"\n`,
+      { mode: 0o755 },
+    );
+  }
   // `date` finto: la data di Roma di oggi è un valore fisso.
   writeFileSync(
     join(fakeBin, "date"),
@@ -188,7 +198,9 @@ describe("prova-ripristino", () => {
       [
         "tabella                   dump",
         "Mixed_Case1                  1",
-        "audit                        2",
+        "_x                           1",
+        "a_cf_b                       1",
+        "audit                        3",
         "sessions                     1",
         DONE,
         "",
@@ -196,32 +208,28 @@ describe("prova-ripristino", () => {
     );
   });
 
-  it.each([
-    "CREATE INDEX i ON audit(id);",
-    "create unique index u on audit(id);",
-    "CREATE TRIGGER t AFTER INSERT ON audit BEGIN",
-    'CREATE VIEW "v" AS SELECT 1;',
-    "CREATE\tTRIGGER t AFTER INSERT ON audit BEGIN",
-    "CREATE TRIGGER\r",
-  ])("prova-ripristino: counting stops at %j after the data", (stop) => {
-    const result = run(["2026-10-31"], {
-      FAKE_DOWNLOAD: [
-        'INSERT INTO "audit" ("id") VALUES(1);',
-        stop,
-        'INSERT INTO "audit" ("id") VALUES(2);',
-        "",
-      ].join("\n"),
-    });
-    expect(result.status).toBe(0);
-    expect(result.stdout).toBe(
-      [
-        "tabella                   dump",
-        "audit                        1",
-        DONE,
-        "",
-      ].join("\n"),
-    );
-  });
+  it.each(STOP_LINES)(
+    "prova-ripristino: counting stops at %j after the data",
+    (stop) => {
+      const result = run(["2026-10-31"], {
+        FAKE_DOWNLOAD: [
+          'INSERT INTO "audit" ("id") VALUES(1);',
+          stop,
+          'INSERT INTO "audit" ("id") VALUES(2);',
+          "",
+        ].join("\n"),
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toBe(
+        [
+          "tabella                   dump",
+          "audit                        1",
+          DONE,
+          "",
+        ].join("\n"),
+      );
+    },
+  );
 
   it("prova-ripristino: a dump without recognised INSERTs prints only the header", () => {
     const result = run(["2026-10-31"]);
@@ -231,7 +239,7 @@ describe("prova-ripristino", () => {
     );
   });
 
-  it.each(["dato personale", "1abc", "a-b"])(
+  it.each(BAD_NAMES)(
     "prova-ripristino: dump table name %j exits 65 before creating",
     (name) => {
       const result = run(["2026-10-31"], {
