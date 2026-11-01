@@ -6,8 +6,11 @@ import type { Session } from "../../src/domain/types";
 import { ParseError } from "../../src/errors";
 import {
   knownSessionIds,
+  listSessionDays,
   listSessionStarts,
+  listSessionSummaries,
   listSessionsByMonth,
+  listUnmatchedSessionSummaries,
   upsertSession,
 } from "../../src/store/sessions";
 
@@ -139,6 +142,146 @@ describe("store sessions", () => {
     expect(await listSessionsByMonth(env.DB, "2026-12")).toEqual([]);
   });
 
+  it("store: session summaries between dates", async () => {
+    // Estremi inclusi, sulla data di Roma: 23:30Z di lunedì 2/11 è già martedì 3/11.
+    for (const s of [
+      { ...session("sess-006", "2026-11-05T19:00:00+01:00", 300), name: "B" },
+      session("sess-007", "2026-11-02T23:30:00Z"),
+      session("sess-008", "2026-11-01T10:00:00+01:00"),
+      session("sess-009", "2026-11-07T10:00:00+01:00"),
+      { ...session("sess-010", "2026-11-04T18:00:00+01:00"), moves: null },
+    ]) {
+      await upsertSession(env.DB, s, {});
+    }
+    expect(
+      await listSessionSummaries(env.DB, "2026-11-03", "2026-11-05"),
+    ).toEqual([
+      { date: "2026-11-03", name: "Seduta libera", moves: 400 },
+      { date: "2026-11-04", name: "Seduta libera", moves: null },
+      { date: "2026-11-05", name: "B", moves: 300 },
+    ]);
+    expect(
+      await listSessionSummaries(env.DB, "2026-11-09", "2026-11-15"),
+    ).toEqual([]);
+  });
+
+  it("store: unmatched session summaries of the month", async () => {
+    // Si guardano tutti gli slot: domenica 1/11 recupera lo slot della settimana prima,
+    // la cui finestra (29/10) è di ottobre.
+    const insert = env.DB.prepare(
+      `INSERT INTO planned_sessions (id, week, slot, window_days, scheda_day, status, session_id)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
+    );
+    await env.DB.batch([
+      insert.bind(
+        "2026-W44-2",
+        "2026-W44",
+        2,
+        '["2026-10-29"]',
+        "B",
+        "spostata",
+        "sess-011",
+      ),
+      insert.bind(
+        "2026-W45-1",
+        "2026-W45",
+        1,
+        '["2026-11-03","2026-11-04"]',
+        "A",
+        "fatta",
+        "sess-012",
+      ),
+      insert.bind(
+        "2026-W45-2",
+        "2026-W45",
+        2,
+        '["2026-11-05"]',
+        "B",
+        "programmata",
+        null,
+      ),
+    ]);
+    // Il 3/11 una seduta extra dopo quella dello slot: è la seconda del giorno (`seq` 2).
+    for (const s of [
+      session("sess-016", "2026-11-26T19:00:00+01:00", 450),
+      session("sess-011", "2026-11-01T10:00:00+01:00"),
+      session("sess-012", "2026-11-03T18:00:00+01:00"),
+      session("sess-021", "2026-11-03T20:00:00+01:00", 410),
+      session("sess-013", "2026-11-04T18:00:00+01:00"),
+      session("sess-014", "2026-10-28T18:00:00+01:00"),
+      session("sess-015", "2026-12-01T18:00:00+01:00"),
+    ]) {
+      await upsertSession(env.DB, s, {});
+    }
+    expect(await listUnmatchedSessionSummaries(env.DB, "2026-11")).toEqual([
+      { date: "2026-11-03", name: "Seduta libera", moves: 410, seq: 2 },
+      { date: "2026-11-04", name: "Seduta libera", moves: 400, seq: 1 },
+      { date: "2026-11-26", name: "Seduta libera", moves: 450, seq: 1 },
+    ]);
+  });
+
+  it("store: session summaries of the same day in instant order", async () => {
+    // Tre sedute del 4/11 a Roma: 17:00Z, 17:30Z, 18:00Z. Il testo ISO ordina 17:30Z per
+    // prima; inserimento e session_id (crescente e decrescente) danno altri ordini.
+    for (const s of [
+      session("sess-019", "2026-11-04T19:00:00+01:00", 403),
+      session("sess-017", "2026-11-04T17:30:00Z", 402),
+      session("sess-018", "2026-11-04T18:00:00+01:00", 401),
+    ]) {
+      await upsertSession(env.DB, s, {});
+    }
+    const expected = [
+      { date: "2026-11-04", name: "Seduta libera", moves: 401 },
+      { date: "2026-11-04", name: "Seduta libera", moves: 402 },
+      { date: "2026-11-04", name: "Seduta libera", moves: 403 },
+    ];
+    expect(
+      await listSessionSummaries(env.DB, "2026-11-02", "2026-11-08"),
+    ).toEqual(expected);
+    // Nessuno slot: tutte non abbinate, stesso ordine, numerate nel giorno.
+    expect(await listUnmatchedSessionSummaries(env.DB, "2026-11")).toEqual([
+      { date: "2026-11-04", name: "Seduta libera", moves: 401, seq: 1 },
+      { date: "2026-11-04", name: "Seduta libera", moves: 402, seq: 2 },
+      { date: "2026-11-04", name: "Seduta libera", moves: 403, seq: 3 },
+    ]);
+  });
+
+  it("store: day and order in the day of given sessions", async () => {
+    // 4/11 a Roma: 17:00Z, 17:30Z, 18:00Z (il testo ISO metterebbe 17:30Z per prima); 5/11: una.
+    // L'ordine nel giorno conta tutte le sedute del giorno, anche quelle non chieste.
+    for (const s of [
+      session("sess-019", "2026-11-04T19:00:00+01:00"),
+      session("sess-017", "2026-11-04T17:30:00Z"),
+      session("sess-018", "2026-11-04T18:00:00+01:00"),
+      session("sess-020", "2026-11-05T18:00:00+01:00"),
+    ]) {
+      await upsertSession(env.DB, s, {});
+    }
+    expect(
+      await listSessionDays(env.DB, ["sess-020", "sess-017", "sess-missing"]),
+    ).toEqual([
+      { session_id: "sess-017", date: "2026-11-04", seq: 2 },
+      { session_id: "sess-020", date: "2026-11-05", seq: 1 },
+    ]);
+    expect(await listSessionDays(env.DB, [])).toEqual([]);
+  });
+
+  it("store: invalid session day raises ParseError", async () => {
+    await env.DB.prepare(
+      "INSERT INTO sessions (session_id, date, started_at, json) VALUES (?1, ?2, ?3, ?4)",
+    )
+      .bind("sess-bad", "secret-content", "2026-11-03T10:00:00+01:00", "{}")
+      .run();
+    const error = await listSessionDays(env.DB, ["sess-bad"]).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ParseError);
+    expect((error as Error).message).toContain("sessions (rowid 1)");
+    for (const leaked of ["sess-bad", "secret-content"]) {
+      expect((error as Error).message).not.toContain(leaked);
+    }
+  });
+
   it.each([
     // Il SyntaxError di V8 cita il testo ("secret-content" is not valid JSON): niente cause.
     { label: "broken JSON", json: "secret-content", cause: undefined },
@@ -169,4 +312,28 @@ describe("store sessions", () => {
       }
     },
   );
+  it("store: invalid session json in summaries raises ParseError", async () => {
+    await env.DB.prepare(
+      "INSERT INTO sessions (session_id, date, started_at, json) VALUES (?1, ?2, ?3, ?4)",
+    )
+      .bind(
+        "sess-bad",
+        "2026-11-03",
+        "2026-11-03T10:00:00+01:00",
+        '{"session_id":"secret-content"}',
+      )
+      .run();
+    for (const read of [
+      () => listSessionSummaries(env.DB, "2026-11-02", "2026-11-08"),
+      () => listUnmatchedSessionSummaries(env.DB, "2026-11"),
+    ]) {
+      const error = await read().catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ParseError);
+      expect((error as Error).message).toContain("sessions (rowid 1)");
+      // Mai id o data della seduta nel messaggio: può finire nei log pubblici.
+      for (const leaked of ["sess-bad", "2026-11-03", "secret-content"]) {
+        expect((error as Error).message).not.toContain(leaked);
+      }
+    }
+  });
 });

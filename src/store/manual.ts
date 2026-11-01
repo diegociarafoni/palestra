@@ -86,13 +86,22 @@ export async function upsertFeedback(
   );
 }
 
-/** Feedback del mese `YYYY-MM`, in ordine di data e di seduta nel giorno. */
-export async function listFeedback(db: Db, month: string): Promise<Feedback[]> {
+/**
+ * Feedback del mese `YYYY-MM` e dei giorni `days` (`YYYY-MM-DD`, anche di altri mesi), in ordine
+ * di data e di seduta nel giorno.
+ */
+export async function listFeedback(
+  db: Db,
+  month: string,
+  days: string[] = [],
+): Promise<Feedback[]> {
   const { results } = await db
     .prepare(
-      "SELECT * FROM feedback WHERE substr(date, 1, 7) = ?1 ORDER BY date, seq",
+      `SELECT * FROM feedback
+       WHERE substr(date, 1, 7) = ?1 OR date IN (SELECT value FROM json_each(?2))
+       ORDER BY date, seq`,
     )
-    .bind(month)
+    .bind(month, JSON.stringify(days))
     .all<{ id: number }>();
   return results.map((r) =>
     parseStored(FeedbackRowSchema, r, "feedback", String(r.id)),

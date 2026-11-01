@@ -1,7 +1,9 @@
 import type { Db } from "../../src/db/types";
+import type { PlannedSlot } from "../../src/domain/planning";
 
 // Popolano il D1 locale dei test con righe sintetiche (INSERT diretti: la sync è l'unica
-// che scrive `sessions`/`timeseries`, qui servono solo misure e schede).
+// che scrive `sessions`/`timeseries`, qui servono solo misure, schede e slot; le sedute si
+// scrivono con `upsertSession`, la funzione della sync).
 
 /** Inserisce misure già nel formato della colonna `json`; la riga ha id 1, 2, … nell'ordine dato. */
 export async function seedMeasures(
@@ -34,4 +36,31 @@ export async function seedScheda(
       md,
     )
     .run();
+}
+
+/** Inserisce slot programmati; la finestra va in `window_days` come array JSON. */
+export async function seedSlots(
+  db: Db,
+  slots: ReadonlyArray<PlannedSlot>,
+): Promise<void> {
+  const insert = db.prepare(
+    `INSERT INTO planned_sessions
+       (id, week, slot, window_days, date, scheda_day, status, reason, session_id)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
+  );
+  await db.batch(
+    slots.map((s) =>
+      insert.bind(
+        s.id,
+        s.week,
+        s.slot,
+        JSON.stringify(s.window),
+        s.date,
+        s.scheda_day,
+        s.status,
+        s.reason,
+        s.session_id,
+      ),
+    ),
+  );
 }

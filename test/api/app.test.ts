@@ -3,16 +3,26 @@ import { hc } from "hono/client";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { type AppType, createApp } from "../../src/api/app";
 import {
+  CalendarResponseSchema,
+  ExercisesResponseSchema,
   MeasuresResponseSchema,
   ReportsResponseSchema,
   SchedaResponseSchema,
+  WeekResponseSchema,
 } from "../../src/domain/dashboard";
-import { saveReport } from "../../src/store/reports";
+import { type PlannedSlot, PlannedSlotSchema } from "../../src/domain/planning";
+import { type Session, SessionSchema } from "../../src/domain/types";
+import { upsertFeedback } from "../../src/store/manual";
+import { saveMetrics, saveReport } from "../../src/store/reports";
+import { upsertSession } from "../../src/store/sessions";
 import { REPORT_MD, SCHEDA_MD } from "../fixtures/dashboard/markdown";
 import measuresFixture from "../fixtures/dashboard/measures.json";
+import metricsFixture from "../fixtures/dashboard/metrics.json";
+import sessionsFixture from "../fixtures/dashboard/sessions.json";
+import slotsFixture from "../fixtures/dashboard/slots.json";
 import schedaFixture from "../fixtures/scheda-esempio.json";
 import { createTestSigner, OTHER_EMAIL, TEST_ENV } from "./jwt";
-import { seedMeasures, seedScheda } from "./seed";
+import { seedMeasures, seedScheda, seedSlots } from "./seed";
 
 const signer = await createTestSigner();
 const token = await signer.sign();
@@ -20,6 +30,51 @@ const app = createApp({ jwks: signer.jwks, today: () => "2026-11-10" });
 
 const bindings = { ...TEST_ENV, DB: env.DB };
 const withToken = { "Cf-Access-Jwt-Assertion": token };
+
+// Modello fittizio: slot 1 martedì/mercoledì (giorno A), slot 2 giovedì (giorno B).
+// slots, nella forma della sync (lo slot fatto ha `date` null e il `session_id`): W44-2
+// recuperato domenica 1/11 (d01), W45-1 fatto martedì 3/11 (d02), W45-2 programmato con il
+// giorno scelto 5/11, W46-1 fatto martedì 10/11 (d04). sessions: d00 28/10 e d03 4/11 non
+// abbinate a nessuno slot.
+const slots = PlannedSlotSchema.array().parse(slotsFixture);
+const sessions = SessionSchema.array().parse(sessionsFixture);
+
+async function seedSessions(ids: string[]): Promise<void> {
+  for (const s of sessions.filter((s) => ids.includes(s.session_id))) {
+    await upsertSession(env.DB, s, {});
+  }
+}
+
+// Seduta sintetica fuori dalla fixture: per gli estremi della settimana contano inizio e MOVEs.
+async function seedSessionAt(
+  id: string,
+  startedAt: string,
+  moves: number,
+): Promise<void> {
+  const s: Session = {
+    session_id: id,
+    source: "mywellness-api",
+    started_at: startedAt,
+    ended_at: null,
+    name: "Seduta libera",
+    program: null,
+    moves,
+    calories_kcal: null,
+    duration_s: null,
+    exercises: [],
+  };
+  await upsertSession(env.DB, s, {});
+}
+
+async function getWeek(date: string): Promise<unknown> {
+  const res = await app.request(
+    `/api/week?date=${date}`,
+    { headers: withToken },
+    bindings,
+  );
+  expect(res.status, date).toBe(200);
+  return res.json();
+}
 
 describe("api", () => {
   afterEach(() => {
@@ -67,6 +122,9 @@ describe("api", () => {
       "/api/scheda",
       "/api/reports/2026-11",
       "/api/reports/nov",
+      "/api/week?date=2026-11-04",
+      "/api/calendar?month=2026-11",
+      "/api/exercises?month=2026-11",
       "/api/nulla",
     ]) {
       const res = await app.request(path, {}, bindings);
@@ -245,6 +303,372 @@ describe("api", () => {
     expect(await none.text()).toBe('{"error":"not_found"}');
   });
 
+  it("api: week returns slots and sessions", async () => {
+    await seedSlots(env.DB, slots);
+    // Domenica 1/11 è della settimana prima, martedì 10/11 di quella dopo.
+    await seedSessions(["sess-d01", "sess-d02", "sess-d04"]);
+    const expected = {
+      slots: [
+        { ...slots[1], session: { date: "2026-11-03", seq: 1 } },
+        { ...slots[2], session: null },
+      ],
+      sessions: [{ date: "2026-11-03", name: "Giorno A", moves: 400 }],
+      moves_total: 400,
+    };
+    // Lunedì, mercoledì e domenica danno la stessa settimana ISO 2026-W45.
+    for (const date of ["2026-11-02", "2026-11-04", "2026-11-08"]) {
+      const res = await app.request(
+        `/api/week?date=${date}`,
+        { headers: withToken },
+        bindings,
+      );
+      expect(res.status, date).toBe(200);
+      expect(res.headers.get("Cache-Control"), date).toBe("no-store");
+      const body = await res.json();
+      expect(body, date).toEqual(expected);
+      const week = WeekResponseSchema.parse(body);
+      expect(week.slots.map((s) => [s.id, s.status])).toEqual([
+        ["2026-W45-1", "fatta"],
+        ["2026-W45-2", "programmata"],
+      ]);
+    }
+
+    // Una seduta senza MOVEs nella stessa settimana: compare, il totale non cambia.
+    await seedSessions(["sess-d03"]);
+    const res = await app.request(
+      "/api/week?date=2026-11-04",
+      { headers: withToken },
+      bindings,
+    );
+    expect(await res.json()).toEqual({
+      ...expected,
+      sessions: [
+        { date: "2026-11-03", name: "Giorno A", moves: 400 },
+        { date: "2026-11-04", name: "Seduta libera", moves: null },
+      ],
+    });
+  });
+
+  it("api: week gives the day a slot was done", async () => {
+    // Forma della sync: lo slot fatto ha `date` null e il `session_id` della seduta. Il 3/11 una
+    // seduta libera alle 9 e poi quella dello slot alle 18:30: la seduta dello slot è la seconda.
+    await seedSlots(env.DB, slots.slice(1, 3));
+    await seedSessions(["sess-d02"]);
+    await seedSessionAt("sess-w13", "2026-11-03T09:00:00+01:00", 150);
+    const body = await getWeek("2026-11-04");
+    expect(
+      WeekResponseSchema.parse(body).slots.map((s) => [
+        s.id,
+        s.date,
+        s.session,
+      ]),
+    ).toEqual([
+      ["2026-W45-1", null, { date: "2026-11-03", seq: 2 }],
+      ["2026-W45-2", "2026-11-05", null],
+    ]);
+  });
+
+  it("api: week includes sunday and excludes next monday", async () => {
+    // Domenica 8/11 chiude la settimana di giovedì 5/11; 23:30Z dell'8/11 è già lunedì 9/11
+    // a Roma (colonna `date`): settimana dopo.
+    await seedSessionAt("sess-w01", "2026-11-08T21:00:00+01:00", 310);
+    await seedSessionAt("sess-w02", "2026-11-08T23:30:00Z", 320);
+    expect(await getWeek("2026-11-05")).toEqual({
+      slots: [],
+      sessions: [{ date: "2026-11-08", name: "Seduta libera", moves: 310 }],
+      moves_total: 310,
+    });
+  });
+
+  it("api: week starting monday at the rome boundary", async () => {
+    // 23:30Z del 1/11 è già lunedì 2/11 a Roma (colonna `date`); 22:30Z è ancora domenica 1/11.
+    await seedSessionAt("sess-w03", "2026-11-01T22:30:00Z", 330);
+    await seedSessionAt("sess-w04", "2026-11-01T23:30:00Z", 340);
+    expect(await getWeek("2026-11-04")).toEqual({
+      slots: [],
+      sessions: [{ date: "2026-11-02", name: "Seduta libera", moves: 340 }],
+      moves_total: 340,
+    });
+  });
+
+  it("api: week of a sunday request", async () => {
+    await seedSlots(env.DB, slots);
+    // Lunedì 2/11 e domenica 8/11 sono gli estremi di 2026-W45; domenica 1/11 e lunedì 9/11 no.
+    await seedSessionAt("sess-w05", "2026-11-01T10:00:00+01:00", 350);
+    await seedSessionAt("sess-w06", "2026-11-02T10:00:00+01:00", 360);
+    await seedSessionAt("sess-w07", "2026-11-08T10:00:00+01:00", 370);
+    await seedSessionAt("sess-w08", "2026-11-09T10:00:00+01:00", 380);
+    // La seduta di W45-1 (d02) non è nel D1 di questo test: niente giorno.
+    const expected = {
+      slots: [
+        { ...slots[1], session: null },
+        { ...slots[2], session: null },
+      ],
+      sessions: [
+        { date: "2026-11-02", name: "Seduta libera", moves: 360 },
+        { date: "2026-11-08", name: "Seduta libera", moves: 370 },
+      ],
+      moves_total: 730,
+    };
+    // Chiesta di domenica (getUTCDay() vale 0) la settimana è la stessa del lunedì, non la dopo.
+    expect(await getWeek("2026-11-08")).toEqual(expected);
+    expect(await getWeek("2026-11-02")).toEqual(expected);
+  });
+
+  it("api: week across the year boundary", async () => {
+    // Venerdì 1/1/2027 è della settimana ISO 2026-W53 (il suo giovedì è il 31/12): da lunedì
+    // 28/12 a domenica 3/1. Slot del modello fittizio: martedì/mercoledì e giovedì.
+    const yearEnd: PlannedSlot[] = [
+      {
+        id: "2026-W53-1",
+        week: "2026-W53",
+        slot: 1,
+        window: ["2026-12-29", "2026-12-30"],
+        date: null,
+        scheda_day: "A",
+        status: "programmata",
+        reason: null,
+        session_id: null,
+      },
+      {
+        id: "2026-W53-2",
+        week: "2026-W53",
+        slot: 2,
+        window: ["2026-12-31"],
+        date: null,
+        scheda_day: "B",
+        status: "programmata",
+        reason: null,
+        session_id: null,
+      },
+      {
+        id: "2027-W01-1",
+        week: "2027-W01",
+        slot: 1,
+        window: ["2027-01-05", "2027-01-06"],
+        date: null,
+        scheda_day: "A",
+        status: "programmata",
+        reason: null,
+        session_id: null,
+      },
+    ];
+    await seedSlots(env.DB, yearEnd);
+    await seedSessionAt("sess-w09", "2026-12-27T10:00:00+01:00", 390);
+    await seedSessionAt("sess-w10", "2026-12-28T10:00:00+01:00", 400);
+    await seedSessionAt("sess-w11", "2027-01-03T10:00:00+01:00", 410);
+    await seedSessionAt("sess-w12", "2027-01-04T10:00:00+01:00", 420);
+    expect(await getWeek("2027-01-01")).toEqual({
+      slots: [
+        { ...yearEnd[0], session: null },
+        { ...yearEnd[1], session: null },
+      ],
+      sessions: [
+        { date: "2026-12-28", name: "Seduta libera", moves: 400 },
+        { date: "2027-01-03", name: "Seduta libera", moves: 410 },
+      ],
+      moves_total: 810,
+    });
+  });
+
+  it("api: calendar with no data", async () => {
+    const res = await app.request(
+      "/api/calendar?month=2026-11",
+      { headers: withToken },
+      bindings,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    expect(await res.json()).toEqual({ slots: [], extra: [], feedback: [] });
+  });
+
+  it("api: calendar gives day and order of each slot session", async () => {
+    // Il 3/11 una seduta libera alle 9 (extra, prima del giorno) e quella di W45-1 alle 18:30.
+    await seedSlots(env.DB, slots);
+    await seedSessions(["sess-d02", "sess-d04"]);
+    await seedSessionAt("sess-w13", "2026-11-03T09:00:00+01:00", 150);
+    const res = await app.request(
+      "/api/calendar?month=2026-11",
+      { headers: withToken },
+      bindings,
+    );
+    expect(res.status).toBe(200);
+    const body = CalendarResponseSchema.parse(await res.json());
+    expect(body.slots.map((s) => [s.id, s.date, s.session])).toEqual([
+      ["2026-W45-1", null, { date: "2026-11-03", seq: 2 }],
+      ["2026-W45-2", "2026-11-05", null],
+      ["2026-W46-1", null, { date: "2026-11-10", seq: 1 }],
+    ]);
+    expect(body.extra).toEqual([
+      { date: "2026-11-03", name: "Seduta libera", moves: 150, seq: 1 },
+    ]);
+  });
+
+  it("api: calendar includes feedback of a slot session in the next month", async () => {
+    // W44-2 (finestra 29/10) è di ottobre e la sua seduta (d01) è di domenica 1/11: il suo
+    // feedback va con ottobre. Il feedback del 3/11 no.
+    await seedSlots(env.DB, slots);
+    await seedSessions(["sess-d00", "sess-d01", "sess-d02"]);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-03T20:00:00Z"));
+    for (const [date, cls] of [
+      ["2026-10-28", "normale"],
+      ["2026-11-01", "buona"],
+      ["2026-11-03", "ottima"],
+    ] as const) {
+      await upsertFeedback(
+        env.DB,
+        { date, class: cls, joint_pain: false },
+        "test",
+      );
+    }
+    vi.useRealTimers();
+
+    const res = await app.request(
+      "/api/calendar?month=2026-10",
+      { headers: withToken },
+      bindings,
+    );
+    expect(res.status).toBe(200);
+    const body = CalendarResponseSchema.parse(await res.json());
+    expect(body.slots.map((s) => [s.id, s.session])).toEqual([
+      ["2026-W44-2", { date: "2026-11-01", seq: 1 }],
+    ]);
+    expect(body.extra).toEqual([
+      { date: "2026-10-28", name: "Seduta libera", moves: 300, seq: 1 },
+    ]);
+    expect(body.feedback.map((f) => [f.date, f.seq, f.class])).toEqual([
+      ["2026-10-28", 1, "normale"],
+      ["2026-11-01", 1, "buona"],
+    ]);
+  });
+
+  it("api: calendar lists extra sessions", async () => {
+    await seedSlots(env.DB, slots);
+    await seedSessions(sessions.map((s) => s.session_id));
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-03T20:00:00Z"));
+    await upsertFeedback(
+      env.DB,
+      {
+        date: "2026-11-03",
+        class: "buona",
+        joint_pain: false,
+        planned_id: "2026-W45-1",
+        session_id: "sess-d02",
+      },
+      "test",
+    );
+    // Feedback di ottobre: non è del mese.
+    await upsertFeedback(
+      env.DB,
+      {
+        date: "2026-10-28",
+        class: "normale",
+        joint_pain: false,
+        session_id: "sess-d00",
+      },
+      "test",
+    );
+    vi.useRealTimers();
+
+    const res = await app.request(
+      "/api/calendar?month=2026-11",
+      { headers: withToken },
+      bindings,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    const body = await res.json();
+    // W44-2 (finestra 29/10) è di ottobre. Extra solo d03: d00 è di ottobre; d01, d02 e d04
+    // sono abbinate, d01 a W44-2, uno slot che non è del mese.
+    expect(body).toEqual({
+      slots: [
+        { ...slots[1], session: { date: "2026-11-03", seq: 1 } },
+        { ...slots[2], session: null },
+        { ...slots[3], session: { date: "2026-11-10", seq: 1 } },
+      ],
+      extra: [
+        { date: "2026-11-04", name: "Seduta libera", moves: null, seq: 1 },
+      ],
+      feedback: [
+        {
+          id: 1,
+          planned_id: "2026-W45-1",
+          session_id: "sess-d02",
+          date: "2026-11-03",
+          seq: 1,
+          class: "buona",
+          joint_pain: false,
+          joint_where: null,
+          notes: null,
+          updated_at: "2026-11-03T20:00:00.000Z",
+        },
+      ],
+    });
+    expect(CalendarResponseSchema.safeParse(body).success).toBe(true);
+  });
+
+  it("api: exercises returns report metrics", async () => {
+    // Le altre chiavi del mese non fanno parte della risposta.
+    await saveMetrics(env.DB, "2026-11", { ...metricsFixture, ratios: {} });
+    const res = await app.request(
+      "/api/exercises?month=2026-11",
+      { headers: withToken },
+      bindings,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    const body = await res.json();
+    expect(body).toEqual(metricsFixture);
+    expect(ExercisesResponseSchema.safeParse(body).success).toBe(true);
+
+    // Mese senza metriche: liste vuote.
+    const empty = await app.request(
+      "/api/exercises?month=2026-10",
+      { headers: withToken },
+      bindings,
+    );
+    expect(empty.status).toBe(200);
+    expect(await empty.json()).toEqual({ strength_table: [], e1rm_series: [] });
+  });
+
+  it("api: exercises rejects malformed metrics", async () => {
+    // Chiave presente ma non conforme (anche null): 500 a corpo fisso, non una lista vuota.
+    for (const metrics of [
+      { strength_table: null },
+      { strength_table: [{ slug: "leg-press" }] },
+      { e1rm_series: null },
+      { e1rm_series: [{ slug: "leg-press", name: "Leg Press", points: [{}] }] },
+    ]) {
+      await env.DB.prepare("DELETE FROM metrics").run();
+      await saveMetrics(env.DB, "2026-11", metrics);
+      const res = await app.request(
+        "/api/exercises?month=2026-11",
+        { headers: withToken },
+        bindings,
+      );
+      expect(res.status, JSON.stringify(metrics)).toBe(500);
+      expect(await res.text()).toBe('{"error":"internal"}');
+    }
+  });
+
+  it("api: rejects invalid query", async () => {
+    for (const path of [
+      "/api/week?date=2026-13-40",
+      "/api/week",
+      "/api/calendar?month=nov",
+      "/api/calendar",
+      "/api/exercises?month=2026-13",
+      "/api/exercises",
+    ]) {
+      const res = await app.request(path, { headers: withToken }, bindings);
+      expect(res.status, path).toBe(400);
+      expect(await res.text(), path).toBe('{"error":"bad_request"}');
+      expect(res.headers.get("Cache-Control"), path).toBe("no-store");
+    }
+  });
+
   it("api: typed client", async () => {
     await saveReport(env.DB, "2026-11", "report", REPORT_MD);
     const client = hc<AppType>("http://localhost", {
@@ -268,6 +692,12 @@ describe("api", () => {
     expect(body.report).toBe(REPORT_MD);
     expectTypeOf(client.api.measures.$get).toBeFunction();
     expectTypeOf(client.api.scheda.$get).toBeFunction();
+    expectTypeOf(client.api.calendar.$get).toBeFunction();
+    expectTypeOf(client.api.exercises.$get).toBeFunction();
+    const week = await client.api.week.$get({ query: { date: "2026-11-04" } });
+    expect(week.status).toBe(200);
+    if (week.status !== 200) return;
+    expectTypeOf((await week.json()).moves_total).toEqualTypeOf<number>();
   });
 
   it("api: scheda default today is the Rome date", async () => {
