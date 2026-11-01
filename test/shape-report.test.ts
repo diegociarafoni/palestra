@@ -605,6 +605,23 @@ describe("shape", () => {
     ).toEqual(["div[title=«a\\», name=«A»]"]);
   });
 
+  it("shape: unreadable attributes do not stop the report", () => {
+    // Il parser non sa leggere attributi con il nome di un metodo di Object.
+    expect(
+      shapeOfHtml(
+        "<div toString=1><p>Kg</p></div><b constructor=1></b><i valueOf=1></i><u hasOwnProperty=1></u>",
+        ctx,
+      ),
+    ).toEqual([
+      "div[«attributi non leggibili»]",
+      "  p",
+      '    "Kg"',
+      "b[«attributi non leggibili»]",
+      "i[«attributi non leggibili»]",
+      "u[«attributi non leggibili»]",
+    ]);
+  });
+
   it("shape: names glued to the user's name are masked", () => {
     // Le parole vengono solo dai nomi e dalla parte locale dell'e-mail: "user" in un URL non
     // maschera `userId`.

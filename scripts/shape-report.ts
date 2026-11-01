@@ -327,6 +327,7 @@ const CURRENT_USER = "EU.currentUser:";
 const REPEATED = " (ripetuto)";
 const MORE_VARIANTS = "… altre varianti";
 const MORE_COLUMNS = "… altre colonne";
+const UNREADABLE_ATTRIBUTES = "«attributi non leggibili»";
 
 function jsonBlock(value: unknown, ctx: ShapeContext, depth: number): Block {
   if (typeof value === "object" && value !== null && depth >= MAX_DEPTH) {
@@ -548,7 +549,14 @@ function elementLine(element: HTMLElement, ctx: ShapeContext): string {
   // I tag sono esclusi dalla regola delle date: `th` è anche "giovedì" abbreviato.
   const shown = shownName(element.rawTagName.toLowerCase(), TAG, ctx, false);
   const maskValues = ESCAPED_QUOTE.test(element.rawAttrs);
-  const attributes = Object.entries(element.attributes)
+  let entries: [string, string][];
+  try {
+    entries = Object.entries(element.attributes);
+  } catch {
+    // Attributi come `toString=` o `constructor=`: il parser non sa decodificarli.
+    return `${shown}[${UNREADABLE_ATTRIBUTES}]`;
+  }
+  const attributes = entries
     .filter(([name]) => !CHOICE_ATTRIBUTES.has(name.toLowerCase()))
     .map(([name, value]) => attributeText(name, value, maskValues, ctx));
   return attributes.length === 0 ? shown : `${shown}[${attributes.join(", ")}]`;
@@ -850,7 +858,7 @@ export const FIXED_TEXT: readonly string[] = [
   "```text",
   ...["numero 9", "numero 9.9", "numero -9", "booleano", "null", "[]", "{}"],
   ...[NESTED_JSON, CURRENT_USER, OMITTED, INVALID_JSON, REPEATED],
-  ...[MORE_VARIANTS, MORE_COLUMNS, TOO_DEEP],
+  ...[MORE_VARIANTS, MORE_COLUMNS, TOO_DEEP, UNREADABLE_ATTRIBUTES],
 ];
 
 export async function readIdentities(src: string): Promise<string[]> {
