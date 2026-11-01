@@ -28,16 +28,16 @@ La data della seduta è quella di Roma (una seduta delle 23:30 UTC di giovedì i
 2. Di sabato o di domenica, il primo slot non fatto della settimana (in ordine di numero) diventa `spostata`: è il recupero ([decisione del 2026-10-31](../decisioni/2026-10-31-recupero-nel-fine-settimana.md)).
 3. In tutti gli altri casi la seduta è **extra**. È extra anche una seconda seduta nella finestra di uno slot già fatto.
 
-Le sedute nuove si abbinano una alla volta, in ordine di data, e ogni abbinamento aggiorna lo stato degli slot prima del successivo: con due slot mancati il sabato recupera lo slot 1 e la domenica lo slot 2.
+Le sedute non ancora abbinate si abbinano una alla volta, in ordine di data, e ogni abbinamento aggiorna lo stato degli slot prima del successivo: con due slot mancati il sabato recupera lo slot 1 e la domenica lo slot 2.
 
 Uno slot `programmata` la cui finestra è tutta passata diventa `da_confermare` alla sync successiva; uno slot già `da_confermare` non viene ricontato.
 
 ## Nella sync
 
-La sync notturna (`src/sync/sync.ts`) crea gli slot mancanti di ogni settimana ISO da oggi meno i giorni di ricerca (14 di default, `npm run sync -- --lookback-days N`) a oggi, senza toccare quelli già presenti; poi abbina le sedute nuove e segna gli slot scaduti. Ripeterla non cambia nulla.
+La sync notturna (`src/sync/sync.ts`) crea gli slot mancanti di ogni settimana ISO da oggi meno i giorni di ricerca (14 di default, `npm run sync -- --lookback-days N`) a oggi, senza toccare quelli già presenti; poi abbina le sedute della finestra che nessuno slot riferisce ancora, nuove o già salvate, e segna gli slot scaduti. Ripeterla non cambia nulla: una seduta già abbinata si salta, una extra resta extra.
 
 - Il modello si valida prima di ogni scrittura: una finestra vuota, un sabato o una domenica in una finestra, o un numero di slot ripetuto fermano la sync (exit 65).
-- Senza modello in `profile` le sedute si salvano comunque e gli slot non si toccano. Quelle sedute non si abbinano più, perché la sync abbina solo le sedute nuove.
+- Senza modello in `profile` le sedute si salvano comunque e gli slot non si toccano: le abbina la prima sync con il modello. Lo stesso vale per le sedute salvate da una sync fallita prima degli slot (errore di D1).
 - Uno slot `saltata` che riceve una seduta perde il motivo. Il campo `date` (giorno scelto dall'utente) la sync non lo scrive.
 
 Esempio con un modello fittizio (slot 1 martedì o mercoledì, giorno A; slot 2 giovedì, giorno B; lunedì e venerdì non disponibili):

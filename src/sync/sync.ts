@@ -18,7 +18,11 @@ import {
   listSlotsByWeek,
   updateSlot,
 } from "../store/planning";
-import { knownSessionIds, upsertSession } from "../store/sessions";
+import {
+  knownSessionIds,
+  listSessionStarts,
+  upsertSession,
+} from "../store/sessions";
 
 // Sync delle sedute Mywellness in D1. Nessun log con dati: id, date e contenuti restano qui.
 
@@ -104,13 +108,13 @@ async function fetchSession(
 }
 
 /**
- * Abbina le sedute nuove agli slot delle settimane da `since` a `today`, creando gli slot
- * mancanti, poi segna `da_confermare` gli slot scaduti; restituisce il numero di slot modificati.
+ * Abbina agli slot le sedute della finestra che nessuno slot riferisce ancora, nuove o già
+ * salvate, creando gli slot mancanti delle settimane da `since` a `today`; poi segna
+ * `da_confermare` gli slot scaduti. Restituisce il numero di slot modificati.
  */
 async function updateSlots(
   db: Db,
   tpl: WeekTemplate,
-  sessions: Session[],
   since: string,
   today: string,
 ): Promise<number> {
@@ -127,12 +131,16 @@ async function updateSlots(
   for (let day = since; day <= today; day = addDays(day, 1)) {
     await slotsOf(isoWeek(day));
   }
-  let updated = 0;
   // In ordine di inizio: il sabato recupera lo slot 1 prima che la domenica recuperi il 2.
-  const ordered = sessions.toSorted(
-    (a, b) => Date.parse(a.started_at) - Date.parse(b.started_at),
+  const sessions = await listSessionStarts(db, since);
+  for (const s of sessions) await slotsOf(isoWeek(romeDate(s.started_at)));
+  const referenced = new Set(
+    [...weeks.values()].flat().flatMap((slot) => slot.session_id ?? []),
   );
-  for (const session of ordered) {
+  let updated = 0;
+  for (const session of sessions) {
+    // Già abbinata, o extra: riesaminare una extra dà di nuovo extra.
+    if (referenced.has(session.session_id)) continue;
     const date = romeDate(session.started_at);
     const slots = await slotsOf(isoWeek(date));
     const match = matchSession(date, slots, tpl);
@@ -163,7 +171,9 @@ async function updateSlots(
  * Salva in D1 le sedute nuove degli ultimi `lookbackDays` giorni (fino a `today`, data di
  * Roma) e aggiorna gli slot programmati. Le sedute già presenti non si scaricano di nuovo:
  * ripetere la sync non cambia nulla. Il modello settimanale si legge e tutte le sedute nuove
- * si scaricano prima di ogni scrittura: un errore non lascia sedute salvate senza slot.
+ * si scaricano prima di ogni scrittura: un modello non valido o un errore di Mywellness non
+ * scrive nulla. Se D1 fallisce dopo il salvataggio delle sedute, o se il modello manca, la
+ * sync successiva con il modello abbina comunque le sedute della finestra rimaste senza slot.
  */
 export async function sync(
   client: SyncClient,
@@ -182,15 +192,13 @@ export async function sync(
   for (const { session, series } of fetched) {
     await upsertSession(db, session, series);
   }
-  const sessions = fetched.map((f) => f.session);
   if (tpl === null) {
-    // Senza modello le sedute si salvano comunque; restano senza slot anche dopo, perché si
-    // abbinano solo le sedute nuove.
+    // Senza modello le sedute si salvano comunque: le abbina la prima sync con il modello.
     console.error(
       "Modello settimanale assente (profile, settimana_tipo): slot non aggiornati",
     );
-    return { newSessions: sessions.length, slotsUpdated: 0 };
+    return { newSessions: fetched.length, slotsUpdated: 0 };
   }
-  const slotsUpdated = await updateSlots(db, tpl, sessions, since, today);
-  return { newSessions: sessions.length, slotsUpdated };
+  const slotsUpdated = await updateSlots(db, tpl, since, today);
+  return { newSessions: fetched.length, slotsUpdated };
 }
