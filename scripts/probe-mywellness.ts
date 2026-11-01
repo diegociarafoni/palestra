@@ -7,7 +7,7 @@
 // (etichetta, stato HTTP, byte), su stderr le note; mai corpi, id, date, nomi o password.
 // Exit code: 0 ok · 64 argomenti · 65 profilo non interpretabile · 69 risposta HTTP
 // inattesa · 75 errore di rete, 429 o 5xx · 78 credenziali mancanti o rifiutate.
-import { mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
@@ -419,10 +419,17 @@ async function probe(
   },
 ): Promise<void> {
   // Permessi stretti: i corpi grezzi contengono dati personali finché non sono anonimizzati.
+  // `mode` vale solo per ciò che si crea: chmod anche sulla cartella e sui file esistenti.
   await mkdir(opts.outDir, { recursive: true, mode: 0o700 });
+  await chmod(opts.outDir, 0o700);
   const written = new Set<string>();
+  const writePrivate = async (name: string, data: Uint8Array | string) => {
+    const path = join(opts.outDir, name);
+    await writeFile(path, data, { mode: 0o600 });
+    await chmod(path, 0o600);
+  };
   const save: Saver = async (name, bytes) => {
-    await writeFile(join(opts.outDir, name), bytes, { mode: 0o600 });
+    await writePrivate(name, bytes);
     written.add(name);
   };
 
@@ -575,11 +582,7 @@ async function probe(
       profile,
       http.cookieValues(),
     );
-    await writeFile(
-      join(opts.outDir, "identities.json"),
-      JSON.stringify(identities, null, 2),
-      { mode: 0o600 },
-    );
+    await writePrivate("identities.json", JSON.stringify(identities, null, 2));
     console.log(`${written.size + 1} file scritti in ${opts.outDir}`);
   }
 }

@@ -1,10 +1,13 @@
 import {
+  chmodSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -477,4 +480,41 @@ describe("probe", () => {
       ]);
     },
   );
+
+  it("probe: tightens the modes of an existing probe_out and its files", async () => {
+    // Lasciati da un'esecuzione precedente leggibili da tutti: mode di mkdir e writeFile
+    // vale solo per ciò che si crea.
+    mkdirSync(outDir);
+    chmodSync(outDir, 0o755);
+    for (const name of ["login_form.html", "identities.json"]) {
+      writeFileSync(join(outDir, name), "vecchio");
+      chmodSync(join(outDir, name), 0o644);
+    }
+    server.use(
+      http.get(`${SITE}/cloud/User/Login`, () => HttpResponse.html(LOGIN_FORM)),
+      http.post(`${SITE}/cloud/User/Login`, () =>
+        HttpResponse.html("<p>ok</p>"),
+      ),
+      http.get(`${SITE}/cloud/Training`, () => HttpResponse.html(TRAINING)),
+      http.get(
+        `${SITE}/cloud/Training/LastPerformedWorkoutSession`,
+        () => new HttpResponse(null, { status: 503 }),
+      ),
+    );
+    expect(
+      await main(
+        [],
+        { MYWELLNESS_EMAIL: EMAIL, MYWELLNESS_PASSWORD: PASSWORD },
+        deps(),
+      ),
+    ).toBe(75);
+    expect(statSync(outDir).mode & 0o777).toBe(0o700);
+    for (const name of [
+      "login_form.html",
+      "login_ok.html",
+      "identities.json",
+    ]) {
+      expect(statSync(join(outDir, name)).mode & 0o777).toBe(0o600);
+    }
+  });
 });
