@@ -743,6 +743,21 @@ describe("shape", () => {
         ["L3", "B-7", "3B", "12K", "D4"],
       ),
     ).toEqual([]);
+    // Da 4 lettere proprie la forma con i 9 vale ovunque, anche attaccata ad altre lettere.
+    expect(
+      checkReport(
+        [
+          "input[name=ironmike99x]",
+          "xironmike99: numero 9",
+          "input[name=kq99zembId]",
+        ],
+        ["ironmike85", "kq7zemb"],
+      ),
+    ).toEqual([
+      { line: 1, kind: "identity" },
+      { line: 2, kind: "identity" },
+      { line: 3, kind: "identity" },
+    ]);
     // Un'identità con i caratteri delle espressioni regolari non rompe il controllo.
     expect(
       checkReport(["x99"], [String.raw`x1(b)[c]{d}.e*f+g?h^i$j|k\l-m/n`]),

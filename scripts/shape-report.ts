@@ -878,12 +878,15 @@ const ALL_DIGITS = /^\p{N}+$/u;
 /** Lettere che sono anche maschere: la `a` di ogni parola, la `T` e la `Z` delle date ISO. */
 const MASK_LETTERS = new Set(["a", "t", "z"]);
 
-/** Un'identità (già in minuscolo) con lettere che non sono maschere né parole di VOCAB. */
-function hasOwnLetters(identity: string): boolean {
-  return (identity.match(/\p{L}+/gu) ?? []).some(
-    (run) => !MASK_LETTERS.has(run) && !VOCAB.includes(run),
-  );
+/** Quante lettere di un'identità (già in minuscolo) non sono maschere né parole di VOCAB. */
+function ownLetters(identity: string): number {
+  return (identity.match(/\p{L}+/gu) ?? [])
+    .filter((run) => !MASK_LETTERS.has(run) && !VOCAB.includes(run))
+    .reduce((count, run) => count + [...run].length, 0);
 }
+
+/** Sotto queste lettere proprie un codice con i 9 vale solo tra confini (`l99` da `L3`). */
+const SHORT_CODE = 4;
 
 /**
  * Controllo finale, fail closed, su righe già mascherate: identità (parole di 3 o più
@@ -915,22 +918,27 @@ export function checkReport(
   }
   // Le stesse identità scritte con i 9: una cifra per `9`, e ogni sequenza di cifre per `99`
   // come nei nomi stampati, così un token con 1 o 2 cifre non passa per un nome. Solo per le
-  // identità con lettere proprie (`hasOwnLetters`): con i 9 una data di nascita, un telefono o un
-  // peso (`75 kg`) hanno la forma di ogni data e di ogni numero del rapporto. Tra confini di
-  // lettere e cifre: `l99` (da `L3`) sta anche dentro `level99`.
+  // identità con lettere proprie (`ownLetters`): con i 9 una data di nascita, un telefono o un
+  // peso (`75 kg`) hanno la forma di ogni data e di ogni numero del rapporto. Un codice breve,
+  // sotto SHORT_CODE lettere proprie, solo tra confini di lettere e cifre: `l99` (da `L3`) sta
+  // anche dentro `level99`; da SHORT_CODE in su ovunque (`xironmike99`).
   const nines = [...substrings]
-    .filter(hasOwnLetters)
-    .flatMap((text) =>
-      [text.replace(/\p{N}/gu, "9"), text.replace(/\p{N}+/gu, "99")]
+    .filter((text) => ownLetters(text) > 0)
+    .flatMap((text) => {
+      const [before, after] =
+        ownLetters(text) < SHORT_CODE
+          ? ["(?<![\\p{L}\\p{N}])", "(?![\\p{L}\\p{N}])"]
+          : ["", ""];
+      return [text.replace(/\p{N}/gu, "9"), text.replace(/\p{N}+/gu, "99")]
         .filter((variant) => variant !== text)
         .map(
           (variant) =>
             new RegExp(
-              `(?<![\\p{L}\\p{N}])${variant.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`,
+              `${before}${variant.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}${after}`,
               "u",
             ),
-        ),
-    );
+        );
+    });
   const fixed = new Set([
     ...INPUTS.map(({ heading }) => `## ${heading}`),
     "```text",
