@@ -222,6 +222,30 @@ describe("web", () => {
     expect(chart.querySelector("svg circle")).not.toBeNull();
   });
 
+  it("web: weight chart numbers in Italian", async () => {
+    // Tacche dell'asse del peso con la virgola decimale, come nella tabella.
+    const [base] = measures;
+    const inProtocol = [
+      ["2026-11-03", 80],
+      ["2026-11-05", 80.5],
+      ["2026-11-24", 81],
+    ].map(([date, weight_kg]) => ({ ...base, date, weight_kg }));
+    server.use(
+      http.get("/api/measures", () =>
+        HttpResponse.json({ measures: inProtocol }),
+      ),
+    );
+    renderConTema(<Misure />);
+
+    const chart = await screen.findByRole("region", {
+      name: "Peso in protocollo",
+    });
+    for (const tick of ["80", "80,5", "81"]) {
+      expect(within(chart).getByText(tick)).toBeTruthy();
+    }
+    expect(within(chart).queryByText("80.5")).toBeNull();
+  });
+
   it("web: api error shows retry", async () => {
     const user = userEvent.setup();
     let requests = 0;

@@ -6,6 +6,7 @@ import { useId } from "react";
 import type { Measure } from "../../../src/domain/types";
 import { testi } from "../testi";
 import { chartDate, formatChartDate } from "../utils/date";
+import { formatNumber } from "../utils/numeri";
 
 type GraficoPesoProps = { measures: Measure[] };
 
@@ -38,7 +39,13 @@ export function GraficoPeso({ measures }: GraficoPesoProps) {
               valueFormatter: (value: Date) => formatChartDate(value),
             },
           ]}
-          yAxis={[{ label: testi.measures.kg }]}
+          // Numeri come nella tabella (it-IT): tacche dell'asse e tooltip.
+          yAxis={[
+            {
+              label: testi.measures.kg,
+              valueFormatter: (value: number | null) => formatNumber(value),
+            },
+          ]}
           series={[
             {
               data: points.map((m) => m.weight_kg),
@@ -46,6 +53,7 @@ export function GraficoPeso({ measures }: GraficoPesoProps) {
               color: theme.vars.palette.grafici.serie1,
               // Un segno per misura: si vede anche una misura sola e dove cadono le date.
               showMark: true,
+              valueFormatter: (value: number | null) => formatNumber(value),
             },
           ]}
         />
