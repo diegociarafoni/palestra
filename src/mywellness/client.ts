@@ -32,7 +32,8 @@ const LOGIN_FORM_PATTERN = /\sname\s*=\s*["']UserBinder\.Password["']/i;
 // Il payload contiene anche dati personali: zod tiene solo questi campi.
 const CurrentUserSchema = z.object({
   id: z.string().min(1),
-  token: z.string().min(1),
+  // ASCII stampabile, senza spazi: il token va in un URL e nel comando `::add-mask::`.
+  token: z.string().regex(/^[\x21-\x7e]+$/),
   culture: z.string().min(1).default("en-GB"),
 });
 type CurrentUser = z.infer<typeof CurrentUserSchema>;
@@ -188,6 +189,11 @@ export class MywellnessClient {
 
   get userId(): string {
     return this.#requireUser().id;
+  }
+
+  /** Token di sessione: solo per mascherarlo nei log delle Actions (`::add-mask::`). */
+  get token(): string {
+    return this.#requireUser().token;
   }
 
   /**
