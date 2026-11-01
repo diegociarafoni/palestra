@@ -140,6 +140,63 @@ describe("planning", () => {
     ]);
   });
 
+  it("planning: session on the chosen day fills that slot", () => {
+    // Slot 2 (giovedì 5/11) spostato a sabato 7/11, slot 1 non fatto: il sabato recupera lo
+    // slot 2, non il primo slot non fatto.
+    expect(
+      matchSession(
+        "2026-11-07",
+        [
+          { ...slot1, status: "da_confermare" },
+          { ...slot2, status: "da_confermare", date: "2026-11-07" },
+        ],
+        tpl,
+      ),
+    ).toEqual({ kind: "slot", id: "2026-W45-2", status: "spostata" });
+    // Finestre sovrapposte (mercoledì in entrambe), slot 2 fissato a mercoledì 4/11: fatta.
+    const overlapping = [
+      slot1,
+      { ...slot2, window: ["2026-11-04", "2026-11-05"], date: "2026-11-04" },
+    ];
+    expect(matchSession("2026-11-04", overlapping, tpl)).toEqual({
+      kind: "slot",
+      id: "2026-W45-2",
+      status: "fatta",
+    });
+    // Fuori dal giorno scelto valgono le regole di prima: martedì 3/11 riempie lo slot 1.
+    expect(
+      matchSession(
+        "2026-11-03",
+        [{ ...slot1, date: "2026-11-04" }, slot2],
+        tpl,
+      ),
+    ).toEqual({ kind: "slot", id: "2026-W45-1", status: "fatta" });
+    // Uno slot già fatto non prende una seconda seduta, anche nel giorno scelto.
+    expect(
+      matchSession(
+        "2026-11-07",
+        [
+          { ...slot1, status: "fatta" },
+          { ...slot2, status: "spostata", date: "2026-11-07" },
+        ],
+        tpl,
+      ),
+    ).toEqual({ kind: "extra" });
+  });
+
+  it("planning: chosen day delays overdue", () => {
+    // Slot 1 (martedì 3/11 o mercoledì 4/11) spostato a sabato 7/11: non scade il 5/11 né il
+    // 7/11, scade l'8/11; lo slot 2 (giovedì 5/11) scade il 6/11. Con il giorno scelto dentro la
+    // finestra, scade come prima.
+    const moved = [{ ...slot1, date: "2026-11-07" }, slot2];
+    expect(overdue(moved, "2026-11-05")).toEqual([]);
+    expect(overdue(moved, "2026-11-07")).toEqual(["2026-W45-2"]);
+    expect(overdue(moved, "2026-11-08")).toEqual(["2026-W45-1", "2026-W45-2"]);
+    expect(
+      overdue([{ ...slot1, date: "2026-11-04" }, slot2], "2026-11-05"),
+    ).toEqual(["2026-W45-1"]);
+  });
+
   it("planning: done slot takes no second session", () => {
     expect(
       matchSession("2026-11-04", w45("fatta", "programmata"), tpl),
@@ -153,5 +210,25 @@ describe("planning", () => {
     expect(
       matchSession("2026-11-07", w45("fatta", "da_confermare"), tpl),
     ).toEqual({ kind: "slot", id: "2026-W45-2", status: "spostata" });
+  });
+
+  it("planning: saturday recovery leaves the slot chosen for sunday", () => {
+    // Slot 1 spostato a domenica 8/11, slot 2 (giovedì 5/11) mancato: la seduta di sabato 7/11
+    // recupera lo slot 2, e la domenica resta allo slot 1.
+    const sunday = { ...slot1, date: "2026-11-08" };
+    const missed = { ...slot2, status: "da_confermare" as const };
+    expect(matchSession("2026-11-07", [sunday, missed], tpl)).toEqual({
+      kind: "slot",
+      id: "2026-W45-2",
+      status: "spostata",
+    });
+    // Nessun altro slot aperto: il sabato recupera comunque lo slot 1.
+    expect(
+      matchSession(
+        "2026-11-07",
+        [sunday, { ...slot2, status: "fatta", session_id: "sess-d05" }],
+        tpl,
+      ),
+    ).toEqual({ kind: "slot", id: "2026-W45-1", status: "spostata" });
   });
 });

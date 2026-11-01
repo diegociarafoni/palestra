@@ -1,14 +1,17 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import type { JWTVerifyGetKey } from "jose";
 import { romeDate } from "../domain/dates";
 import { ParseError } from "../errors";
 import { type AccessEnv, AccessError, verifyAccess } from "./access";
 import { calendarRoute } from "./routes/calendar";
 import { exercisesRoute } from "./routes/exercises";
+import { createFeedbackRoute } from "./routes/feedback";
 import { measuresRoute } from "./routes/measures";
 import { reportsRoute } from "./routes/reports";
 import { createSchedaRoute } from "./routes/scheda";
+import { slotsRoute } from "./routes/slots";
 import { weekRoute } from "./routes/week";
 
 export type Env = AccessEnv & { DB: D1Database };
@@ -43,10 +46,16 @@ export function createApp(deps: AppDeps = {}) {
     .route("/api/week", weekRoute)
     .route("/api/calendar", calendarRoute)
     .route("/api/exercises", exercisesRoute)
+    .route("/api/feedback", createFeedbackRoute(today))
+    .route("/api/slots", slotsRoute)
     .onError((error, c) => {
       if (error instanceof AccessError) {
         const body = error.status === 401 ? "unauthorized" : "forbidden";
         return c.json({ error: body }, error.status, NO_STORE);
+      }
+      // Il validatore JSON di Hono rifiuta così un corpo che non è JSON valido.
+      if (error instanceof HTTPException && error.status === 400) {
+        return c.json({ error: "bad_request" }, 400, NO_STORE);
       }
       // Corpo fisso. Nel log una riga con il solo nome dell'errore (stack, cause e messaggi possono
       // contenere dati); per il ParseError anche il messaggio, che per costruzione nomina solo la

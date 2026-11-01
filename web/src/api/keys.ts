@@ -6,4 +6,7 @@ export const queryKeys = {
   week: (date: string) => ["week", date],
   exercises: (month: string) => ["exercises", month],
   calendar: (month: string) => ["calendar", month],
+  // Prefissi: tutte le settimane e tutti i mesi del calendario, da invalidare dopo una scrittura.
+  allWeeks: ["week"],
+  allCalendars: ["calendar"],
 };
