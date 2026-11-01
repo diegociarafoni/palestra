@@ -342,6 +342,7 @@ describe("client", () => {
       .catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(SyncError);
+    expect(error).not.toBeInstanceOf(UpstreamError);
     expect((error as Error).message).toBe("Mywellness: redirect non ammesso");
   });
 
@@ -373,6 +374,7 @@ describe("client", () => {
         .listSessionIds({ until })
         .catch((e: unknown) => e);
       expect(error).toBeInstanceOf(SyncError);
+      expect(error).not.toBeInstanceOf(UpstreamError);
       expect((error as Error).message).toBe(
         "Mywellness: data non valida (atteso AAAA-MM-GG)",
       );
@@ -381,6 +383,7 @@ describe("client", () => {
       .listSessionIds({ since: "2026-11-20", until: "2026-11-10" })
       .catch((e: unknown) => e);
     expect(reversed).toBeInstanceOf(SyncError);
+    expect(reversed).not.toBeInstanceOf(UpstreamError);
     expect((reversed as Error).message).toBe(
       "Mywellness: intervallo di date non valido (since dopo until)",
     );
