@@ -610,6 +610,18 @@ describe("shape", () => {
     expect(maskText("Ma\u0000rio\u0007", VOCAB)).toBe("A a ");
   });
 
+  it("shape: only known symbols are kept", () => {
+    // Punteggiatura e simboli ASCII e pochi segni tipografici; l'accento grave diventa `'`.
+    expect(maskText("!\"#$%&'()*+,-./:;<=>?@[\\]^_{|}~", VOCAB)).toBe(
+      "!\"#$%&'()*+,-./:;<=>?@[\\]^_{|}~",
+    );
+    // NFKC scrive `…` come tre punti.
+    expect(maskText("«»–—€°·’‘“”…", VOCAB)).toBe("«»–—€°·’‘“”...");
+    expect(maskText("a`b", VOCAB)).toBe("a'a");
+    // Ogni altro carattere che non è lettera, cifra o spazio diventa `?`.
+    expect(maskText("Kg ✓ 😀 × § \uE000 \uD800", VOCAB)).toBe("Kg ? ? ? ? ? ?");
+  });
+
   it("shape: final check fails closed", async () => {
     const lines = [
       'name: "Mario A"',

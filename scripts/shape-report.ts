@@ -100,6 +100,12 @@ const DIGITS = /^\p{N}/u;
 const SPACES = /^[\s\p{Cc}]/u;
 /** Caratteri invisibili: spazio di larghezza zero, trattino morbido, BOM… */
 const INVISIBLE = /\p{Cf}/gu;
+/**
+ * I soli simboli che restano: punteggiatura e simboli ASCII e pochi segni tipografici. Ogni
+ * altro carattere che non è lettera, cifra o spazio diventa `?` (un'emoji, un simbolo raro o un
+ * carattere privato potrebbero fare da contrassegno).
+ */
+const KEPT_SYMBOL = /^[!-/:-@[-`{-~«»–—€°·’‘“”…]$/u;
 /** Una sequenza di 1 o 2 cifre diventa `99`; oltre 20, 20 `9` e `…`. */
 const MIN_DIGITS = 2;
 const MAX_DIGITS = 20;
@@ -162,7 +168,7 @@ export function shapeContext(identities: readonly string[]): ShapeContext {
 
 /**
  * Il formato di un testo: lettere `a`/`A`, cifre `9` (almeno 2: una cifra sola direbbe che il
- * valore è sotto 10), spazi singoli, il resto com'è.
+ * valore è sotto 10), spazi singoli, i simboli di KEPT_SYMBOL, `?` per il resto.
  */
 export function maskText(text: string, vocab: readonly string[]): string {
   const runs = text.normalize("NFKC").replace(INVISIBLE, "").match(RUN) ?? [];
@@ -175,7 +181,8 @@ export function maskText(text: string, vocab: readonly string[]): string {
           ? `${"9".repeat(MAX_DIGITS)}…`
           : "9".repeat(Math.max(length, MIN_DIGITS));
       }
-      if (!LETTERS.test(run)) return run;
+      if (run === "`") return "'";
+      if (!LETTERS.test(run)) return KEPT_SYMBOL.test(run) ? run : "?";
       if (vocab.includes(fold(run))) return run;
       // La `T` e la `Z` delle date ISO (`…29T18:30:00Z`).
       const afterDigits = DIGITS.test(runs[i - 1] ?? "");
