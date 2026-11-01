@@ -110,6 +110,18 @@ const KEPT_SYMBOL = /^[!-/:-@[-`{-~«»–—€°·’‘“”…]$/u;
 const MIN_DIGITS = 2;
 const MAX_DIGITS = 20;
 
+/** Lettere che NFD non scompone in lettera e accento. */
+const TRANSLITERATION: Readonly<Record<string, string>> = {
+  ł: "l",
+  ø: "o",
+  ß: "ss",
+  ı: "i",
+  đ: "d",
+  æ: "ae",
+  œ: "oe",
+  þ: "th",
+};
+
 /** Forma di confronto: NFKC, senza caratteri invisibili, minuscole, senza accenti. */
 function fold(text: string): string {
   return text
@@ -117,7 +129,8 @@ function fold(text: string): string {
     .replace(INVISIBLE, "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/\p{M}/gu, "");
+    .replace(/\p{M}/gu, "")
+    .replace(/[łøßıđæœþ]/gu, (letter) => TRANSLITERATION[letter] ?? letter);
 }
 
 /** Un'identità fatta solo di lettere, spazi, apostrofi, punti e trattini: un nome. */

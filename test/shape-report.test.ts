@@ -622,6 +622,40 @@ describe("shape", () => {
     expect(maskText("Kg ✓ 😀 × § \uE000 \uD800", VOCAB)).toBe("Kg ? ? ? ? ? ?");
   });
 
+  it("shape: letters without a decomposition are folded too", () => {
+    const lines = [
+      "Łukasz",
+      "Søren",
+      "Strauß",
+      "Yıldız",
+      "Đorđe",
+      "Ævar",
+      "Œuvre",
+      "Þór",
+    ];
+    expect(
+      checkReport(lines, [
+        "Lukasz",
+        "Soren",
+        "Strauss",
+        "Yildiz",
+        "Dorde",
+        "Aevar",
+        "Oeuvre",
+        "Thor",
+      ]),
+    ).toEqual([
+      { line: 1, kind: "identity" },
+      { line: 2, kind: "identity" },
+      { line: 3, kind: "identity" },
+      { line: 4, kind: "identity" },
+      { line: 5, kind: "identity" },
+      { line: 6, kind: "identity" },
+      { line: 7, kind: "identity" },
+      { line: 8, kind: "identity" },
+    ]);
+  });
+
   it("shape: final check fails closed", async () => {
     const lines = [
       'name: "Mario A"',
