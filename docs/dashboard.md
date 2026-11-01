@@ -8,9 +8,9 @@ Una SPA React + MUI (`web/`, compilata in `site/` con `npm run build:web`) e un'
 
 | Pagina | Percorso | Cosa mostra |
 | --- | --- | --- |
-| Settimana | `/` | Slot programmati della settimana con il loro stato, sedute e MOVEs. Arriva con la parte 2 del Task 10: per ora "Nessun dato". |
-| Calendario | `/calendario` | Slot, sedute extra e feedback del mese (parte 2 del Task 10; la scrittura del feedback con il Task 12). Per ora "Nessun dato". |
-| Esercizi | `/esercizi` | Tabella della forza e serie dell'e1RM del mese, dalle metriche del report (parte 2 del Task 10). Per ora "Nessun dato". |
+| Settimana | `/` | La settimana di oggi (ora di Roma): per ogni slot la seduta della scheda, i giorni ammessi, lo stato, il giorno in cui è stato svolto ("Svolta") e quello scelto ("Giorno scelto"), il motivo; sotto, le sedute della settimana e il totale dei MOVEs. Tornando sulla pagina in un altro giorno passa da sola alla settimana nuova. |
+| Calendario | `/calendario` | In sola lettura (la scrittura del feedback arriva con il Task 12). Slot del mese per settimana, sedute extra e, per ogni seduta, il suo feedback; i feedback del mese che non appartengono a nessuna seduta mostrata (salvati prima della sync, o di una seduta abbinata a uno slot del mese prima) stanno in "Altri feedback". Parte dal mese corrente. |
+| Esercizi | `/esercizi` | Dalle metriche del report: un piccolo grafico dell'e1RM per esercizio (asse y proprio, punti uniti da segmenti dritti), poi la tabella della forza (prima → ultima serie, e1RM, variazione, affidabilità, prossimo passo). Parte dal mese precedente, come il Report. |
 | Misure | `/misure` | Grafico del peso con le sole misure in protocollo, poi la tabella di tutte le misure. |
 | Scheda | `/scheda` | Versione e validità della scheda attiva oggi (ora di Roma), poi il suo Markdown. |
 | Report | `/report` | Report e revisione del mese, dal Markdown salvato in D1. Parte dal mese precedente; il selettore cambia mese. |
@@ -21,15 +21,19 @@ Una SPA React + MUI (`web/`, compilata in `site/` con `npm run build:web`) e un'
 
 ### API
 
-Rotte `GET` in `src/api/routes/` (la parte 2 del Task 10 aggiunge `/api/week`, `/api/exercises`, `/api/calendar`):
+Rotte `GET` in `src/api/routes/`:
 
 | Rotta | Risposta 200 | Altri esiti |
 | --- | --- | --- |
 | `/api/measures` | `{ measures }`: tutte le misure, in ordine di data | — |
 | `/api/scheda` | `{ version, valid_from, valid_to, md, json }` della scheda attiva oggi (Europe/Rome) | 404 se nessuna scheda è attiva |
 | `/api/reports/:month` (`AAAA-MM`) | `{ month, report, revisione }`: Markdown oppure `null` | 400 mese non valido · 404 né report né revisione |
+| `/api/week?date=AAAA-MM-GG` | `{ slots, sessions, moves_total }`: slot della settimana ISO di `date`, ciascuno con `session: { date, seq }` della seduta abbinata (o `null`); sedute da lunedì a domenica (date di Roma) | 400 data non valida |
+| `/api/calendar?month=AAAA-MM` | `{ slots, extra, feedback }`: slot del mese con `session` come sopra; sedute del mese che nessuno slot cita, ciascuna con il suo `seq`; feedback del mese più quello dei giorni del mese dopo in cui cadono le sedute degli slot del mese | 400 mese non valido |
+| `/api/exercises?month=AAAA-MM` | `{ strength_table, e1rm_series }` dalle metriche del mese; liste vuote se il report manca | 400 mese non valido |
 
 - Errori con corpo fisso, senza dati: `{"error":"bad_request"}` 400, `{"error":"unauthorized"}` 401, `{"error":"forbidden"}` 403, `{"error":"not_found"}` 404 (anche per una rotta inesistente), `{"error":"internal"}` 500. Nel log delle Functions un errore interno è una sola riga, `api: internal <nome dell'errore>`.
+- Feedback e sedute si abbinano per giorno e numero della seduta nel giorno (`seq`, contando tutte le sedute del giorno in ordine di orario), non per il giorno scelto dello slot, che la sync non scrive ([decisione](../kb/decisioni/2026-11-01-feedback-abbinato-per-giorno-e-ordine.md)).
 - Ogni risposta di `/api/*` ha `Cache-Control: no-store`: i dati di salute non restano nella cache del telefono né dei proxy.
 - Access è verificato anche dalle Functions (`src/api/access.ts`), non solo dall'applicazione Access davanti all'hostname. Ogni richiesta deve portare in `Cf-Access-Jwt-Assertion` un JWT RS256 firmato con le chiavi del team (`https://<ACCESS_TEAM_DOMAIN>/cdn-cgi/access/certs`), con emittente `https://<ACCESS_TEAM_DOMAIN>`, audience `ACCESS_AUD`, scadenza `exp` ed e-mail uguale a `ALLOWED_EMAIL` (maiuscole e minuscole indifferenti). Token assente o non valido → 401; e-mail diversa → 403; variabili mancanti o con spazi ai bordi → 500 (fail closed). Così non legge dati nemmeno una richiesta arrivata per un'altra via, per esempio `*.pages.dev`.
 
