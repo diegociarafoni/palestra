@@ -330,8 +330,24 @@ describe("restore-test", () => {
 
   it("restore-test: counting edge cases, the same as scripts/prova-ripristino.sh", async () => {
     const io = output();
-    const tables = ["Mixed_Case1", "_x", "a_cf_b", "audit", "sessions"];
-    const counts = { Mixed_Case1: 1, _x: 1, a_cf_b: 1, audit: 3, sessions: 1 };
+    const tables = [
+      "Mixed_Case1",
+      "_cfg",
+      "_x",
+      "a_cf_b",
+      "audit",
+      "sessions",
+      "sqlitex",
+    ];
+    const counts = {
+      Mixed_Case1: 1,
+      _cfg: 1,
+      _x: 1,
+      a_cf_b: 1,
+      audit: 3,
+      sessions: 1,
+      sqlitex: 1,
+    };
     const f = fakes(
       {
         tables: { "palestra-restore-test": tables, palestra: tables },
@@ -355,10 +371,12 @@ describe("restore-test", () => {
       [
         HEADER,
         "Mixed_Case1                  1           1           1",
+        "_cfg                         1           1           1",
         "_x                           1           1           1",
         "a_cf_b                       1           1           1",
         "audit                        3           3           3",
         "sessions                     1           1           1",
+        "sqlitex                      1           1           1",
         "",
       ].join("\n"),
     );

@@ -198,10 +198,12 @@ describe("prova-ripristino", () => {
       [
         "tabella                   dump",
         "Mixed_Case1                  1",
+        "_cfg                         1",
         "_x                           1",
         "a_cf_b                       1",
         "audit                        3",
         "sessions                     1",
+        "sqlitex                      1",
         DONE,
         "",
       ].join("\n"),
@@ -278,6 +280,19 @@ describe("prova-ripristino", () => {
     expect(result.status).toBe(0);
     expect(calls()[0]?.[6]).toBe("palestra-backup/palestra-2026-11-02.sql");
   });
+
+  it.each(["d1 create", "d1 execute"])(
+    "prova-ripristino: a failing %s prints no dump counts on stdout",
+    (step) => {
+      const result = run(["2026-10-31"], {
+        FAKE_FAIL: step,
+        FAKE_DOWNLOAD: DUMP,
+      });
+      expect(result.status).toBe(69);
+      expect(result.stdout).toBe("");
+      expect(readdirSync(tmp)).toEqual([]);
+    },
+  );
 
   it("prova-ripristino: stops at the first failing step and deletes the download", () => {
     const result = run(["2026-10-31"], { FAKE_FAIL: "d1 create" });
