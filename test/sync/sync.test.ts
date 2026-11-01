@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import type { Db } from "../../src/db/types";
 import { type Session, SessionSchema } from "../../src/domain/types";
 import { ParseError, TransientError } from "../../src/errors";
@@ -45,8 +46,15 @@ const SETS_TABLE = `<table>
 <tr><td>1</td><td>10</td><td>9</td><td>45</td><td>45</td><td>100 %</td><td>90 %</td></tr>
 </table>`;
 
-// Client finto: sedute nell'ordine dato (id → seduta grezza), pagine di dettaglio facoltative
-// e registro delle chiamate.
+// Giorno della seduta grezza ("2026-11-03 18:00:00 +01:00" → "2026-11-03").
+const startDay = (raw: unknown): string =>
+  z
+    .object({ data: z.object({ startedOn: z.string() }) })
+    .parse(raw)
+    .data.startedOn.slice(0, 10);
+
+// Client finto: sedute nell'ordine dato (id → seduta grezza) filtrate per `since`/`until`
+// come fa Mywellness, pagine di dettaglio facoltative e registro delle chiamate.
 function fakeClient(
   sessions: [string, unknown][],
   pages: { strength?: string; series?: unknown } = {},
@@ -61,7 +69,10 @@ function fakeClient(
   const client: SyncClient = {
     listSessionIds: async (opts = {}) => {
       calls.list.push(opts);
-      return [...byId.keys()];
+      const { since = "", until = "9999-12-31" } = opts;
+      return sessions
+        .filter(([, raw]) => since <= startDay(raw) && startDay(raw) <= until)
+        .map(([id]) => id);
     },
     getSession: async (id) => {
       calls.getSession.push(id);
@@ -487,6 +498,31 @@ describe("sync", () => {
     expect(slots.map((s) => [s.id, s.status, s.session_id])).toEqual([
       ["2026-W45-1", "fatta", "s-tue"],
       ["2026-W45-2", "da_confermare", null],
+    ]);
+  });
+
+  it("sync: stored extra session stays extra", async () => {
+    await saveTemplate();
+    // Martedì riempie lo slot 1; mercoledì cade nella stessa finestra, già fatta: extra.
+    const { client } = fakeClient([
+      ["s-tue", raw("2026-11-03 18:00:00 +01:00")],
+      ["s-wed", raw("2026-11-04 18:00:00 +01:00")],
+    ]);
+    const opts = { today: "2026-11-04", lookbackDays: 2 };
+    expect(await sync(client, env.DB, opts)).toEqual({
+      newSessions: 2,
+      slotsUpdated: 1,
+    });
+
+    // La seduta extra resta senza slot: riesaminarla non cambia nulla.
+    expect(await sync(client, env.DB, opts)).toEqual({
+      newSessions: 0,
+      slotsUpdated: 0,
+    });
+    const slots = await listSlotsByWeek(env.DB, "2026-W45");
+    expect(slots.map((s) => [s.id, s.status, s.reason, s.session_id])).toEqual([
+      ["2026-W45-1", "fatta", null, "s-tue"],
+      ["2026-W45-2", "programmata", null, null],
     ]);
   });
 });
