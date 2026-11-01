@@ -340,6 +340,28 @@ describe("shape", () => {
     ]);
   });
 
+  it("shape: names glued to the user's name are masked", () => {
+    // Le parole vengono solo dai nomi e dalla parte locale dell'e-mail: "user" in un URL non
+    // maschera `userId`.
+    const glued = shapeContext([
+      ...IDENTITIES,
+      "Mario Rossi",
+      "https://example.com/user/photo.jpg",
+    ]);
+    expect(
+      shapeOfHtml(
+        '<div id="mariorossi" name="MRossi" for="user_mrossi" role="ROSSIM" class="initials-MR" type="userId"></div>',
+        glued,
+      ),
+    ).toEqual([
+      "div[id=«a», name=«A», for=«a_a», role=«A», class=«a-A», type=userId]",
+    ]);
+    expect(shapeOfJson({ userId: 1, user_mrossi: 2 }, glued)).toEqual([
+      "userId: numero 9",
+      "«a_a»: numero 9",
+    ]);
+  });
+
   it("shape: keeps the property names the parser reads", () => {
     // normalize.ts sceglie i valori per `physicalProperty` e `property` (es. "HDistance"):
     // solo lì il valore resta scritto, se ha la forma di un nome senza spazi.

@@ -85,6 +85,8 @@ export type ShapeContext = {
   /** Parole lasciate in chiaro, in minuscolo e senza accenti. */
   vocab: readonly string[];
   identityWords: ReadonlySet<string>;
+  /** Iniziali dei nomi tra le identità (`mr` per "Mario Rossi"), in minuscolo. */
+  initials: ReadonlySet<string>;
 };
 
 /**
@@ -112,10 +114,39 @@ function fold(text: string): string {
     .replace(/\p{M}/gu, "");
 }
 
-/** Parole di 3 o più lettere delle identità: più corte non identificano nessuno. */
+/** Un'identità fatta solo di lettere, spazi, apostrofi, punti e trattini: un nome. */
+const NAME_LIKE = /^[\p{L} '.-]+$/u;
+
+/**
+ * Parole di 3 o più lettere (più corte non identificano nessuno) dei nomi tra le identità e
+ * della parte locale dell'e-mail. Token, cookie, URL e GUID non si spezzano in parole: restano
+ * sottostringhe per il controllo finale, e parole come "user" o "https" prese da un URL
+ * maschererebbero nomi utili come `userId`.
+ */
 function identityWordsOf(identities: readonly string[]): Set<string> {
   return new Set(
-    identities.flatMap((identity) => fold(identity).match(/\p{L}{3,}/gu) ?? []),
+    identities.flatMap((raw) => {
+      const identity = fold(raw);
+      const at = identity.indexOf("@");
+      const source = NAME_LIKE.test(identity)
+        ? identity
+        : at > 0
+          ? identity.slice(0, at)
+          : "";
+      return source.match(/\p{L}{3,}/gu) ?? [];
+    }),
+  );
+}
+
+/** Le prime lettere delle prime due parole di ogni nome tra le identità. */
+function initialsOf(identities: readonly string[]): Set<string> {
+  return new Set(
+    identities.flatMap((raw) => {
+      const identity = fold(raw);
+      if (!NAME_LIKE.test(identity)) return [];
+      const match = /^[^\p{L}]*(\p{L})\S*\s+[^\p{L}]*(\p{L})/u.exec(identity);
+      return match ? [`${match[1]}${match[2]}`] : [];
+    }),
   );
 }
 
@@ -125,6 +156,7 @@ export function shapeContext(identities: readonly string[]): ShapeContext {
   return {
     vocab: VOCAB.filter((word) => !identityWords.has(word)),
     identityWords,
+    initials: initialsOf(identities),
   };
 }
 
@@ -167,17 +199,30 @@ const PROPERTY_VALUE = /^[A-Za-z][A-Za-z0-9]{0,40}$/;
 
 /**
  * Un nome (chiave, tag, attributo, valore di `class`…) si stampa com'è solo se ha la forma
- * attesa, meno di 3 cifre in tutto e nessuna parte che sia parola di un'identità. Le cifre
- * si contano in tutto, non solo di fila: un id esadecimale può non averne 3 consecutive.
- * Le parti sono le sequenze di lettere, spezzate anche tra minuscola e maiuscola: in
- * `marioRossi` il controllo finale, che cerca le parole tra confini di lettera, non vedrebbe
- * il nome.
+ * attesa, meno di 3 cifre in tutto e niente delle identità. Le cifre si contano in tutto, non
+ * solo di fila: un id esadecimale può non averne 3 consecutive. Le parti sono le sequenze di
+ * lettere, spezzate anche tra minuscola e maiuscola: in `marioRossi` il controllo finale, che
+ * cerca le parole tra confini di lettera, non vedrebbe il nome. Una parte non può essere
+ * parola di un'identità, né, se è di 2 maiuscole, le sue iniziali (`MR`); una parola di
+ * un'identità di 4 o più lettere non può stare in nessun punto delle lettere unite del nome
+ * (`mariorossi`, `user_mrossi`).
  */
 function isPlainName(name: string, shape: RegExp, ctx: ShapeContext): boolean {
   if (!shape.test(name) || (name.match(/\d/g)?.length ?? 0) >= 3) return false;
-  return !name
-    .split(/[^\p{L}]+|(?<=\p{Ll})(?=\p{Lu})/u)
-    .some((part) => ctx.identityWords.has(fold(part)));
+  const parts = name.split(/[^\p{L}]+|(?<=\p{Ll})(?=\p{Lu})/u);
+  if (
+    parts.some(
+      (part) =>
+        ctx.identityWords.has(fold(part)) ||
+        (/^\p{Lu}{2}$/u.test(part) && ctx.initials.has(fold(part))),
+    )
+  ) {
+    return false;
+  }
+  const letters = (fold(name).match(/\p{L}+/gu) ?? []).join("");
+  return ![...ctx.identityWords].some(
+    (word) => word.length >= 4 && letters.includes(word),
+  );
 }
 
 /** Riga di intestazione e righe interne (non indentate) di un valore JSON. */
@@ -434,13 +479,13 @@ export const DATE_ABBREVIATIONS: ReadonlySet<string> = new Set([
   ...["mon", "tue", "tues", "wed", "thu", "thur", "thurs", "fri", "sat", "sun"],
 ]);
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const NAME_LIKE = /^[\p{L} '.-]+$/u;
 const ALL_DIGITS = /^\p{N}+$/u;
 
 /**
  * Controllo finale, fail closed, su righe già mascherate: identità (parole di 3 o più
- * lettere tra confini di lettera; e-mail e sua parte locale, GUID con e senza trattini,
- * token e cookie come sottostringhe; identità di sole cifre, da 4, tra confini di cifra),
+ * lettere dei nomi e della parte locale dell'e-mail, tra confini di lettera; e-mail e sua
+ * parte locale, GUID con e senza trattini, token, cookie, URL e le altre identità che non
+ * sono nomi come sottostringhe; identità di sole cifre, da 4, tra confini di cifra),
  * numeri (3 o più cifre non tutte `9`), date (nomi di mesi e giorni, anche abbreviati). Con le
  * maschere corrette non trova nulla: un risultato è un difetto o un nome che sembra un dato.
  */
