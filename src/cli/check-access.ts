@@ -10,7 +10,8 @@
 // delle Actions è pubblico).
 // Exit code (docs/buone-pratiche.md § 8, `exitCodeFor`): 0 ok · 64 argomenti · 70 errore inatteso
 // (solo il nome) · 75 errore di rete o timeout (rilanciare) · 78 DASHBOARD_HOSTNAME o
-// PAGES_HOSTNAME mancante o non valido, Access non attivo o non come previsto.
+// PAGES_HOSTNAME mancante o non valido (anche DASHBOARD_HOSTNAME su pages.dev), Access non attivo
+// o non come previsto.
 import { pathToFileURL } from "node:url";
 import { exitCodeFor, TransientError } from "../errors";
 
@@ -173,6 +174,14 @@ export async function main(
   if (!pagesHost || !PAGES_HOSTNAME.test(pagesHost) || !isUrlHost(pagesHost)) {
     console.error(
       "PAGES_HOSTNAME mancante o non valido: serve il solo nome host <sottodominio>.pages.dev del progetto, senza https://, percorso o spazi",
+    );
+    return 78;
+  }
+  // Un dominio pages.dev al posto del dominio personalizzato: quest'ultimo non verrebbe mai
+  // controllato. Copre anche DASHBOARD_HOSTNAME uguale a PAGES_HOSTNAME, che finisce sempre così.
+  if (host.toLowerCase().endsWith(".pages.dev")) {
+    console.error(
+      "DASHBOARD_HOSTNAME è un dominio pages.dev: serve il dominio personalizzato della dashboard (docs/dashboard.md, «Configurazione», passo 2), che altrimenti non verrebbe mai controllato",
     );
     return 78;
   }

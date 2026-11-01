@@ -452,6 +452,38 @@ describe("check-access", () => {
     expect(output()).not.toContain(HOST);
   });
 
+  // Con un dominio pages.dev al posto del dominio personalizzato, quest'ultimo non verrebbe mai
+  // controllato.
+  it.each<{ label: string; env: Record<string, string> }>([
+    {
+      label: "equal to PAGES_HOSTNAME",
+      env: { DASHBOARD_HOSTNAME: PAGES_DEV, PAGES_HOSTNAME: PAGES_DEV },
+    },
+    {
+      label: "another pages.dev host",
+      env: { ...ENV, DASHBOARD_HOSTNAME: `abc123.${PAGES_DEV}` },
+    },
+    {
+      label: "a pages.dev host in capitals",
+      env: { ...ENV, DASHBOARD_HOSTNAME: "ALTRO-PROGETTO.PAGES.DEV" },
+    },
+  ])(
+    "check-access: exit 78 when DASHBOARD_HOSTNAME is $label",
+    async ({ env }) => {
+      const requests = recordRequests();
+      expect(await main([], env)).toBe(78);
+      expect(requests).toEqual([]);
+      expect(stderr.mock.calls).toEqual([
+        [
+          "DASHBOARD_HOSTNAME è un dominio pages.dev: serve il dominio personalizzato della dashboard (docs/dashboard.md, «Configurazione», passo 2), che altrimenti non verrebbe mai controllato",
+        ],
+      ]);
+      for (const name of ["progetto", "PROGETTO", HOST]) {
+        expect(output()).not.toContain(name);
+      }
+    },
+  );
+
   it("check-access: exit 75 on a network error, without printing it", async () => {
     // Come l'errore di undici con un DNS che non risponde: messaggio e causa nominano l'host.
     const failingFetch = async (): Promise<Response> => {
