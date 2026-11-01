@@ -78,6 +78,23 @@ describe("check-access", () => {
     },
     { label: "plain http", location: LOGIN.replace("https:", "http:") },
     { label: "a relative path", location: "/cdn-cgi/access/login" },
+    // L'host vero è dopo la `@`: le credenziali nell'URL non contano.
+    {
+      label: "a userinfo trick",
+      location: "https://esempio.cloudflareaccess.com@login.example.net/",
+    },
+    {
+      label: "a longer host",
+      location: "https://esempio.cloudflareaccess.com.example.net/",
+    },
+    {
+      label: "a host without the dot",
+      location: "https://evilcloudflareaccess.com/",
+    },
+    {
+      label: "a protocol-relative url",
+      location: "//login.example.net/accedi",
+    },
   ])("check-access: exit 78 on a redirect to $label", async ({ location }) => {
     server.use(
       http.get(
@@ -99,17 +116,35 @@ describe("check-access", () => {
     expect(output()).not.toContain(location);
   });
 
+  it("check-access: exit 78 on a 200 that carries a login location", async () => {
+    server.use(
+      http.get(
+        `https://${HOST}/`,
+        () =>
+          new HttpResponse(null, { status: 200, headers: { Location: LOGIN } }),
+      ),
+      http.get(`https://${HOST}/api/measures`, toAccessLogin),
+    );
+    expect(await main([], ENV)).toBe(78);
+    expect(stderr.mock.calls).toEqual([
+      [
+        "Access non attivo su /: risposta 200, atteso un redirect al login di Access (*.cloudflareaccess.com)",
+      ],
+    ]);
+  });
+
   /** Access come da documentazione: con `X-Requested-With` e senza sessione risponde 401. */
   const apiAnswering = (xhrStatus: number) =>
     http.get(`https://${HOST}/api/measures`, ({ request }) => {
       if (request.headers.get("cookie") !== null) {
         return HttpResponse.text("richiesta con cookie", { status: 500 });
       }
-      return request.headers.get("x-requested-with") === "XMLHttpRequest"
-        ? xhrStatus === 401
-          ? new HttpResponse(null, { status: 401 })
-          : toAccessLogin()
-        : toAccessLogin();
+      if (request.headers.get("x-requested-with") !== "XMLHttpRequest") {
+        return toAccessLogin();
+      }
+      return xhrStatus === 302
+        ? toAccessLogin()
+        : new HttpResponse(null, { status: xhrStatus });
     });
 
   it("check-access: --after-deploy also wants 401 for an xhr request", async () => {
@@ -122,15 +157,40 @@ describe("check-access", () => {
     ]);
   });
 
-  it("check-access: --after-deploy exit 78 when the xhr request is redirected", async () => {
-    server.use(http.get(`https://${HOST}/`, toAccessLogin), apiAnswering(302));
+  it.each([{ xhrStatus: 302 }, { xhrStatus: 200 }, { xhrStatus: 403 }])(
+    "check-access: --after-deploy exit 78 when the xhr request answers $xhrStatus",
+    async ({ xhrStatus }) => {
+      server.use(
+        http.get(`https://${HOST}/`, toAccessLogin),
+        apiAnswering(xhrStatus),
+      );
+      expect(await main(["--after-deploy"], ENV)).toBe(78);
+      expect(stderr.mock.calls).toEqual([
+        [
+          `GET /api/measures con X-Requested-With: risposta ${xhrStatus}, attesa 401. Il deploy è avvenuto e i dati restano protetti, ma con la sessione scaduta la dashboard mostrerà un errore invece di ricaricarsi (docs/dashboard.md, «Se il deploy fallisce»)`,
+        ],
+      ]);
+      expect(output()).not.toContain(HOST);
+    },
+  );
+
+  it("check-access: --after-deploy re-checks the redirects before the xhr request", async () => {
+    const xhrHeaders: string[] = [];
+    server.events.on("request:start", ({ request }) => {
+      xhrHeaders.push(request.headers.get("x-requested-with") ?? "-");
+    });
+    server.use(
+      http.get(`https://${HOST}/`, () => HttpResponse.text("<!doctype html>")),
+      apiAnswering(401),
+    );
     expect(await main(["--after-deploy"], ENV)).toBe(78);
+    server.events.removeAllListeners();
     expect(stderr.mock.calls).toEqual([
       [
-        "GET /api/measures con X-Requested-With: risposta 302, attesa 401. Il deploy è avvenuto e i dati restano protetti, ma con la sessione scaduta la dashboard mostrerà un errore invece di ricaricarsi (docs/dashboard.md, «Se il deploy fallisce»)",
+        "Access non attivo su /: risposta 200, atteso un redirect al login di Access (*.cloudflareaccess.com)",
       ],
     ]);
-    expect(output()).not.toContain(HOST);
+    expect(xhrHeaders).not.toContain("XMLHttpRequest");
   });
 
   it("check-access: without --after-deploy no xhr request is made", async () => {
@@ -160,6 +220,9 @@ describe("check-access", () => {
     { label: "empty", env: { DASHBOARD_HOSTNAME: "" } },
     { label: "a url", env: { DASHBOARD_HOSTNAME: `https://${HOST}` } },
     { label: "with a path", env: { DASHBOARD_HOSTNAME: `${HOST}/api` } },
+    { label: "with a trailing slash", env: { DASHBOARD_HOSTNAME: `${HOST}/` } },
+    { label: "with a port", env: { DASHBOARD_HOSTNAME: `${HOST}:8443` } },
+    { label: "with http://", env: { DASHBOARD_HOSTNAME: `http://${HOST}` } },
     { label: "with spaces", env: { DASHBOARD_HOSTNAME: ` ${HOST}\n` } },
   ])(
     "check-access: exit 78 when DASHBOARD_HOSTNAME is $label",
