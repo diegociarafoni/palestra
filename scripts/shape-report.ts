@@ -60,7 +60,6 @@ export const VOCAB: readonly string[] = [
   "rpm",
   "sec",
   "serie",
-  "set",
   "sets",
   "speed",
   "spm",
@@ -365,7 +364,7 @@ export function shapeOfHtml(html: string, ctx: ShapeContext): string[] {
 export type Hit = { line: number; kind: "identity" | "number" | "date" };
 
 /** Mesi e giorni della settimana per intero, in italiano e in inglese, senza accenti. */
-const DATE_WORDS = new Set([
+export const DATE_WORDS: ReadonlySet<string> = new Set([
   "gennaio",
   "febbraio",
   "marzo",
@@ -405,6 +404,18 @@ const DATE_WORDS = new Set([
   "saturday",
   "sunday",
 ]);
+/** Le loro abbreviazioni: "set" è settembre in it-IT, quindi non sta in VOCAB. */
+export const DATE_ABBREVIATIONS: ReadonlySet<string> = new Set([
+  // Mesi in italiano.
+  ...["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "sett"],
+  ...["ott", "nov", "dic"],
+  // Mesi in inglese.
+  ...["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "sept"],
+  ...["oct", "nov", "dec"],
+  // Giorni in italiano e in inglese.
+  ...["lun", "mar", "mer", "gio", "ven", "sab", "dom"],
+  ...["mon", "tue", "tues", "wed", "thu", "thur", "thurs", "fri", "sat", "sun"],
+]);
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const NAME_LIKE = /^[\p{L} '.-]+$/u;
 const ALL_DIGITS = /^\p{N}+$/u;
@@ -413,7 +424,7 @@ const ALL_DIGITS = /^\p{N}+$/u;
  * Controllo finale, fail closed, su righe già mascherate: identità (parole di 3 o più
  * lettere tra confini di lettera; e-mail e sua parte locale, GUID con e senza trattini,
  * token e cookie come sottostringhe; identità di sole cifre, da 4, tra confini di cifra),
- * numeri (3 o più cifre non tutte `9`), date (nomi di mesi e giorni per intero). Con le
+ * numeri (3 o più cifre non tutte `9`), date (nomi di mesi e giorni, anche abbreviati). Con le
  * maschere corrette non trova nulla: un risultato è un difetto o un nome che sembra un dato.
  */
 export function checkReport(
@@ -449,7 +460,11 @@ export function checkReport(
     if (digitRuns.some((run) => [...run].length >= 3 && /[^9]/u.test(run))) {
       hits.push({ line: i + 1, kind: "number" });
     }
-    if (letterRuns.some((run) => DATE_WORDS.has(run))) {
+    if (
+      letterRuns.some(
+        (run) => DATE_WORDS.has(run) || DATE_ABBREVIATIONS.has(run),
+      )
+    ) {
       hits.push({ line: i + 1, kind: "date" });
     }
   });

@@ -19,6 +19,8 @@ import {
 } from "vitest";
 import {
   checkReport,
+  DATE_ABBREVIATIONS,
+  DATE_WORDS,
   main,
   maskText,
   shapeContext,
@@ -158,7 +160,6 @@ describe("shape", () => {
       "rpm",
       "sec",
       "serie",
-      "set",
       "sets",
       "speed",
       "spm",
@@ -175,6 +176,80 @@ describe("shape", () => {
     const surname = shapeContext(["Mario Tempo", "mario.tèmpo@example.com"]);
     expect(surname.vocab).not.toContain("tempo");
     expect(maskText("Tempo: 99", surname.vocab)).toBe("A: 99");
+  });
+
+  it("shape: no month or weekday in the vocabulary", () => {
+    // "set" è settembre in it-IT: resta mascherato, mentre "sets" e "serie" restano scritti.
+    expect([...DATE_ABBREVIATIONS].sort()).toEqual([
+      "ago",
+      "apr",
+      "aug",
+      "dec",
+      "dic",
+      "dom",
+      "feb",
+      "fri",
+      "gen",
+      "gio",
+      "giu",
+      "jan",
+      "jul",
+      "jun",
+      "lug",
+      "lun",
+      "mag",
+      "mar",
+      "may",
+      "mer",
+      "mon",
+      "nov",
+      "oct",
+      "ott",
+      "sab",
+      "sat",
+      "sep",
+      "sept",
+      "set",
+      "sett",
+      "sun",
+      "thu",
+      "thur",
+      "thurs",
+      "tue",
+      "tues",
+      "ven",
+      "wed",
+    ]);
+    expect(
+      VOCAB.filter(
+        (word) => DATE_WORDS.has(word) || DATE_ABBREVIATIONS.has(word),
+      ),
+    ).toEqual([]);
+    expect(maskText("29 set 2026", VOCAB)).toBe("99 a 9999");
+    expect(maskText("3 sets, Serie", VOCAB)).toBe("9 sets, Serie");
+    // Il controllo finale trova anche le abbreviazioni, tra confini di lettera.
+    expect(
+      checkReport(
+        [
+          "a set a",
+          "Sett",
+          "ott.",
+          "a tues a",
+          "THURS",
+          "a dom a",
+          "sets",
+          "settings",
+        ],
+        [],
+      ),
+    ).toEqual([
+      { line: 1, kind: "date" },
+      { line: 2, kind: "date" },
+      { line: 3, kind: "date" },
+      { line: 4, kind: "date" },
+      { line: 5, kind: "date" },
+      { line: 6, kind: "date" },
+    ]);
   });
 
   it("shape: arrays show distinct shapes without counts", () => {
