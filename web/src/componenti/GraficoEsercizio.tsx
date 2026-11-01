@@ -64,6 +64,8 @@ export function GraficoEsercizio({
             data: points.map((p) => p.e1rm_kg),
             label: name,
             color: theme.vars.palette.grafici.serie1,
+            // Segmenti dritti tra le sedute: una curva suggerirebbe valori mai misurati.
+            curve: "linear",
             // Un segno per seduta: una seduta sola nel mese è un punto, senza linea.
             showMark: true,
             valueFormatter: (value: number | null) =>

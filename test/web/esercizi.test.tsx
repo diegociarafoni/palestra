@@ -294,14 +294,33 @@ describe("web", () => {
   });
 
   it("web: esercizi chart line joins the points", async () => {
-    // Le due sedute di Leg Press sono un solo tratto: un solo "M" (moveto) nel percorso.
-    server.use(http.get("/api/exercises", () => HttpResponse.json(EXERCISES)));
+    // Tre sedute di Leg Press: un solo tratto (un "M", moveto) di segmenti dritti (due "L",
+    // nessuna curva "C"): tra una seduta e l'altra non ci sono valori misurati da suggerire.
+    server.use(
+      http.get("/api/exercises", () =>
+        HttpResponse.json({
+          strength_table: [],
+          e1rm_series: [
+            {
+              slug: "leg-press",
+              name: "Leg Press",
+              points: [
+                { date: "2026-11-03", e1rm_kg: 84 },
+                { date: "2026-11-10", e1rm_kg: 86.67 },
+                { date: "2026-11-17", e1rm_kg: 86 },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
     renderConTema(<Esercizi />);
 
     const legPress = await screen.findByRole("region", { name: "Leg Press" });
-    const line = legPress.querySelector('svg path[fill="none"]');
-    expect(line?.getAttribute("d")?.match(/M/g)).toHaveLength(1);
-    expect(line?.getAttribute("d")?.match(/L/g)).toHaveLength(1);
+    const path = legPress
+      .querySelector('svg path[fill="none"]')
+      ?.getAttribute("d");
+    expect(path?.match(/[A-Za-z]/g)).toEqual(["M", "L", "L"]);
   });
 
   it("web: esercizi chart y ticks in italian", async () => {
