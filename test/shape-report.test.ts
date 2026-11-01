@@ -447,10 +447,10 @@ describe("shape", () => {
       ),
     ).toEqual([
       "«9999-99-99»: (ripetuto)",
-      "  hr9: numero 9",
+      "  hr99: numero 9",
       '«9999-99-99»: "a"',
       '«999999»: "a"',
-      "hr9: numero 9",
+      "hr99: numero 9",
     ]);
     expect(
       shapeOfJson(
@@ -471,24 +471,24 @@ describe("shape", () => {
       '«a999999»: "a"',
       '«a99a99a99a99a»: "a"',
       "«a»: numero 9",
-      "hr9: numero 9",
+      "hr99: numero 9",
     ]);
   });
 
   it("shape: printed names carry no digits or dates", () => {
-    // Ogni cifra di un nome diventa `9`; un nome con una parte che è un mese o un giorno, anche
+    // Ogni sequenza di cifre di un nome diventa `99`; un nome con una parte che è un mese o un giorno, anche
     // abbreviato, si maschera.
     expect(
       shapeOfJson({ hr2: 1, Oct29: 2, wed: "x", ott: true, dayWed: 5 }, ctx),
     ).toEqual([
-      "hr9: numero 9",
+      "hr99: numero 9",
       "«A99»: numero 9",
       '«a»: "a"',
       "«a»: booleano",
       "«a»: numero 9",
     ]);
     expect(shapeOfJson({ property: "Hr2Max" }, ctx)).toEqual([
-      'property: "Hr9Max"',
+      'property: "Hr99Max"',
     ]);
     expect(shapeOfJson({ property: "MonRpm" }, ctx)).toEqual(['property: "A"']);
     // Anche nei valori di `name`, `type` e `method`.
@@ -497,8 +497,16 @@ describe("shape", () => {
         '<div name="fc-day-wed" type="hr2" method="Oct29"></div>',
         ctx,
       ),
-    ).toEqual(["div[name=«a-a-a», type=hr9, method=«A99»]"]);
-    expect(shapeOfHtml("<h2>Serie</h2>", ctx)).toEqual(["h9", '  "Serie"']);
+    ).toEqual(["div[name=«a-a-a», type=hr99, method=«A99»]"]);
+    expect(shapeOfHtml("<h2>Serie</h2>", ctx)).toEqual(["h99", '  "Serie"']);
+  });
+
+  it("shape: digit runs in names become 99", () => {
+    // Come nei valori: una o due cifre danno `99`, così `week-12` e `sessions-3` si somigliano.
+    expect(
+      shapeOfHtml('<input name="week-12" type="sessions-3">', ctx),
+    ).toEqual(["input[name=week-99, type=sessions-99]"]);
+    expect(shapeOfJson({ hr2: 1 }, ctx)).toEqual(["hr99: numero 9"]);
   });
 
   it("shape: only known attribute names are printed", () => {
@@ -510,7 +518,7 @@ describe("shape", () => {
         ctx,
       ),
     ).toEqual([
-      "input[value=«A», «A», title=«A», «A», data-row9=«a», «a-a»=«a», aria-label=«a», «a»=«a», type=hidden, hidden, required, «a»]",
+      "input[value=«A», «A», title=«A», «A», data-row99=«a», «a-a»=«a», aria-label=«a», «a»=«a», type=hidden, hidden, required, «a»]",
     ]);
     // Ogni nome dell'elenco esce in chiaro: l'elenco è fisso.
     expect([...HTML_ATTRIBUTES].join(" ")).toBe(

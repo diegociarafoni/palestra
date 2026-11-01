@@ -231,7 +231,7 @@ const PROPERTY_KEYS = new Set(["physicalProperty", "property"]);
 const PROPERTY_VALUE = /^[A-Za-z][A-Za-z0-9]{0,40}$/;
 
 /**
- * Un nome (chiave, tag, attributo, valore di `class`…) si stampa, con ogni cifra resa `9`, solo
+ * Un nome (chiave, tag, attributo, valore di `class`…) si stampa, con ogni sequenza di cifre resa `99`, solo
  * se ha la forma attesa, meno di 3 cifre in tutto e niente delle identità o delle date;
  * altrimenti `undefined`. Le cifre si contano in tutto, non solo di fila: un id esadecimale
  * può non averne 3 consecutive. Le parti sono le sequenze di lettere, spezzate anche tra
@@ -271,7 +271,7 @@ function plainName(
   ) {
     return undefined;
   }
-  return name.replace(/\d/g, "9");
+  return name.replace(/\d+/g, "99");
 }
 
 /** Il nome com'è secondo `plainName`, o la sua maschera tra `«»`. */
