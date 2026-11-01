@@ -25,4 +25,4 @@ Le fixture restano sintetiche anche dopo il Task 0: nessuna risposta reale entra
 - Un campo con il programma della Technogym App (oggi `program` è sempre `null`).
 - Dove stanno le serie degli esercizi registrati a mano.
 - Quali esercizi hanno una pagina di dettaglio o una serie temporale: la sync scarica il dettaglio solo per gli esercizi di forza con dati dell'attrezzo (`performedPhysicalActivity.data.data` non vuoto; vuoto = registrato a mano, come la Chest Press della fixture) e la serie solo per i cardio con `analyticsId` e `facilityId`.
-- Ordine delle colonne della tabella delle serie e testo delle intestazioni: nel rapporto le celle di una riga della sola tabella delle serie restano nell'ordine delle colonne (al massimo 12); nelle altre tabelle sono raggruppate come gli altri fratelli.
+- Ordine delle colonne della tabella delle serie e testo delle intestazioni: nel rapporto restano nell'ordine delle colonne (al massimo 12) le sole celle di una riga d'intestazione di `th` con testi diversi di `VOCAB`; le righe di dati sono raggruppate come gli altri fratelli.
