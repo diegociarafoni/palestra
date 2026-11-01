@@ -260,8 +260,62 @@ describe("client", () => {
     expect((error as Error).message).toBe(
       "Mywellness: richiesta non riuscita (rete)",
     );
+    // Niente cause: l'errore di fetch potrebbe citare l'URL, che ai servizi porta il token.
+    expect((error as Error).cause).toBeUndefined();
     expect(inspect(error)).not.toContain(PASSWORD);
     expect(posts).toBe(1); // il POST con le credenziali non si ripete
+  });
+
+  it("client: login post is not retried on 502", async () => {
+    let posts = 0;
+    server.use(
+      http.get(`${SITE}/cloud/User/Login`, () =>
+        HttpResponse.html(fixture("login_form.html")),
+      ),
+      http.post(`${SITE}/cloud/User/Login`, () => {
+        posts++;
+        return new HttpResponse(null, { status: 502 });
+      }),
+    );
+
+    const error = await newClient()
+      .login()
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(TransientError);
+    expect((error as Error).message).toBe(
+      "Mywellness: HTTP 502 (POST non ripetuto)",
+    );
+    expect(posts).toBe(1); // e-mail e password si inviano una volta sola
+  });
+
+  it("client: body read failure raises TransientError without cause", async () => {
+    useLogin();
+    // Response nativa: il corpo si interrompe a metà lettura.
+    const client = newClient({
+      fetch: (input, init) =>
+        String(input).startsWith(SERVICES)
+          ? Promise.resolve(
+              new Response(
+                new ReadableStream({
+                  pull(controller) {
+                    controller.enqueue(new TextEncoder().encode('{"data":'));
+                    controller.error(new Error("connessione interrotta"));
+                  },
+                }),
+              ),
+            )
+          : fetch(input, init),
+    });
+    await client.login();
+
+    const error = await client.getSession("900000003").catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(TransientError);
+    expect((error as Error).message).toBe(
+      "Mywellness: lettura della risposta non riuscita",
+    );
+    expect((error as Error).cause).toBeUndefined();
   });
 
   it("client: refuses cross-origin redirect", async () => {

@@ -86,15 +86,13 @@ function discard(response: Response): void {
   void response.body?.cancel().catch(() => undefined);
 }
 
-// Leggere il corpo è ancora rete (connessione interrotta): errore transitorio.
+// Leggere il corpo è ancora rete (connessione interrotta, timeout): errore transitorio.
+// Niente cause, come per gli errori di rete in `#exchange`.
 async function readText(response: Response): Promise<string> {
   try {
     return await response.text();
-  } catch (error) {
-    throw new TransientError(
-      "Mywellness: lettura della risposta non riuscita",
-      { cause: error },
-    );
+  } catch {
+    throw new TransientError("Mywellness: lettura della risposta non riuscita");
   }
 }
 
@@ -354,8 +352,9 @@ export class MywellnessClient {
   }
 
   /**
-   * Un passo HTTP: limite di frequenza e retry solo su 429 e 5xx. Mai su 401/403 né su errore
-   * di rete o timeout: la richiesta potrebbe essere arrivata (il POST di login non si ripete).
+   * Un passo HTTP: limite di frequenza e, solo per le GET, retry su 429 e 5xx. Nessun retry su
+   * 401/403, su errore di rete o timeout, né per un POST: il POST di login, con e-mail e
+   * password, parte una volta sola.
    */
   async #exchange(url: URL, init: RequestInit): Promise<Response> {
     for (let attempt = 0; ; attempt++) {
@@ -368,10 +367,9 @@ export class MywellnessClient {
           redirect: "manual",
           signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         });
-      } catch (error) {
-        throw new TransientError("Mywellness: richiesta non riuscita (rete)", {
-          cause: error,
-        });
+      } catch {
+        // Niente cause: l'errore di fetch potrebbe citare l'URL, che ai servizi porta il token.
+        throw new TransientError("Mywellness: richiesta non riuscita (rete)");
       }
       if (response.status === 401 || response.status === 403) {
         discard(response);
@@ -381,6 +379,11 @@ export class MywellnessClient {
       }
       if (response.status === 429 || response.status >= 500) {
         discard(response);
+        if (init.method === "POST") {
+          throw new TransientError(
+            `Mywellness: HTTP ${response.status} (POST non ripetuto)`,
+          );
+        }
         if (delay === undefined) {
           throw new TransientError(
             `Mywellness: HTTP ${response.status} dopo ${attempt + 1} tentativi`,
