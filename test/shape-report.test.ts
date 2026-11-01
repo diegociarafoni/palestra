@@ -235,6 +235,30 @@ describe("shape", () => {
     ]);
   });
 
+  it("shape: keeps the property names the parser reads", () => {
+    // normalize.ts sceglie i valori per `physicalProperty` e `property` (es. "HDistance"):
+    // solo lì il valore resta scritto, se ha la forma di un nome senza spazi.
+    const lines = shapeOfJson(
+      [
+        { physicalProperty: "HDistance", name: "Hr", rawValue: 1.2 },
+        { property: "AvgRpm" },
+        { physicalProperty: "Mario" },
+        { property: "Leg Press" },
+        { property: "ab1c2d3" },
+      ],
+      ctx,
+    );
+    expect(lines).toEqual([
+      '- physicalProperty: "HDistance"',
+      '  name: "A"',
+      "  rawValue: numero 9.9",
+      '- property: "AvgRpm"',
+      '- physicalProperty: "A"',
+      '- property: "A A"',
+      '- property: "a9a9a9"',
+    ]);
+  });
+
   it("shape: json inside a string", () => {
     const lines = shapeOfJson(
       {
@@ -445,7 +469,7 @@ describe("shape", () => {
         "",
         "File generato da `scripts/shape-report.ts` (Task 0) con le risposte del probe, che restano sul computer dell'utente. Mostra solo la forma dei dati:",
         "",
-        "- restano scritti i nomi dei campi JSON, dei tag e degli attributi HTML e i valori di attributi come `class`, `id` e `name`, se hanno la forma di un nome; gli altri sono mascherati tra `«»`;",
+        "- restano scritti i nomi dei campi JSON, dei tag e degli attributi HTML e i valori di attributi come `class`, `id` e `name` e dei campi `physicalProperty` e `property`, se hanno la forma di un nome; gli altri sono mascherati tra `«»`;",
         "- nei valori ogni parola diventa `a` (se comincia con una minuscola) o `A` (se comincia con una maiuscola) e ogni cifra diventa `9`;",
         "- restano scritte solo le parole del vocabolario `VOCAB` dello script (unità di misura, parole della tabella delle serie e dell'interfaccia, tipi di esercizio), la punteggiatura, i simboli e la `T` e la `Z` delle date ISO;",
         "- liste e righe ripetute (`(ripetuto)`) non dicono quanti elementi hanno; il contenuto degli script è omesso, tranne la forma di `EU.currentUser`.",

@@ -144,6 +144,13 @@ export function maskText(text: string, vocab: readonly string[]): string {
 }
 
 const KEY = /^[A-Za-z_$][A-Za-z0-9_$]{0,63}$/;
+/**
+ * Chiavi il cui valore è il nome di una grandezza di Mywellness (es. `HDistance`), su cui
+ * `src/mywellness/normalize.ts` sceglie i dati: il valore resta scritto se ha la forma di un
+ * nome senza spazi, come i valori di `class` o `name` nell'HTML.
+ */
+const PROPERTY_KEYS = new Set(["physicalProperty", "property"]);
+const PROPERTY_VALUE = /^[A-Za-z][A-Za-z0-9]{0,40}$/;
 
 /**
  * Un nome (chiave, tag, attributo, valore di `class`…) si stampa com'è solo se ha la forma
@@ -203,7 +210,14 @@ function jsonBlock(value: unknown, ctx: ShapeContext): Block {
     for (const [key, item] of entries) {
       const plain = isPlainName(key, KEY, ctx);
       const name = plain ? key : `«${maskText(key, ctx.vocab)}»`;
-      const { head, body } = jsonBlock(item, ctx);
+      const property =
+        plain &&
+        PROPERTY_KEYS.has(key) &&
+        typeof item === "string" &&
+        isPlainName(item, PROPERTY_VALUE, ctx);
+      const { head, body } = property
+        ? { head: `"${item}"`, body: [] }
+        : jsonBlock(item, ctx);
       const entry = [
         head === "" ? `${name}:` : `${name}: ${head}`,
         ...indent(body),
@@ -460,7 +474,7 @@ const HEADER = [
   "",
   "File generato da `scripts/shape-report.ts` (Task 0) con le risposte del probe, che restano sul computer dell'utente. Mostra solo la forma dei dati:",
   "",
-  "- restano scritti i nomi dei campi JSON, dei tag e degli attributi HTML e i valori di attributi come `class`, `id` e `name`, se hanno la forma di un nome; gli altri sono mascherati tra `«»`;",
+  "- restano scritti i nomi dei campi JSON, dei tag e degli attributi HTML e i valori di attributi come `class`, `id` e `name` e dei campi `physicalProperty` e `property`, se hanno la forma di un nome; gli altri sono mascherati tra `«»`;",
   "- nei valori ogni parola diventa `a` (se comincia con una minuscola) o `A` (se comincia con una maiuscola) e ogni cifra diventa `9`;",
   "- restano scritte solo le parole del vocabolario `VOCAB` dello script (unità di misura, parole della tabella delle serie e dell'interfaccia, tipi di esercizio), la punteggiatura, i simboli e la `T` e la `Z` delle date ISO;",
   "- liste e righe ripetute (`(ripetuto)`) non dicono quanti elementi hanno; il contenuto degli script è omesso, tranne la forma di `EU.currentUser`.",
