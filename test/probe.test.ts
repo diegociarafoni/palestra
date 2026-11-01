@@ -472,7 +472,7 @@ describe("probe", () => {
         ),
       ).toBe(code);
       expect(stderr.mock.calls).toEqual([[message]]);
-      // Le identità si scrivono anche dopo un errore: servono ad anonimizzare il resto.
+      // Le identità si scrivono anche dopo un errore: servono al controllo del rapporto della forma.
       expect(readdirSync(outDir).sort()).toEqual([
         "identities.json",
         "login_form.html",

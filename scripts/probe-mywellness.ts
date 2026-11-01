@@ -1,6 +1,6 @@
 // Probe locale di Mywellness (Task 0): login con le credenziali dell'utente e salvataggio
 // in probe_out/ (ignorato da git) dei soli corpi grezzi delle risposte, mai degli header,
-// da cui scripts/anonymize-fixtures.ts ricava le fixture. Endpoint e parametri:
+// da cui scripts/shape-report.ts ricava il rapporto della forma. Endpoint e parametri:
 // docs/mywellness-api.md (letti dal codice di gymexport, da verificare).
 // Uso: MYWELLNESS_EMAIL=… MYWELLNESS_PASSWORD=… npx tsx scripts/probe-mywellness.ts [--days N]
 // Un login per esecuzione, almeno 1 s tra due richieste. Su stdout una riga per richiesta
@@ -15,11 +15,13 @@ import { z } from "zod";
 import { romeDate } from "../src/domain/dates";
 import {
   AuthError,
+  exitCodeFor,
   ParseError,
   SyncError,
   TransientError,
+  UpstreamError,
 } from "../src/errors";
-import { readCurrentUser } from "./anonymize-fixtures";
+import { readCurrentUser } from "../src/mywellness/client";
 
 const SITE = "https://www.mywellness.com";
 const SERVICES = "https://services.mywellness.com";
@@ -30,7 +32,7 @@ const MIN_INTERVAL_MS = 1000;
 const MAX_REDIRECTS = 10;
 const MAX_SESSIONS = 10;
 const MAX_DETAILS = 8;
-// Una sola serie cardio: basta una fixture, e meno dati grezzi restano in probe_out.
+// Una sola serie cardio: basta per la forma, e meno dati grezzi restano in probe_out.
 const MAX_CARDIO = 1;
 const DEFAULT_DAYS = 30;
 const MAX_DAYS = 365;
@@ -97,7 +99,7 @@ class Http {
         return { status: response.status, bytes, text };
       }
       if (hop === MAX_REDIRECTS) {
-        throw new SyncError(`${label}: troppi redirect`);
+        throw new UpstreamError(`${label}: troppi redirect`);
       }
       current = this.nextUrl(label, location, current);
       if (response.status !== 307 && response.status !== 308) {
@@ -113,13 +115,15 @@ class Http {
     try {
       next = new URL(location, base);
     } catch {
-      throw new SyncError(`${label}: redirect non valido`);
+      throw new UpstreamError(`${label}: redirect non valido`);
     }
     const host = next.hostname;
     const sameSite =
       host === "mywellness.com" || host.endsWith(".mywellness.com");
     if (next.protocol !== "https:" || !sameSite) {
-      throw new SyncError(`${label}: redirect verso un host non consentito`);
+      throw new UpstreamError(
+        `${label}: redirect verso un host non consentito`,
+      );
     }
     return next;
   }
@@ -155,17 +159,9 @@ function ensureOk(label: string, reply: Reply): Reply {
     throw new TransientError(`${label}: HTTP ${status}`);
   }
   if (status < 200 || status > 299) {
-    throw new SyncError(`${label}: HTTP ${status}`);
+    throw new UpstreamError(`${label}: HTTP ${status}`);
   }
   return reply;
-}
-
-// docs/buone-pratiche.md § 8. UpstreamError non esiste ancora (Task 2): 69 per il resto.
-function exitCodeFor(error: SyncError): number {
-  if (error instanceof AuthError) return 78;
-  if (error instanceof TransientError) return 75;
-  if (error instanceof ParseError) return 65;
-  return 69;
 }
 
 const CurrentUser = z.looseObject({
@@ -263,10 +259,10 @@ const IDENTITY_KEY =
   /name|surname|first|last|nick|mail|phone|mobile|cell|address|street|city|zip|postal|cap|fiscal|tax|card|badge|mifare|member|external|crm|picture|photo|avatar|birth/i;
 const PHONE_KEY = /phone|mobile|cell/i;
 
-/** Identità da togliere dalle fixture: e-mail, id, token, dati anagrafici, cookie. */
+/** Identità che il rapporto della forma non deve contenere: e-mail, id, token, dati anagrafici, cookie. */
 function collectIdentities(
   email: string,
-  user: Record<string, unknown>,
+  user: unknown,
   profile: Profile,
   cookies: string[],
 ): string[] {
@@ -321,7 +317,7 @@ async function login(
   save: Saver,
   email: string,
   password: string,
-): Promise<{ user: Record<string, unknown>; profile: Profile }> {
+): Promise<{ user: unknown; profile: Profile }> {
   const form = ensureOk(
     "login form",
     await http.send("login form", `${SITE}/cloud/User/Login`),
@@ -348,7 +344,7 @@ async function login(
   );
   // Credenziali rifiutate: il sito torna al modulo di login, senza profilo.
   const user = readCurrentUser(training.text);
-  if (!user) throw new AuthError("Login Mywellness fallito");
+  if (user === undefined) throw new AuthError("Login Mywellness fallito");
   const profile = CurrentUser.safeParse(user);
   if (!profile.success) {
     throw new ParseError("training: EU.currentUser senza id o token", {
@@ -363,7 +359,7 @@ async function login(
 async function probeBiometrics(
   http: Http,
   save: Saver,
-  user: Record<string, unknown>,
+  user: unknown,
   profile: Profile,
 ): Promise<void> {
   const facilityUrl = findFacilityUrl(user);
@@ -418,7 +414,7 @@ async function probe(
     now: Date;
   },
 ): Promise<void> {
-  // Permessi stretti: i corpi grezzi contengono dati personali finché non sono anonimizzati.
+  // Permessi stretti: i corpi grezzi contengono dati personali e non escono da questo computer.
   // `mode` vale solo per ciò che si crea: chmod anche sulla cartella e sui file esistenti.
   await mkdir(opts.outDir, { recursive: true, mode: 0o700 });
   await chmod(opts.outDir, 0o700);
@@ -488,7 +484,9 @@ async function probe(
         isJson(reply.text) ? JSON.parse(reply.text) : undefined,
       );
       if (!session.success) {
-        note(`${label}: formato inatteso, esclusa dalla scelta delle fixture`);
+        note(
+          `${label}: formato inatteso, esclusa dalla scelta della seduta di forza e di quella solo cardio`,
+        );
         continue;
       }
       sessions.push({
@@ -575,7 +573,7 @@ async function probe(
     // 7. Misure biometriche.
     await probeBiometrics(http, save, user, profile);
   } finally {
-    // Anche dopo un errore: l'anonimizzazione dei file già scritti ne ha bisogno.
+    // Anche dopo un errore: il controllo finale del rapporto della forma ne ha bisogno.
     const identities = collectIdentities(
       opts.email,
       user,
