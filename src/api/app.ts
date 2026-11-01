@@ -3,9 +3,12 @@ import { Hono } from "hono";
 import type { JWTVerifyGetKey } from "jose";
 import { romeDate } from "../domain/dates";
 import { type AccessEnv, AccessError, verifyAccess } from "./access";
+import { calendarRoute } from "./routes/calendar";
+import { exercisesRoute } from "./routes/exercises";
 import { measuresRoute } from "./routes/measures";
 import { reportsRoute } from "./routes/reports";
 import { createSchedaRoute } from "./routes/scheda";
+import { weekRoute } from "./routes/week";
 
 export type Env = AccessEnv & { DB: D1Database };
 
@@ -36,6 +39,9 @@ export function createApp(deps: AppDeps = {}) {
     .route("/api/measures", measuresRoute)
     .route("/api/scheda", createSchedaRoute(today))
     .route("/api/reports", reportsRoute)
+    .route("/api/week", weekRoute)
+    .route("/api/calendar", calendarRoute)
+    .route("/api/exercises", exercisesRoute)
     .onError((error, c) => {
       if (error instanceof AccessError) {
         const body = error.status === 401 ? "unauthorized" : "forbidden";
