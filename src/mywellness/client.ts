@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { romeDate } from "../domain/dates";
-import { AuthError, ParseError, SyncError, TransientError } from "../errors";
+import {
+  AuthError,
+  ParseError,
+  SyncError,
+  TransientError,
+  UpstreamError,
+} from "../errors";
 import { VERSION } from "../index";
 
 // Costante pubblica dell'app web, inviata come parametro `AppId` ai servizi.
@@ -330,8 +336,7 @@ export class MywellnessClient {
       if (!REDIRECT_STATUSES.has(response.status) || location === null) {
         if (!response.ok) {
           discard(response);
-          // UpstreamError after the Task 6 merge
-          throw new SyncError(`Mywellness: HTTP ${response.status}`);
+          throw new UpstreamError(`Mywellness: HTTP ${response.status}`);
         }
         return response;
       }

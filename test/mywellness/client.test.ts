@@ -3,9 +3,11 @@ import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AuthError,
+  exitCodeFor,
   ParseError,
   SyncError,
   TransientError,
+  UpstreamError,
 } from "../../src/errors";
 import { MywellnessClient } from "../../src/mywellness/client";
 import { fixture, setupMswServer } from "../msw";
@@ -340,6 +342,7 @@ describe("client", () => {
       .catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(SyncError);
+    expect(error).not.toBeInstanceOf(UpstreamError);
     expect((error as Error).message).toBe("Mywellness: redirect non ammesso");
   });
 
@@ -371,6 +374,7 @@ describe("client", () => {
         .listSessionIds({ until })
         .catch((e: unknown) => e);
       expect(error).toBeInstanceOf(SyncError);
+      expect(error).not.toBeInstanceOf(UpstreamError);
       expect((error as Error).message).toBe(
         "Mywellness: data non valida (atteso AAAA-MM-GG)",
       );
@@ -379,6 +383,7 @@ describe("client", () => {
       .listSessionIds({ since: "2026-11-20", until: "2026-11-10" })
       .catch((e: unknown) => e);
     expect(reversed).toBeInstanceOf(SyncError);
+    expect(reversed).not.toBeInstanceOf(UpstreamError);
     expect((reversed as Error).message).toBe(
       "Mywellness: intervallo di date non valido (since dopo until)",
     );
@@ -421,12 +426,12 @@ describe("client", () => {
       )
       .catch((e: unknown) => e);
 
-    // SyncError fino al merge del Task 6, poi UpstreamError.
-    expect(error).toBeInstanceOf(SyncError);
+    expect(error).toBeInstanceOf(UpstreamError);
     for (const subclass of [AuthError, ParseError, TransientError]) {
       expect(error).not.toBeInstanceOf(subclass);
     }
     expect((error as Error).message).toBe("Mywellness: HTTP 404");
+    expect(exitCodeFor(error)).toBe(69);
     expect(calls).toBe(1);
   });
 
