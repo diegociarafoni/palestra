@@ -113,7 +113,7 @@ export const KpiSchema = z.object({
   tonnage_last_week_kg: nullableNumber,
   // Su kg per serie con carico (tonnellaggio / serie con carico > 0) di quelle due settimane:
   // linee guida § 5 "crescente a parità di serie", sul lavoro con carico. Null con meno di due
-  // settimane con tonnellaggio.
+  // settimane con tonnellaggio o se la prima, arrotondata a un decimale, ha 0 kg per serie.
   tonnage_status: nullableStatus,
   e1rm_mean_delta_pct: nullableNumber,
   e1rm_exercises: z.int(),

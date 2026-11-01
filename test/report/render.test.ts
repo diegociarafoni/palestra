@@ -195,6 +195,23 @@ describe("report", () => {
     expect(section(renderReport(unloadedSets), 1)).toContain(
       "| Tonnellaggio settimanale | 2160 kg | da 2160 kg · 0 % · kg per serie (serie con carico) 720 → 720 | ✓ |",
     );
+    // Carichi minimi: kg per serie con carico mostrati 0 → 0 e tonnellaggio iniziale "0 kg".
+    // Nessuno stato (una base 0 renderebbe tutto ✓) e nessun Δ % su 0 kg.
+    const tiny = {
+      ...input,
+      sessions: [
+        at("sess-t05", "2026-11-03T18:00:00+01:00", [
+          lift(1, "Leg Press", [4], 0.01),
+        ]),
+        at("sess-t06", "2026-11-10T18:00:00+01:00", [
+          lift(1, "Leg Press", [1], 0.01),
+        ]),
+      ],
+    };
+    expect(reportMetrics(tiny).kpi.tonnage_status).toBeNull();
+    expect(section(renderReport(tiny), 1)).toContain(
+      "| Tonnellaggio settimanale | 0 kg | — | — |",
+    );
     // Ultima settimana (W49, lunedì 30/11) con sole serie senza carico: una sola settimana con
     // tonnellaggio, nessun confronto (con tutte le serie: 720 → 0, "!").
     const unloadedLast = {

@@ -179,8 +179,9 @@ function analyse(input: ReportInput): Analysis {
         : status("adherence", round(adherencePct) / 100, null),
     tonnage_first_week_kg: lifting[0]?.tonnage_kg ?? null,
     tonnage_last_week_kg: lifting.at(-1)?.tonnage_kg ?? null,
+    // Base mostrata a 0 (sotto 0,05 kg per serie): ogni valore sarebbe ✓, nessuno stato.
     tonnage_status:
-      lifting.length >= 2
+      lifting.length >= 2 && firstKgPerSet > 0
         ? status("tonnage", lastKgPerSet, firstKgPerSet)
         : null,
     e1rm_mean_delta_pct: e1rmMean,
@@ -326,10 +327,12 @@ function summaryRows(input: ReportInput, a: Analysis): SummaryRow[] {
       label: "Tonnellaggio settimanale",
       value: last === undefined ? null : `${num(last.tonnage_kg)} kg`,
       compare:
-        a.lifting.length < 2 || first === undefined || last === undefined
-          ? "—"
-          : // Le settimane confrontate hanno sempre tonnellaggio > 0: il Δ % è definito.
-            `da ${num(first.tonnage_kg)} kg · ${signed(((last.tonnage_kg - first.tonnage_kg) / first.tonnage_kg) * 100)} % · kg per serie (serie con carico) ${num(first.kg_per_loaded_set)} → ${num(last.kg_per_loaded_set)}`,
+        a.lifting.length < 2 ||
+        first === undefined ||
+        last === undefined ||
+        round(first.tonnage_kg) === 0
+          ? "—" // mai un Δ % su una base mostrata come "0 kg"
+          : `da ${num(first.tonnage_kg)} kg · ${signed(((last.tonnage_kg - first.tonnage_kg) / first.tonnage_kg) * 100)} % · kg per serie (serie con carico) ${num(first.kg_per_loaded_set)} → ${num(last.kg_per_loaded_set)}`,
       status: kpi.tonnage_status,
     },
     {
