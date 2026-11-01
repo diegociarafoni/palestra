@@ -353,14 +353,13 @@ export class MywellnessClient {
         return response;
       }
       discard(response);
-      // Messaggi senza la destinazione: l'URL può contenere parametri di sessione.
+      // Della destinazione mai percorso né query: possono contenere parametri di sessione.
       if (hop === MAX_REDIRECTS) {
         throw new SyncError("Mywellness: troppi redirect");
       }
       const next = URL.parse(location, current.href);
       // Cookie e corpo del form restano sullo stesso dominio.
       if (next === null || next.origin !== current.origin) {
-        // Per la diagnosi solo schema e host: percorso e query restano fuori.
         const target =
           next === null
             ? "destinazione non valida"

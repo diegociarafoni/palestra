@@ -395,13 +395,41 @@ describe("client", () => {
       "Mywellness: redirect non ammesso (passo elenco, HTTP 302, verso https://login.example.com:8443)",
     );
     expect((error as Error).cause).toBeUndefined();
+    // Aghi che non possono comparire nello stack (percorsi del checkout).
     for (const secret of [
-      "percorso",
-      "privato",
-      "sid",
+      "/percorso/privato",
+      "sid=",
       "segreto-1",
       "ReturnUrl",
     ]) {
+      expect(inspect(error)).not.toContain(secret);
+    }
+  });
+
+  it("client: refused redirect on the training page names the login step and drops credentials", async () => {
+    useLogin();
+    server.use(
+      http.get(
+        `${SITE}/cloud/Training`,
+        () =>
+          new HttpResponse(null, {
+            status: 302,
+            headers: {
+              Location: "https://utente-x:segreto-3@altro.example/accesso",
+            },
+          }),
+      ),
+    );
+
+    const error = await newClient()
+      .login()
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(SyncError);
+    expect((error as Error).message).toBe(
+      "Mywellness: redirect non ammesso (passo login, HTTP 302, verso https://altro.example)",
+    );
+    for (const secret of ["utente-x", "segreto-3", "/accesso"]) {
       expect(inspect(error)).not.toContain(secret);
     }
   });
