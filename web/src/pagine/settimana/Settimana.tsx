@@ -1,7 +1,7 @@
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useQuery } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { useId, useSyncExternalStore } from "react";
 import { getWeek } from "../../api/client";
 import { queryKeys } from "../../api/keys";
 import { Elenco } from "../../componenti/Elenco";
@@ -11,13 +11,24 @@ import { testi } from "../../testi";
 import { todayInRome } from "../../utils/date";
 import { TabellaSedute } from "./TabellaSedute";
 
+// La pagina può restare aperta per giorni (scheda del telefono): oggi si rilegge quando la pagina
+// torna visibile o riprende il fuoco.
+function subscribeToReturn(onReturn: () => void): () => void {
+  document.addEventListener("visibilitychange", onReturn);
+  window.addEventListener("focus", onReturn);
+  return () => {
+    document.removeEventListener("visibilitychange", onReturn);
+    window.removeEventListener("focus", onReturn);
+  };
+}
+
 /**
  * Pagina iniziale: la settimana di oggi (Europe/Rome), con gli slot programmati e, sotto, le
  * sedute svolte e il totale dei MOVEs.
  */
 export default function Settimana() {
-  // Oggi si legge una volta, all'apertura della pagina: il render resta puro.
-  const [today] = useState(todayInRome);
+  // Oggi come stato esterno (una stringa, confrontata per valore): il render resta puro.
+  const today = useSyncExternalStore(subscribeToReturn, todayInRome);
   const query = useQuery({
     queryKey: queryKeys.week(today),
     queryFn: () => getWeek(today),

@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
@@ -87,6 +87,38 @@ describe("web", () => {
 
     const label = await screen.findByText("Fatta");
     expect(getComputedStyle(label).fontSize).toBe("16px");
+  });
+
+  it("web: settimana follows today when the page comes back", async () => {
+    // Scheda del telefono lasciata aperta: tornandoci in un altro giorno la pagina chiede la
+    // settimana di oggi, senza ricaricare.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-04T10:00:00Z"));
+    const dates: (string | null)[] = [];
+    server.use(
+      http.get("/api/week", ({ request }) => {
+        dates.push(new URL(request.url).searchParams.get("date"));
+        return HttpResponse.json(WEEK);
+      }),
+    );
+    renderConTema(<Settimana />);
+    await screen.findByRole("region", { name: "Sedute programmate" });
+    expect(dates).toEqual(["2026-11-04"]);
+
+    vi.setSystemTime(new Date("2026-11-10T10:00:00Z"));
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await waitFor(() => expect(dates).toEqual(["2026-11-04", "2026-11-10"]));
+
+    // Anche tornando sulla finestra (fuoco) senza che la pagina sia stata nascosta.
+    vi.setSystemTime(new Date("2026-11-17T10:00:00Z"));
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() =>
+      expect(dates).toEqual(["2026-11-04", "2026-11-10", "2026-11-17"]),
+    );
   });
 
   it("web: settimana shows sessions and moves total", async () => {
