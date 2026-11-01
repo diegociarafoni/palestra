@@ -15,7 +15,8 @@ export type Prescription = {
 
 /**
  * Proposta per la prossima seduta con la doppia progressione
- * (docs/linee-guida-allenamento.md § 3), dalle serie di lavoro dell'ultima esecuzione.
+ * (docs/linee-guida-allenamento.md § 3), dalle serie di lavoro dell'ultima seduta con serie
+ * registrate (le sue esecuzioni unite in una, vedi strengthTable).
  */
 export function nextPrescription(
   ex: StrengthExercise,
@@ -46,7 +47,7 @@ export function nextPrescription(
       action: "increase",
     };
   }
-  // "Almeno 2 serie su 3" sotto il minimo, generalizzato a 2/3 delle serie registrate.
+  // "Almeno 2 serie su 3" sotto il minimo, generalizzato a 2/3 delle serie di lavoro.
   const below = reps.filter((r) => r < ex.reps_min).length;
   if (below >= Math.ceil((2 * reps.length) / 3)) {
     return {
