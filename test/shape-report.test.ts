@@ -627,6 +627,12 @@ describe("shape", () => {
     ]);
   });
 
+  it("shape: names glued to a 3-letter name are masked", () => {
+    expect(
+      shapeOfJson({ profileeva: 1, evabadge: "x" }, shapeContext(["Eva"])),
+    ).toEqual(['«a»: "a"', "«a»: numero 9"]);
+  });
+
   it("shape: initials in any case and order are masked", () => {
     // Il probe raccoglie nome e cognome anche in campi separati: le iniziali vengono dai nomi
     // interi ("Giulia Bianchi") e dalle coppie di nomi di una parola ("Mario", "Rossi"), in

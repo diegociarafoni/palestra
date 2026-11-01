@@ -232,15 +232,18 @@ const PROPERTY_KEYS = new Set(["physicalProperty", "property"]);
 const PROPERTY_VALUE = /^[A-Za-z][A-Za-z0-9]{0,40}$/;
 
 /**
- * Un nome (chiave, tag, attributo, valore di `class`…) si stampa, con ogni sequenza di cifre resa `99`, solo
- * se ha la forma attesa, meno di 3 cifre in tutto e niente delle identità o delle date;
- * altrimenti `undefined`. Le cifre si contano in tutto, non solo di fila: un id esadecimale
- * può non averne 3 consecutive. Le parti sono le sequenze di lettere, spezzate anche tra
- * minuscola e maiuscola: in `marioRossi` il controllo finale, che cerca le parole tra confini
- * di lettera, non vedrebbe il nome. Una parte non può essere parola di un'identità, mese o
- * giorno, anche abbreviato (`fc-day-wed`, `Oct29`), né, se è di 2 maiuscole, le iniziali di un
- * nome (`MR`); una parola di un'identità di 4 o più lettere non può stare in nessun punto
- * delle lettere unite del nome (`mariorossi`, `user_mrossi`).
+ * Un nome (chiave JSON, tag, attributo, valore di `name`, `type` e `method` o di `property`) si
+ * stampa, con ogni sequenza di cifre resa `99`, solo se ha la forma attesa e meno di 3 cifre in
+ * tutto; altrimenti `undefined`. Le cifre si contano in tutto, non solo di fila: un id
+ * esadecimale può non averne 3 consecutive. Le parti sono le sequenze di lettere, spezzate
+ * anche tra minuscola e maiuscola (in `marioRossi` il controllo finale, che cerca le parole tra
+ * confini di lettera, non vedrebbe il nome). Il nome si maschera se:
+ * - una parte è una parola di DATE_PARTS (`fc-day-wed`, `Oct29`; non per i tag: `th` resta);
+ * - almeno 4 parti hanno 1 o 2 lettere (`AbCdEfGh9j`, un token);
+ * - una parte di 2 lettere sono iniziali di un nome (`mr`, `Mr`, `RM`), o le parti di una
+ *   lettera, unite, le contengono (`M.R`, `m-r`);
+ * - una parola di un'identità sta in un punto qualunque delle lettere unite del nome
+ *   (`mariorossi`, `user_mrossi`, `profileeva`).
  */
 function plainName(
   name: string,
@@ -254,7 +257,6 @@ function plainName(
   const parts = name
     .split(/[^\p{L}]+|(?<=\p{Ll})(?=\p{Lu})/u)
     .filter((part) => part !== "");
-  // Almeno 4 parti di 1 o 2 lettere (`AbCdEfGh9j`): ha l'aria di un token, non di un nome.
   if (parts.filter((part) => [...part].length <= 2).length >= 4) {
     return undefined;
   }
@@ -262,7 +264,6 @@ function plainName(
     parts.some((part) => {
       const word = fold(part);
       return (
-        ctx.identityWords.has(word) ||
         (dateParts && DATE_PART_SET.has(word)) ||
         ([...part].length === 2 && ctx.initials.has(word))
       );
@@ -270,7 +271,6 @@ function plainName(
   ) {
     return undefined;
   }
-  // Le parti di una lettera, unite: `M.R`, `m-r`.
   const singles = parts
     .filter((part) => [...part].length === 1)
     .map(fold)
@@ -278,12 +278,9 @@ function plainName(
   if ([...ctx.initials].some((initials) => singles.includes(initials))) {
     return undefined;
   }
+  // Le parole delle identità hanno almeno 3 lettere (identityWordsOf).
   const letters = (fold(name).match(/\p{L}+/gu) ?? []).join("");
-  if (
-    [...ctx.identityWords].some(
-      (word) => word.length >= 4 && letters.includes(word),
-    )
-  ) {
+  if ([...ctx.identityWords].some((word) => letters.includes(word))) {
     return undefined;
   }
   return name.replace(/\d+/g, "99");
