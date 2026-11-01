@@ -72,7 +72,11 @@ export const WeekResponseSchema = /* @__PURE__ */ z.object({
 });
 export type WeekResponse = z.infer<typeof WeekResponseSchema>;
 
-/** `GET /api/calendar?month=`: slot del mese, sedute che nessuno slot cita, feedback del mese. */
+/**
+ * `GET /api/calendar?month=`: slot del mese, sedute del mese che nessuno slot cita, feedback del
+ * mese più quello dei giorni del mese dopo in cui cadono le sedute degli slot del mese (recupero
+ * di domenica 1°).
+ */
 export const CalendarResponseSchema = /* @__PURE__ */ z.object({
   slots: z.array(DashboardSlotSchema),
   extra: z.array(ExtraSessionSchema),
