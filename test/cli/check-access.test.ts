@@ -28,8 +28,18 @@ beforeEach(() => {
   );
 });
 afterEach(() => {
+  server.events.removeAllListeners();
   vi.restoreAllMocks();
 });
+
+/** Gli URL delle richieste che partono da qui alla fine del test (intercettate da MSW). */
+function recordRequests(): string[] {
+  const requests: string[] = [];
+  server.events.on("request:start", ({ request }) => {
+    requests.push(request.url);
+  });
+  return requests;
+}
 
 /** Tutto ciò che la CLI ha scritto, su stderr e stdout. */
 function output(): string {
@@ -360,11 +370,16 @@ describe("check-access", () => {
       env: { ...ENV, DASHBOARD_HOSTNAME: `http://${HOST}` },
     },
     { label: "with spaces", env: { ...ENV, DASHBOARD_HOSTNAME: ` ${HOST}\n` } },
+    {
+      label: "with a trailing dot",
+      env: { ...ENV, DASHBOARD_HOSTNAME: `${HOST}.` },
+    },
   ])(
     "check-access: exit 78 when DASHBOARD_HOSTNAME is $label",
     async ({ env }) => {
-      // Nessun handler per l'host: una sua richiesta farebbe fallire il test (onUnhandledRequest).
+      const requests = recordRequests();
       expect(await main([], env)).toBe(78);
+      expect(requests).toEqual([]);
       expect(stderr.mock.calls).toEqual([
         [
           "DASHBOARD_HOSTNAME mancante o non valido: serve il solo nome host, senza https://, percorso o spazi",
@@ -405,9 +420,18 @@ describe("check-access", () => {
       label: "a preview alias",
       env: { ...ENV, PAGES_HOSTNAME: `abc123.${PAGES_DEV}` },
     },
+    {
+      label: "with a trailing dot",
+      env: { ...ENV, PAGES_HOSTNAME: `${PAGES_DEV}.` },
+    },
+    {
+      label: "with a port",
+      env: { ...ENV, PAGES_HOSTNAME: `${PAGES_DEV}:443` },
+    },
   ])("check-access: exit 78 when PAGES_HOSTNAME is $label", async ({ env }) => {
-    // Nessun handler per l'host della dashboard: nessuna richiesta deve partire.
+    const requests = recordRequests();
     expect(await main([], env)).toBe(78);
+    expect(requests).toEqual([]);
     expect(stderr.mock.calls).toEqual([
       [
         "PAGES_HOSTNAME mancante o non valido: serve il solo nome host <sottodominio>.pages.dev del progetto, senza https://, percorso o spazi",
