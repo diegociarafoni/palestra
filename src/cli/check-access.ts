@@ -8,6 +8,7 @@
 // Exit code (docs/buone-pratiche.md § 8): 0 ok · 64 argomenti · 75 errore di rete o timeout
 // (rilanciare) · 78 DASHBOARD_HOSTNAME mancante o non valido, Access non attivo o non come previsto.
 import { pathToFileURL } from "node:url";
+import { exitCodeFor, TransientError } from "../errors";
 
 const PATHS = ["/", "/api/measures"] as const;
 // Solo un nome host (etichette DNS separate da punti): niente schema, percorso, porta o spazi.
@@ -25,6 +26,79 @@ function redirectsToAccess(response: Response, url: string): boolean {
     target?.protocol === "https:" &&
     target.hostname.endsWith(".cloudflareaccess.com")
   );
+}
+
+/** Errori che fetch lancia per la rete, per un abort o per il timeout del segnale. */
+function isNetworkError(error: unknown): boolean {
+  return (
+    error instanceof TypeError ||
+    (error instanceof DOMException &&
+      (error.name === "AbortError" || error.name === "TimeoutError"))
+  );
+}
+
+/**
+ * GET senza cookie e senza seguire i redirect. Un errore di rete diventa `TransientError`, con
+ * l'errore di fetch come causa: il messaggio nomina solo il percorso, la causa nomina l'host.
+ */
+async function get(
+  fetchFn: typeof fetch,
+  host: string,
+  path: string,
+  headers: Record<string, string> = {},
+): Promise<Response> {
+  try {
+    // `manual`: il redirect di Access è proprio la risposta da controllare, non va seguito.
+    return await fetchFn(`https://${host}${path}`, {
+      redirect: "manual",
+      headers,
+    });
+  } catch (error) {
+    if (!isNetworkError(error)) throw error;
+    throw new TransientError(
+      `Richiesta a ${path} non riuscita: errore di rete o timeout (rilanciare; se si ripete, controllare dominio e DNS)`,
+      { cause: error },
+    );
+  }
+}
+
+/** I controlli, con l'exit code del primo che non passa. */
+async function check(
+  fetchFn: typeof fetch,
+  host: string,
+  afterDeploy: boolean,
+): Promise<number> {
+  // Solo percorsi e stati nei messaggi: l'hostname e il Location (che lo contiene) mai.
+  for (const path of PATHS) {
+    const response = await get(fetchFn, host, path);
+    if (!redirectsToAccess(response, `https://${host}${path}`)) {
+      console.error(
+        `Access non attivo su ${path}: risposta ${response.status}, atteso un redirect al login di Access (*.cloudflareaccess.com)`,
+      );
+      return 78;
+    }
+  }
+  if (!afterDeploy) {
+    console.error(
+      "Access attivo: / e /api/measures reindirizzano al login di Access",
+    );
+    return 0;
+  }
+  // Con questa intestazione e senza sessione Access risponde 401 invece del redirect: il
+  // frontend ricarica la pagina (kb/decisioni/2026-11-01-sessione-access-scaduta.md).
+  const xhr = await get(fetchFn, host, "/api/measures", {
+    "X-Requested-With": "XMLHttpRequest",
+  });
+  if (xhr.status !== 401) {
+    console.error(
+      `GET /api/measures con X-Requested-With: risposta ${xhr.status}, attesa 401. Il deploy è avvenuto e i dati restano protetti, ma con la sessione scaduta la dashboard mostrerà un errore invece di ricaricarsi (docs/dashboard.md, «Se il deploy fallisce»)`,
+    );
+    return 78;
+  }
+  console.error(
+    "Access attivo: / e /api/measures reindirizzano al login di Access; /api/measures con X-Requested-With risponde 401",
+  );
+  return 0;
 }
 
 export async function main(
@@ -45,59 +119,14 @@ export async function main(
     );
     return 78;
   }
-  const fetchFn = deps.fetch ?? fetch;
-  /** GET senza cookie e senza seguire i redirect; `null` se la richiesta non riesce. */
-  const get = async (
-    path: string,
-    headers: Record<string, string> = {},
-  ): Promise<Response | null> => {
-    try {
-      // `manual`: il redirect di Access è proprio la risposta da controllare, non va seguito.
-      return await fetchFn(`https://${host}${path}`, {
-        redirect: "manual",
-        headers,
-      });
-    } catch {
-      // Messaggio e causa dell'errore di fetch nominano l'host: non si stampano.
-      console.error(
-        `Richiesta a ${path} non riuscita: errore di rete o timeout (rilanciare; se si ripete, controllare dominio e DNS)`,
-      );
-      return null;
-    }
-  };
-  // Solo percorsi e stati nei messaggi: l'hostname e il Location (che lo contiene) mai.
-  for (const path of PATHS) {
-    const response = await get(path);
-    if (response === null) return 75;
-    if (!redirectsToAccess(response, `https://${host}${path}`)) {
-      console.error(
-        `Access non attivo su ${path}: risposta ${response.status}, atteso un redirect al login di Access (*.cloudflareaccess.com)`,
-      );
-      return 78;
-    }
+  try {
+    return await check(deps.fetch ?? fetch, host, afterDeploy);
+  } catch (error) {
+    if (!(error instanceof TransientError)) throw error;
+    // Solo il messaggio: la causa (l'errore di fetch) nomina l'host.
+    console.error(error.message);
+    return exitCodeFor(error);
   }
-  if (!afterDeploy) {
-    console.error(
-      "Access attivo: / e /api/measures reindirizzano al login di Access",
-    );
-    return 0;
-  }
-  // Con questa intestazione e senza sessione Access risponde 401 invece del redirect: il
-  // frontend ricarica la pagina (kb/decisioni/2026-11-01-sessione-access-scaduta.md).
-  const xhr = await get("/api/measures", {
-    "X-Requested-With": "XMLHttpRequest",
-  });
-  if (xhr === null) return 75;
-  if (xhr.status !== 401) {
-    console.error(
-      `GET /api/measures con X-Requested-With: risposta ${xhr.status}, attesa 401. Il deploy è avvenuto e i dati restano protetti, ma con la sessione scaduta la dashboard mostrerà un errore invece di ricaricarsi (docs/dashboard.md, «Se il deploy fallisce»)`,
-    );
-    return 78;
-  }
-  console.error(
-    "Access attivo: / e /api/measures reindirizzano al login di Access; /api/measures con X-Requested-With risponde 401",
-  );
-  return 0;
 }
 
 // Eseguito con `npx tsx src/cli/check-access.ts`; importato dai test, non parte.

@@ -254,6 +254,32 @@ describe("check-access", () => {
     expect(output()).not.toContain(HOST);
   });
 
+  it.each([{ name: "TimeoutError" }, { name: "AbortError" }])(
+    "check-access: exit 75 when fetch rejects with $name",
+    async ({ name }) => {
+      const abortedFetch = async (): Promise<Response> => {
+        throw new DOMException(`richiesta a ${HOST} interrotta`, name);
+      };
+      expect(await main([], ENV, { fetch: abortedFetch })).toBe(75);
+      expect(stderr.mock.calls).toEqual([
+        [
+          "Richiesta a / non riuscita: errore di rete o timeout (rilanciare; se si ripete, controllare dominio e DNS)",
+        ],
+      ]);
+      expect(output()).not.toContain(HOST);
+    },
+  );
+
+  it("check-access: an unexpected error is not reported as a network error", async () => {
+    const buggyFetch = async (): Promise<Response> => {
+      throw new RangeError("errore inatteso");
+    };
+    await expect(main([], ENV, { fetch: buggyFetch })).rejects.toThrow(
+      "errore inatteso",
+    );
+    expect(stderr).not.toHaveBeenCalled();
+  });
+
   it("check-access: exit 75 when the request errors (MSW network error)", async () => {
     server.use(
       http.get(`https://${HOST}/`, toAccessLogin),
