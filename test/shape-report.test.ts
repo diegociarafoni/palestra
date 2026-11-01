@@ -24,11 +24,13 @@ import {
   HTML_ATTRIBUTES,
   main,
   maskText,
+  readIdentities,
   shapeContext,
   shapeOfHtml,
   shapeOfJson,
   VOCAB,
 } from "../scripts/shape-report";
+import { ParseError } from "../src/errors";
 
 // Identità inventate, nella forma di identities.json scritto dal probe.
 const EMAIL = "mario.rossi@example.com";
@@ -714,6 +716,19 @@ describe("shape", () => {
     expect(existsSync(dest)).toBe(false);
     expect(stderr.mock.calls).toEqual([["login_ok.html:2: identity"]]);
     expect(stdout).not.toHaveBeenCalled();
+  });
+
+  it("shape: an invalid identities.json gives a ParseError without cause", async () => {
+    // La causa (l'errore di JSON.parse o di zod) potrebbe citare le identità del file.
+    const src = join(dir, "probe_out");
+    mkdirSync(src);
+    writeFileSync(join(src, "identities.json"), '["Mario", 1]');
+    const error = await readIdentities(src).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ParseError);
+    expect(error instanceof ParseError && error.message).toBe(
+      "identities.json non valido: serve un array di stringhe",
+    );
+    expect(error instanceof ParseError && error.cause).toBeUndefined();
   });
 
   it("shape: cli", async () => {

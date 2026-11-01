@@ -724,15 +724,14 @@ function inputOrder(name: string): [number, number] | undefined {
   return undefined;
 }
 
-async function readIdentities(src: string): Promise<string[]> {
+export async function readIdentities(src: string): Promise<string[]> {
   const text = await readFile(join(src, IDENTITIES_FILE), "utf8");
   try {
     return z.array(z.string()).parse(JSON.parse(text));
-  } catch (error) {
-    // Mai il messaggio originale: potrebbe citare le identità contenute nel file.
+  } catch {
+    // Né il messaggio né la causa originale: potrebbero citare le identità del file.
     throw new ParseError(
       `${IDENTITIES_FILE} non valido: serve un array di stringhe`,
-      { cause: error },
     );
   }
 }
