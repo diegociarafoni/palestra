@@ -5,6 +5,7 @@ import {
   MeasuresResponseSchema,
   ReportsResponseSchema,
   SchedaResponseSchema,
+  WeekResponseSchema,
 } from "../../../src/domain/dashboard";
 import { browser, SessionError } from "./session";
 
@@ -83,4 +84,9 @@ export function getReport(month: string) {
     api.reports[":month"].$get({ param: { month } }),
     ReportsResponseSchema,
   );
+}
+
+/** Slot e sedute della settimana ISO che contiene `date` (`AAAA-MM-GG`). */
+export function getWeek(date: string) {
+  return read(api.week.$get({ query: { date } }), WeekResponseSchema);
 }

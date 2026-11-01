@@ -21,6 +21,13 @@ const monthName = new Intl.DateTimeFormat("it-IT", {
   month: "long",
   year: "numeric",
 });
+const dayOfWeek = new Intl.DateTimeFormat("it-IT", {
+  timeZone: TIME_ZONE,
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+});
+const alternatives = new Intl.ListFormat("it-IT", { type: "disjunction" });
 
 // Mezzogiorno UTC cade nello stesso giorno di calendario a Roma (UTC+1 o UTC+2).
 const middayOf = (date: string): Date => new Date(`${date}T12:00:00Z`);
@@ -55,14 +62,29 @@ export function formatDate(date: string): string {
   return longDate.format(middayOf(date));
 }
 
+/** `2026-11-03` → "mar 3 nov". */
+export function formatDay(date: string): string {
+  return dayOfWeek.format(middayOf(date));
+}
+
+/** `["2026-11-03", "2026-11-04"]` → "mar 3 nov o mer 4 nov". */
+export function formatDays(dates: string[]): string {
+  return alternatives.format(dates.map(formatDay));
+}
+
 /** `2026-11` → "novembre 2026". */
 export function formatMonth(month: string): string {
   return monthName.format(middayOf(`${month}-15`));
 }
 
+/** Data di oggi a Roma (`AAAA-MM-GG`). */
+export function todayInRome(): string {
+  return romeDate(new Date().toISOString());
+}
+
 /** Mese di oggi a Roma (`AAAA-MM`). */
 export function currentMonthInRome(): string {
-  return romeDate(new Date().toISOString()).slice(0, 7);
+  return todayInRome().slice(0, 7);
 }
 
 // Mese `AAAA-MM` spostato di `delta` mesi, con il cambio d'anno.

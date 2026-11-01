@@ -1,3 +1,5 @@
+import type { SlotStatus } from "../../src/domain/planning";
+
 // Tutte le stringhe dell'interfaccia (docs/buone-pratiche-react.md § 7).
 
 export const testi = {
@@ -56,5 +58,24 @@ export const testi = {
     title: "Report mensile",
     report: "Report",
     revisione: "Revisione",
+  },
+  slot: {
+    // `scheda_day` è l'id del giorno della scheda (`days[].id`, es. "A").
+    schedaDay: (day: string) => `Seduta ${day}`,
+    window: (days: string) => `Giorni ammessi: ${days}`,
+    date: (day: string) => `Data: ${day}`,
+    status: {
+      programmata: "Programmata",
+      fatta: "Fatta",
+      spostata: "Spostata",
+      da_confermare: "Da confermare",
+      saltata: "Saltata",
+    } satisfies Record<SlotStatus, string>,
+  },
+  week: {
+    slotsTitle: "Sedute programmate",
+    sessionsTitle: "Sedute della settimana",
+    columns: { date: "Data", name: "Seduta", moves: "MOVEs" },
+    movesTotal: (moves: string) => `Totale MOVEs: ${moves}`,
   },
 };
