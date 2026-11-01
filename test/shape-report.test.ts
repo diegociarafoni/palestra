@@ -459,13 +459,13 @@ describe("shape", () => {
       'property: "Hr9Max"',
     ]);
     expect(shapeOfJson({ property: "MonRpm" }, ctx)).toEqual(['property: "A"']);
-    // Le classi si giudicano una per una.
+    // Anche nei valori di `name`, `type` e `method`.
     expect(
       shapeOfHtml(
-        '<div class="fc-day fc-day-wed col-md-6 h2o" name="hr2" id="Oct29"></div>',
+        '<div name="fc-day-wed" type="hr2" method="Oct29"></div>',
         ctx,
       ),
-    ).toEqual(["div[class=fc-day «a-a-a» col-md-9 h9o, name=hr9, id=«A99»]"]);
+    ).toEqual(["div[name=«a-a-a», type=hr9, method=«A99»]"]);
     expect(shapeOfHtml("<h2>Serie</h2>", ctx)).toEqual(["h9", '  "Serie"']);
   });
 
@@ -484,6 +484,23 @@ describe("shape", () => {
     expect([...HTML_ATTRIBUTES].join(" ")).toBe(
       "id class name type value href src action method for role rel title alt lang dir style width height colspan rowspan scope placeholder target content charset http-equiv property itemprop tabindex autocomplete maxlength minlength min max step pattern accept enctype form label nonce integrity crossorigin referrerpolicy media sizes srcset loading async defer hidden disabled readonly required multiple open novalidate autofocus onclick onchange onsubmit onload onerror",
     );
+  });
+
+  it("shape: only name, type and method values are printed", () => {
+    // Nessun parser legge class, id, for, role o rel: i loro valori sono mascherati.
+    expect(
+      shapeOfHtml(
+        '<span class="gender-male goal-weightloss" id="box" role="note" for="x" rel="nofollow" name="hdSessionIdCR" type="hidden" method="post"></span>',
+        ctx,
+      ),
+    ).toEqual([
+      "span[class=«a-a a-a», id=«a», role=«a», for=«a», rel=«a», name=hdSessionIdCR, type=hidden, method=post]",
+    ]);
+    // Con `\"` o `\'` nel testo degli attributi il parser li spezza male (`name=Giulia` nasce
+    // dal valore di `title`): tutti i valori sono mascherati.
+    expect(
+      shapeOfHtml(String.raw`<div title="a\" name=Giulia \"">`, ctx),
+    ).toEqual(["div[title=«a\\», name=«A»]"]);
   });
 
   it("shape: names glued to the user's name are masked", () => {
@@ -604,10 +621,10 @@ describe("shape", () => {
       '        id: "99a99a99a99a-99a99a-99a99a-99a99a-99a99a99a99a99a99a"',
       '        firstName: "A"',
       "        weight: numero 9.9",
-      "    a[class=profile-link, href=«/a/A/99a99a99a99a-99a99a-99a99a-99a99a-99a99a99a99a99a99a»]",
+      "    a[class=«a-a», href=«/a/A/99a99a99a99a-99a99a-99a99a-99a99a-99a99a99a99a99a99a»]",
       '      "A A"',
       // Le righe in ordine alfabetico e senza numero; le celle di una riga nell'ordine delle colonne.
-      "    table[class=sets]",
+      "    table[class=«sets»]",
       "      tr (ripetuto)",
       "        td",
       '          "99"',
@@ -623,7 +640,7 @@ describe("shape", () => {
       "        th",
       '          "Carico"',
       "    input[type=hidden, name=hdSessionIdCR, value=«9999»]",
-      "    div[id=«a-a», data-user=«A», role=note, hidden]",
+      "    div[id=«a-a», data-user=«A», role=«a», hidden]",
       '      "A A!"',
     ]);
     const text = lines.join("\n").toLowerCase();
@@ -885,7 +902,7 @@ describe("shape", () => {
         "```",
         "",
         "```text",
-        "table[class=sets]",
+        "table[class=«sets»]",
         "  tr",
         "    td",
         '      "99"',

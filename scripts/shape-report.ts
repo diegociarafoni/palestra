@@ -476,22 +476,15 @@ const BOOLEAN_ATTRIBUTES = new Set([
 /** Mai stampati, neanche mascherati: dicono che cosa ha scelto l'utente. */
 const CHOICE_ATTRIBUTES = new Set(["checked", "selected"]);
 const CUSTOM_ATTRIBUTE = /^(?:data|aria)-[a-z][a-z0-9_-]{0,40}$/i;
-/** Attributi il cui valore è un nome del modello della pagina (es. `name=hdSessionIdCR`). */
-const NAMING_ATTRIBUTES = new Set([
-  "class",
-  "for",
-  "id",
-  "method",
-  "name",
-  "rel",
-  "role",
-  "type",
-]);
+/**
+ * I soli attributi il cui valore si stampa, se ha la forma di un nome: quelli che leggono i
+ * parser (es. `name=hdSessionIdCR`). I valori di `class`, `id` e degli altri sono mascherati.
+ */
+const NAMING_ATTRIBUTES = new Set(["method", "name", "type"]);
 const NAMING_VALUE = /^[A-Za-z][A-Za-z0-9_. :-]{0,60}$/;
+/** Virgolette con la barra: il parser spezza male gli attributi e ne fa nascere dal testo. */
+const ESCAPED_QUOTE = /\\["']/;
 const OMITTED = "(contenuto omesso)";
-
-/** Una classe di una lista `class`, giudicata da sola. */
-const CLASS_TOKEN = /^[A-Za-z][A-Za-z0-9_.:-]{0,60}$/;
 
 /** Il nome di un attributo dell'elenco o `data-…`/`aria-…`, in minuscolo; altrimenti `undefined`. */
 function attributeName(name: string, ctx: ShapeContext): string | undefined {
@@ -504,7 +497,12 @@ function attributeName(name: string, ctx: ShapeContext): string | undefined {
   return plainName(name, ATTRIBUTE, ctx)?.toLowerCase();
 }
 
-function attributeText(name: string, value: string, ctx: ShapeContext): string {
+function attributeText(
+  name: string,
+  value: string,
+  maskValues: boolean,
+  ctx: ShapeContext,
+): string {
   const plain = attributeName(name, ctx);
   const shown = plain ?? `«${maskText(name, ctx.vocab)}»`;
   // Senza valore si stampano solo gli attributi booleani dell'elenco.
@@ -513,27 +511,19 @@ function attributeText(name: string, value: string, ctx: ShapeContext): string {
       ? plain
       : `«${maskText(name, ctx.vocab)}»`;
   }
-  // Tutti gli altri valori, compresi href, src, action e data-*, sono mascherati.
-  if (plain === undefined || !NAMING_ATTRIBUTES.has(plain)) {
+  // Tutti gli altri valori, compresi class, id, href, src e data-*, sono mascherati.
+  if (maskValues || plain === undefined || !NAMING_ATTRIBUTES.has(plain)) {
     return `${shown}=«${maskText(value, ctx.vocab)}»`;
   }
-  // Le classi una per una: `fc-day` resta scritta, `fc-day-wed` no.
-  const kept =
-    plain === "class"
-      ? value
-          .trim()
-          .split(/\s+/)
-          .map((token) => shownName(token, CLASS_TOKEN, ctx))
-          .join(" ")
-      : shownName(value, NAMING_VALUE, ctx);
-  return `${shown}=${kept}`;
+  return `${shown}=${shownName(value, NAMING_VALUE, ctx)}`;
 }
 
 function elementLine(element: HTMLElement, ctx: ShapeContext): string {
   const shown = shownName(element.rawTagName.toLowerCase(), TAG, ctx);
+  const maskValues = ESCAPED_QUOTE.test(element.rawAttrs);
   const attributes = Object.entries(element.attributes)
     .filter(([name]) => !CHOICE_ATTRIBUTES.has(name.toLowerCase()))
-    .map(([name, value]) => attributeText(name, value, ctx));
+    .map(([name, value]) => attributeText(name, value, maskValues, ctx));
   return attributes.length === 0 ? shown : `${shown}[${attributes.join(", ")}]`;
 }
 
