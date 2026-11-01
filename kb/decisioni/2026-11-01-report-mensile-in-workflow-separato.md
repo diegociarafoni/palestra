@@ -3,12 +3,12 @@ tipo: decisione
 slug: 2026-11-01-report-mensile-in-workflow-separato
 titolo: Il report mensile gira in un workflow proprio, il 1° del mese dopo la sync
 data: 2026-11-01
-stato: attiva
+stato: accettata
 aggiornato: 2026-11-01
 ---
 # Il report mensile gira in un workflow proprio, il 1° del mese dopo la sync
 
-**Data**: 2026-11-01 · **Stato**: attiva · **Decisa da**: Claude, nel Task 6b, durante la delega notturna dell'utente (31/10 → 1/11)
+**Data**: 2026-11-01 · **Stato**: accettata · **Decisa da**: Claude, nel Task 6b, durante la delega notturna dell'utente (31/10 → 1/11)
 
 ## Decisione e motivazione
 - Il report del mese precedente si genera con un workflow separato, `report.yml`. Il piano prevedeva invece un passo dentro `sync.yml`, ma `sync.yml` non esisteva ancora (Task 5 in corso nella corsia sync). Un file a parte non tocca il lavoro di un'altra corsia e non la blocca.
@@ -19,6 +19,7 @@ aggiornato: 2026-11-01
 ## Costo e alternative scartate
 - **Passo dentro `sync.yml`** (piano): il report non gira se la sync fallisce. Avrebbe richiesto di aspettare il Task 5 o di modificare un file di un'altra corsia. Si può tornare a questa soluzione spostando il passo quando `sync.yml` sarà su `main`.
 - **Costo della scelta**: due workflow invece di uno. Se la sync della notte fallisce, il report usa i dati già presenti in D1. Si rigenera a mano dopo la sync, e il nuovo salvataggio sostituisce il precedente.
+- **Limite del giorno 1** (vale anche per il piano): gli slot dell'ultima settimana del mese possono chiudersi nei primi giorni del mese nuovo, quindi il report del 1° li conta come non fatti. Prima della revisione mensile il mese si rigenera a mano, dopo la sync che segue la fine di quella settimana. Spostare il lancio automatico all'8 del mese cambierebbe il piano e la spec, che fissano il 1°: decide l'utente.
 
 ## Riferimenti
 `.github/workflows/report.yml`, `src/cli/report.ts`; `docs/dashboard.md`, «Report mensile»; piano `docs/superpowers/plans/2026-10-31-palestra-typescript-d1.md` (Task 6b); nota [Il report mensile](../concetti/report-mensile.md).
