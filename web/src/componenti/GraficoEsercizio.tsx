@@ -42,6 +42,9 @@ export function GraficoEsercizio({
             min: chartDate(from),
             max: chartDate(to),
             tickMinStep: 24 * 60 * 60 * 1000,
+            // Etichette delle tacche ben distanziate: a due giorni l'una "6 ott" e "8 ott" si
+            // toccherebbero (a 1024 px); MUI nasconde quelle più vicine di così.
+            tickLabelMinGap: 16,
             // Tacche senza anno (giorni del mese scelto); nel tooltip la data completa.
             valueFormatter: (value: Date, context) =>
               context.location === "tick"
