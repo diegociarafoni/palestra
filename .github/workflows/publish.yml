@@ -32,13 +32,14 @@ jobs:
       - run: npm ci
       - run: npm run build:web
       # Mai pubblicare senza Access attivo (CLAUDE.md): exit 78 qui ferma il job prima del deploy.
-      # L'hostname arriva da un Secret e solo ai due passi di controllo (npm ci e la build non lo
-      # vedono): GitHub stampa nel log pubblico il blocco env di ogni passo, dove un Secret compare
-      # come *** e una Variable in chiaro.
+      # Hostname della dashboard e dominio pages.dev del progetto arrivano da due Secret e solo ai
+      # due passi di controllo (npm ci e la build non li vedono): GitHub stampa nel log pubblico il
+      # blocco env di ogni passo, dove un Secret compare come *** e una Variable in chiaro.
       - name: Check that Cloudflare Access protects the dashboard
         timeout-minutes: 2
         env:
           DASHBOARD_HOSTNAME: ${{ secrets.DASHBOARD_HOSTNAME }}
+          PAGES_HOSTNAME: ${{ secrets.PAGES_HOSTNAME }}
         run: npx --no -- tsx src/cli/check-access.ts
       # Output di wrangler scartato: contiene gli URL del progetto e degli alias. Binding e
       # variabili delle Functions vengono dalle impostazioni del progetto Pages (nessun wrangler.toml).
@@ -61,4 +62,5 @@ jobs:
         timeout-minutes: 2
         env:
           DASHBOARD_HOSTNAME: ${{ secrets.DASHBOARD_HOSTNAME }}
+          PAGES_HOSTNAME: ${{ secrets.PAGES_HOSTNAME }}
         run: npx --no -- tsx src/cli/check-access.ts --after-deploy
