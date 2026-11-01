@@ -18,7 +18,15 @@ import {
   type MockInstance,
   vi,
 } from "vitest";
-import { anonymize, DAY_OFFSETS, main } from "../scripts/anonymize-fixtures";
+import {
+  anonymize,
+  buildDayMap,
+  collectDays,
+  main,
+} from "../scripts/anonymize-fixtures";
+
+// randomInt deterministico: restituisce sempre il minimo (semantica di crypto: [min, max)).
+const minRandomInt = (min: number, _max: number): number => min;
 
 // Valori inventati: nessun dato reale.
 const EMAIL = "mario.rossi@example.com";
@@ -35,12 +43,14 @@ describe("anonymize", () => {
       `"startedOn":"2026-03-01 15:17:08 +01:00","next":"2026-03-04 15:17:08 +01:00",`,
       `"kg":62.5,"kgText":"62,5","reps":12,"target":60}`,
     ].join("");
+    const mapDay = (iso: string) =>
+      ({ "2026-03-01": "2025-11-21", "2026-03-04": "2025-11-24" })[iso] ?? iso;
     const output = anonymize(input, {
       identities: [EMAIL, USER_ID, NAME, TOKEN, COOKIE],
-      dayOffset: -100,
+      mapDay,
     });
-    // Date calcolate a parte (GNU date): 2026-03-01 − 100 giorni = 2025-11-21, ancora a
-    // 3 giorni dalla seconda; carichi e ripetizioni invariati.
+    // mapDay letterale: 2026-03-01 → 2025-11-21, ancora a 3 giorni dalla seconda;
+    // carichi e ripetizioni invariati.
     expect(output).toBe(
       [
         '{"email":"utente@example.com","userId":"00000000-0000-4000-8000-000000000002","displayName":"anon-3",',
@@ -61,8 +71,16 @@ describe("anonymize", () => {
       "guid 20260301-ab12-4c3d-8e9f-0123456789ab",
       "invalid 2026-02-30 0001-01-01T00:00:00 31/02/2026",
     ].join("\n");
-    // Date calcolate a parte (GNU date) con uno spostamento di −100 giorni.
-    expect(anonymize(input, { identities: [], dayOffset: -100 })).toBe(
+    // mapDay letterale per ogni giorno distinto dell'input (spostamento equivalente a −100).
+    const mapDay = (iso: string) =>
+      ({
+        "2026-02-27": "2025-11-19",
+        "2026-10-30": "2026-07-22",
+        "2024-04-18": "2024-01-09",
+        "2026-03-01": "2025-11-21",
+        "2025-12-31": "2025-09-22",
+      })[iso] ?? iso;
+    expect(anonymize(input, { identities: [], mapDay })).toBe(
       [
         "iso 2025-11-19T23:30:00.123Z | 2026-07-22T08:05:00+02:00 | day=2024-01-09",
         "list 21/11/2025 22/09/2025 fromDate=21%2F11%2F2025",
@@ -85,7 +103,7 @@ describe("anonymize", () => {
     const output = anonymize(input, {
       // Vuote e di 1–2 caratteri ignorate: non identificano e cambierebbero tutto il testo.
       identities: [EMAIL, "Mario", NAME, "Niccolò D'Amico", "", "M"],
-      dayOffset: -100,
+      mapDay: (iso) => iso,
     });
     expect(output).toBe(
       [
@@ -123,16 +141,51 @@ EU.currentUser = JSON.parse('{\"id\":\"${USER_ID}\",\"token\":\"${TOKEN}\",\"cul
 </script>
 <p>Ciao Mario Rossi</p>
 `;
-  it("anonymize-fixtures: day offsets are never a whole number of weeks", () => {
-    // Uno spostamento di settimane intere lascerebbe i giorni reali di allenamento.
-    expect(DAY_OFFSETS).toHaveLength(318);
-    expect(DAY_OFFSETS[0]).toBe(-400);
-    expect(DAY_OFFSETS.at(-1)).toBe(-30);
-    for (const offset of DAY_OFFSETS) {
-      expect(offset % 7).not.toBe(0);
-      expect(offset).toBeGreaterThanOrEqual(-400);
-      expect(offset).toBeLessThanOrEqual(-30);
-    }
+  it("collectDays: lists the distinct calendar days of every recognised format", () => {
+    const text = [
+      "iso 2026-03-01T15:17:08+01:00 e 2026-03-01 15:17:08 +01:00",
+      "list 04/03/2026 fromDate=10%2F03%2F2026",
+      "compact 20260305 e carico 20260305 ripetuto",
+    ].join("\n");
+    // Giorni distinti, non ordinati; i numeri non-data (carichi) non entrano.
+    expect(collectDays(text).sort()).toEqual([
+      "2026-03-01",
+      "2026-03-04",
+      "2026-03-05",
+      "2026-03-10",
+    ]);
+  });
+
+  it("buildDayMap: keeps order and 1-day gaps, randomises the rest, no fake equals its real day", () => {
+    const map = buildDayMap(
+      ["2026-03-04", "2026-03-01", "2026-03-01", "2026-03-05", "2026-03-10"],
+      minRandomInt,
+    );
+    // minRandomInt: primo scarto 60 giorni, ogni altro salto 2 giorni; il salto reale di
+    // 1 giorno (04→05) resta 1. Valori calcolati a parte.
+    expect([...map]).toEqual([
+      ["2026-03-01", "2025-12-31"],
+      ["2026-03-04", "2026-01-02"],
+      ["2026-03-05", "2026-01-03"],
+      ["2026-03-10", "2026-01-05"],
+    ]);
+    for (const [real, fake] of map) expect(fake).not.toBe(real);
+  });
+
+  it("buildDayMap: a varying randomInt drives the first offset and the gaps", () => {
+    let gap = 0;
+    const varyingRandomInt = (min: number, _max: number): number =>
+      min === 60 ? 90 : ([3, 4][gap++] ?? 0);
+    const map = buildDayMap(
+      ["2026-03-01", "2026-03-04", "2026-03-05", "2026-03-10"],
+      varyingRandomInt,
+    );
+    expect([...map]).toEqual([
+      ["2026-03-01", "2025-12-01"],
+      ["2026-03-04", "2025-12-04"],
+      ["2026-03-05", "2025-12-05"],
+      ["2026-03-10", "2025-12-09"],
+    ]);
   });
 
   it("anonymize-fixtures: writes anonymized copies and keeps only id, token and culture of the profile", async () => {
@@ -146,7 +199,8 @@ EU.currentUser = JSON.parse('{\"id\":\"${USER_ID}\",\"token\":\"${TOKEN}\",\"cul
       `{"data":{"startedOn":"2026-03-01 15:17:08 +01:00","userId":"${USER_ID}","kg":62.5}}`,
     );
     writeFileSync(join(src, "note.txt"), EMAIL);
-    expect(await main([src, dest], { dayOffset: -100 })).toBe(0);
+    const mapDay = (iso: string) => (iso === "2026-03-01" ? "2025-11-21" : iso);
+    expect(await main([src, dest], { mapDay })).toBe(0);
     expect(readdirSync(dest).sort()).toEqual([
       "login_ok.html",
       "session_strength.json",
@@ -170,9 +224,30 @@ EU.currentUser = JSON.parse('{\"id\":\"00000000-0000-4000-8000-000000000002\",\"
     expect(stderr).not.toHaveBeenCalled();
   });
 
+  it("anonymize-fixtures: default day map keeps order and 1-day gaps, no fake equal to its real day", async () => {
+    writeFileSync(join(src, "identities.json"), "[]");
+    writeFileSync(
+      join(src, "session_strength.json"),
+      '{"a":"2026-03-01 10:00:00 +01:00","b":"2026-03-05"}',
+    );
+    writeFileSync(
+      join(src, "session_cardio_only.json"),
+      '{"c":"2026-03-02T08:00:00Z"}',
+    );
+    // minRandomInt: primo scarto 60 giorni, salti casuali 2; il salto reale 03-01→03-02
+    // è di 1 giorno e resta 1 (12-31→01-01). Valori calcolati a parte.
+    expect(await main([src, dest], { randomInt: minRandomInt })).toBe(0);
+    expect(readFileSync(join(dest, "session_strength.json"), "utf8")).toBe(
+      '{"a":"2025-12-31 10:00:00 +01:00","b":"2026-01-03"}',
+    );
+    expect(readFileSync(join(dest, "session_cardio_only.json"), "utf8")).toBe(
+      '{"c":"2026-01-01T08:00:00Z"}',
+    );
+  });
+
   it("anonymize-fixtures: exit 78 without identities.json", async () => {
     writeFileSync(join(src, "login_ok.html"), LOGIN_OK);
-    expect(await main([src, dest], { dayOffset: -100 })).toBe(78);
+    expect(await main([src, dest], {})).toBe(78);
     expect(existsSync(dest)).toBe(false);
     expect(stderr.mock.calls).toEqual([
       [`identities.json mancante in ${src}: eseguire prima il probe`],
@@ -183,7 +258,7 @@ EU.currentUser = JSON.parse('{\"id\":\"00000000-0000-4000-8000-000000000002\",\"
   it("anonymize-fixtures: exit 65 with an invalid identities.json", async () => {
     writeFileSync(join(src, "identities.json"), JSON.stringify({ EMAIL }));
     writeFileSync(join(src, "login_ok.html"), LOGIN_OK);
-    expect(await main([src, dest], { dayOffset: -100 })).toBe(65);
+    expect(await main([src, dest], {})).toBe(65);
     expect(existsSync(dest)).toBe(false);
     expect(stderr.mock.calls).toEqual([
       ["identities.json non valido: serve un array di stringhe"],
@@ -193,7 +268,7 @@ EU.currentUser = JSON.parse('{\"id\":\"00000000-0000-4000-8000-000000000002\",\"
   it.each([[[]], [["probe_out"]], [["a", "b", "c"]]])(
     "anonymize-fixtures: exit 64 with arguments %j",
     async (argv) => {
-      expect(await main(argv, { dayOffset: -100 })).toBe(64);
+      expect(await main(argv, {})).toBe(64);
       expect(stderr.mock.calls).toEqual([
         [
           "Uso: npx tsx scripts/anonymize-fixtures.ts <cartella_probe> <cartella_fixture>",
@@ -225,7 +300,7 @@ EU.currentUser = JSON.parse('{\"id\":\"00000000-0000-4000-8000-000000000002\",\"
       writeFileSync(join(src, "identities.json"), "[]");
       writeFileSync(join(src, "last_sessions.html"), "<p>ok</p>");
       writeFileSync(join(src, "login_ok.html"), page);
-      expect(await main([src, dest], { dayOffset: -100 })).toBe(65);
+      expect(await main([src, dest], {})).toBe(65);
       expect(existsSync(dest)).toBe(false);
       expect(stderr.mock.calls).toEqual([[message]]);
       expect(stdout).not.toHaveBeenCalled();

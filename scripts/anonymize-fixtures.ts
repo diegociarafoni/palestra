@@ -15,15 +15,6 @@ import { z } from "zod";
 import { ParseError } from "../src/errors";
 
 const DAY_MS = 86_400_000;
-
-/**
- * Spostamenti ammessi, in giorni: da −400 a −30, mai un multiplo di 7 (con settimane
- * intere i giorni della settimana resterebbero quelli reali delle sedute).
- */
-export const DAY_OFFSETS: readonly number[] = Array.from(
-  { length: 371 },
-  (_, i) => -400 + i,
-).filter((days) => days % 7 !== 0);
 const EMAIL_PLACEHOLDER = "utente@example.com";
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^@\s]+@[^@\s]+$/;
@@ -94,76 +85,128 @@ function replaceEmails(input: string): string {
   );
 }
 
-/** Giorno spostato di `days`, o `undefined` se `y-m-d` non è una data valida. */
-function shiftDay(
+const pad = (n: number, width = 2): string => String(n).padStart(width, "0");
+
+/** `YYYY-MM-DD` canonico se y-m-d è un giorno reale tra `minYear` e il 2099, altrimenti `undefined`. */
+function isoDay(
   y: number,
   m: number,
   d: number,
-  days: number,
-): { y: number; m: number; d: number } | undefined {
-  if (y < 1900 || y > 2099) return undefined;
+  minYear = 1900,
+): string | undefined {
+  if (y < minYear || y > 2099) return undefined;
   const date = new Date(Date.UTC(y, m - 1, d));
-  if (date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return undefined;
-  const shifted = new Date(date.getTime() + days * DAY_MS);
-  return {
-    y: shifted.getUTCFullYear(),
-    m: shifted.getUTCMonth() + 1,
-    d: shifted.getUTCDate(),
-  };
+  if (
+    date.getUTCFullYear() !== y ||
+    date.getUTCMonth() !== m - 1 ||
+    date.getUTCDate() !== d
+  ) {
+    return undefined;
+  }
+  return `${pad(y, 4)}-${pad(m)}-${pad(d)}`;
 }
 
-const pad = (n: number, width = 2): string => String(n).padStart(width, "0");
+/** Le tre parti di un giorno ISO già validato. */
+function ymd(iso: string): [string, string, string] {
+  const [y = "", m = "", d = ""] = iso.split("-");
+  return [y, m, d];
+}
 
-/** `YYYY-MM-DD`, anche dentro `YYYY-MM-DD HH:MM:SS +01:00` e ISO 8601: ora e fuso restano. */
-function shiftDashedDates(input: string, days: number): string {
-  return input.replace(
+/** Trasforma un giorno riconosciuto (sostituzione) o lo registra (raccolta). */
+export type MapIso = (iso: string) => string;
+
+/**
+ * Passa per `map` ogni data riconosciuta, tenendo ora del giorno e fuso. Gli stessi
+ * riconoscitori servono alla raccolta (`collectDays`) e alla sostituzione (`anonymize`).
+ */
+function transformDates(input: string, map: MapIso): string {
+  let text = input;
+  // 1. `YYYY-MM-DD`, anche dentro `… HH:MM:SS +01:00` e ISO 8601.
+  text = text.replace(
     /(?<!\d)(\d{4})-(\d{2})-(\d{2})(?!\d)/g,
-    (match, y: string, m: string, d: string) => {
-      const s = shiftDay(Number(y), Number(m), Number(d), days);
-      return s ? `${pad(s.y, 4)}-${pad(s.m)}-${pad(s.d)}` : match;
+    (m0, y: string, m: string, d: string) => {
+      const iso = isoDay(+y, +m, +d);
+      if (!iso) return m0;
+      const [fy, fm, fd] = ymd(map(iso));
+      return `${fy}-${fm}-${fd}`;
     },
   );
+  // 2. `DD/MM/YYYY`, anche con le barre codificate negli URL (`%2F`).
+  text = text.replace(
+    /(?<!\d)(\d{2})(\/|%2F)(\d{2})\2(\d{4})(?!\d)/gi,
+    (m0, d: string, sep: string, m: string, y: string) => {
+      const iso = isoDay(+y, +m, +d);
+      if (!iso) return m0;
+      const [fy, fm, fd] = ymd(map(iso));
+      return `${fd}${sep}${fm}${sep}${fy}`;
+    },
+  );
+  // 3. `YYYYMMDD` / `YYYYMMDDHHMMSS` come sequenza di cifre a sé.
+  text = text.replace(
+    /(?<![\w-]|\d[.,])(20\d{2})(\d{2})(\d{2})((?:[01]\d|2[0-3])[0-5]\d[0-5]\d)?(?![\w-]|[.,]\d)/g,
+    (m0, y: string, m: string, d: string, time: string | undefined) => {
+      const iso = isoDay(+y, +m, +d, 2000);
+      if (!iso) return m0;
+      const [fy, fm, fd] = ymd(map(iso));
+      return `${fy}${fm}${fd}${time ?? ""}`;
+    },
+  );
+  return text;
 }
 
-/** `DD/MM/YYYY`, anche con le barre codificate negli URL (`%2F`). */
-function shiftSlashedDates(input: string, days: number): string {
-  return input.replace(
-    /(?<!\d)(\d{2})(\/|%2F)(\d{2})\2(\d{4})(?!\d)/gi,
-    (match, d: string, sep: string, m: string, y: string) => {
-      const s = shiftDay(Number(y), Number(m), Number(d), days);
-      return s ? `${pad(s.d)}${sep}${pad(s.m)}${sep}${pad(s.y, 4)}` : match;
-    },
-  );
+/** I giorni di calendario distinti riconosciuti nel testo, non ordinati. */
+export function collectDays(input: string): string[] {
+  const days = new Set<string>();
+  transformDates(input, (iso) => {
+    days.add(iso);
+    return iso;
+  });
+  return [...days];
 }
 
 /**
- * `YYYYMMDD` e `YYYYMMDDHHMMSS` solo come sequenza di cifre a sé (non dentro parole,
- * GUID o numeri decimali) e solo se sono una data valida tra il 2000 e il 2099:
- * carichi, ripetizioni e id restano identici.
+ * Mappa i giorni reali distinti su giorni finti: ordine conservato, un intervallo reale di
+ * 1 giorno resta 1 (le sedute a cavallo della mezzanotte mantengono una durata sensata),
+ * ogni altro intervallo diventa casuale fra 2 e 9 giorni; il primo giorno finto è il primo
+ * reale meno un valore casuale fra 60 e 400 giorni. Nessun giorno finto coincide col reale.
+ * Uno scarto fisso sarebbe ricavabile da una data nota e dalla data del commit pubblico.
  */
-function shiftCompactDates(input: string, days: number): string {
-  return input.replace(
-    /(?<![\w-]|\d[.,])(20\d{2})(\d{2})(\d{2})((?:[01]\d|2[0-3])[0-5]\d[0-5]\d)?(?![\w-]|[.,]\d)/g,
-    (match, y: string, m: string, d: string, time: string | undefined) => {
-      const s = shiftDay(Number(y), Number(m), Number(d), days);
-      return s ? `${pad(s.y, 4)}${pad(s.m)}${pad(s.d)}${time ?? ""}` : match;
-    },
-  );
+export function buildDayMap(
+  days: string[],
+  randomInt: (min: number, max: number) => number,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  const [first, ...rest] = [...new Set(days)].sort();
+  if (first === undefined) return map;
+  const isoOf = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+  const firstMs = Date.parse(`${first}T00:00:00Z`);
+  let fakeMs = firstMs - randomInt(60, 401) * DAY_MS;
+  let prevRealMs = firstMs;
+  map.set(first, isoOf(fakeMs));
+  for (const day of rest) {
+    const realMs = Date.parse(`${day}T00:00:00Z`);
+    const gap = Math.round((realMs - prevRealMs) / DAY_MS);
+    fakeMs += (gap === 1 ? 1 : randomInt(2, 10)) * DAY_MS;
+    map.set(day, isoOf(fakeMs));
+    prevRealMs = realMs;
+  }
+  for (const [real, fake] of map) {
+    if (real === fake) throw new Error("mappa dei giorni degenere");
+  }
+  return map;
 }
 
 /**
  * Toglie dal testo le identità dell'utente (senza distinzione tra maiuscole e minuscole),
- * sostituisce ogni altra e-mail con una finta e sposta di `dayOffset` giorni le date
- * riconosciute. Funzione pura: stesso input, stesso output.
+ * sostituisce ogni altra e-mail con una finta e rimappa le date con `mapDay`. Funzione
+ * pura: stesso input, stesso output.
  */
 export function anonymize(
   input: string,
-  opts: { identities: string[]; dayOffset: number },
+  opts: { identities: string[]; mapDay: MapIso },
 ): string {
-  let text = replaceEmails(replaceIdentities(input, opts.identities));
-  text = shiftDashedDates(text, opts.dayOffset);
-  text = shiftSlashedDates(text, opts.dayOffset);
-  return shiftCompactDates(text, opts.dayOffset);
+  const text = replaceEmails(replaceIdentities(input, opts.identities));
+  return transformDates(text, opts.mapDay);
 }
 
 // Profilo dell'utente nelle pagine del sito: `EU.currentUser = JSON.parse('<JSON>')`, con
@@ -233,12 +276,6 @@ function reduceCurrentUser(html: string): string {
   );
 }
 
-function pickDayOffset(): number {
-  const offset = DAY_OFFSETS[randomInt(DAY_OFFSETS.length)];
-  if (offset === undefined) throw new Error("DAY_OFFSETS vuoto");
-  return offset;
-}
-
 const USAGE =
   "Uso: npx tsx scripts/anonymize-fixtures.ts <cartella_probe> <cartella_fixture>";
 const IDENTITIES_FILE = "identities.json";
@@ -256,10 +293,15 @@ async function readIdentities(src: string): Promise<string[]> {
   }
 }
 
+type Deps = {
+  mapDay?: MapIso;
+  randomInt?: (min: number, max: number) => number;
+};
+
 async function anonymizeDir(
   src: string,
   dest: string,
-  dayOffset: number,
+  deps: Deps,
 ): Promise<number> {
   const identities = await readIdentities(src);
   const names = (await readdir(src, { withFileTypes: true }))
@@ -268,7 +310,7 @@ async function anonymizeDir(
     .filter((name) => [".html", ".json"].includes(extname(name)))
     .sort();
   // Tutto in memoria prima di scrivere: se un profilo non si riduce, nessun file esce.
-  const outputs: { name: string; text: string }[] = [];
+  const clean: { name: string; text: string }[] = [];
   for (const name of names) {
     let text = await readFile(join(src, name), "utf8");
     if (extname(name) === ".html") {
@@ -282,20 +324,26 @@ async function anonymizeDir(
         throw new ParseError(`${name}: ${error.message}`, { cause: error });
       }
     }
-    outputs.push({ name, text: anonymize(text, { identities, dayOffset }) });
+    clean.push({ name, text });
+  }
+  // Una sola mappa dei giorni per tutti i file: l'ordine delle sedute resta coerente.
+  let mapDay = deps.mapDay;
+  if (!mapDay) {
+    const days = clean.flatMap((file) => collectDays(file.text));
+    const dayMap = buildDayMap(days, deps.randomInt ?? randomInt);
+    mapDay = (iso) => dayMap.get(iso) ?? iso;
   }
   await mkdir(dest, { recursive: true });
-  for (const { name, text } of outputs) {
-    await writeFile(join(dest, name), text);
+  let count = 0;
+  for (const { name, text } of clean) {
+    await writeFile(join(dest, name), anonymize(text, { identities, mapDay }));
     console.log(name);
+    count++;
   }
-  return outputs.length;
+  return count;
 }
 
-export async function main(
-  argv: string[],
-  deps: { dayOffset?: number } = {},
-): Promise<number> {
+export async function main(argv: string[], deps: Deps = {}): Promise<number> {
   const [src, dest] = argv;
   if (argv.length !== 2 || !src || !dest) {
     console.error(USAGE);
@@ -308,11 +356,7 @@ export async function main(
     return 78;
   }
   try {
-    const count = await anonymizeDir(
-      src,
-      dest,
-      deps.dayOffset ?? pickDayOffset(),
-    );
+    const count = await anonymizeDir(src, dest, deps);
     console.log(`${count} file anonimizzati`);
     return 0;
   } catch (error) {
