@@ -1,5 +1,6 @@
 import type { StrengthTable } from "../../src/domain/metrics";
 import type { SlotStatus } from "../../src/domain/planning";
+import type { Feedback } from "../../src/domain/types";
 
 type StrengthRow = StrengthTable[number];
 
@@ -67,6 +68,7 @@ export const testi = {
     schedaDay: (day: string) => `Seduta ${day}`,
     window: (days: string) => `Giorni ammessi: ${days}`,
     date: (day: string) => `Data: ${day}`,
+    reason: (reason: string) => `Motivo: ${reason}`,
     status: {
       programmata: "Programmata",
       fatta: "Fatta",
@@ -108,6 +110,26 @@ export const testi = {
     // Senza carico noto lo step non ha un valore in kg: si dicono solo le ripetizioni.
     step: "di uno step",
     reps: (reps: number) => `× ${reps}`,
+  },
+  calendar: {
+    slotsTitle: "Sedute programmate",
+    week: (number: number) => `Settimana ${number}`,
+    extraTitle: "Sedute extra",
+    moves: (moves: string) => `MOVEs: ${moves}`,
+  },
+  feedback: {
+    class: (label: string) => `Feedback: ${label}`,
+    classes: {
+      ottima: "Ottima",
+      buona: "Buona",
+      normale: "Normale",
+      faticosa: "Faticosa",
+      pessima: "Pessima",
+    } satisfies Record<Feedback["class"], string>,
+    jointPain: (where: string | null) =>
+      where ? `Fastidio articolare: sì, ${where}` : "Fastidio articolare: sì",
+    noJointPain: "Fastidio articolare: no",
+    notes: (notes: string) => `Note: ${notes}`,
   },
   week: {
     slotsTitle: "Sedute programmate",

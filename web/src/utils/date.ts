@@ -77,6 +77,11 @@ export function formatMonth(month: string): string {
   return monthName.format(middayOf(`${month}-15`));
 }
 
+/** Settimana ISO `2026-W45` → 45. */
+export function isoWeekNumber(week: string): number {
+  return Number(week.slice(6));
+}
+
 /** Data di oggi a Roma (`AAAA-MM-GG`). */
 export function todayInRome(): string {
   return romeDate(new Date().toISOString());

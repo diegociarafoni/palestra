@@ -2,6 +2,7 @@ import { hc } from "hono/client";
 import type { z } from "zod";
 import type { AppType } from "../../../src/api/app";
 import {
+  CalendarResponseSchema,
   ExercisesResponseSchema,
   MeasuresResponseSchema,
   ReportsResponseSchema,
@@ -98,4 +99,9 @@ export function getExercises(month: string) {
     api.exercises.$get({ query: { month } }),
     ExercisesResponseSchema,
   );
+}
+
+/** Slot, sedute extra e feedback del mese (`AAAA-MM`). */
+export function getCalendar(month: string) {
+  return read(api.calendar.$get({ query: { month } }), CalendarResponseSchema);
 }
