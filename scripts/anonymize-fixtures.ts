@@ -1,11 +1,14 @@
 // Anonimizza le risposte grezze di Mywellness (probe_out/) prima che diventino fixture
-// pubbliche: identità sostituite da segnaposto, altre e-mail rese finte, date spostate
-// di un numero casuale di giorni, profilo `EU.currentUser` ridotto a id, token e culture.
+// pubbliche: identità sostituite da segnaposto, altre e-mail rese finte, date rimappate
+// con una mappa dei giorni casuale (ordine e adiacenza di 1 giorno conservati), profilo
+// `EU.currentUser` ridotto a id, token e culture, valori di biometrics.json sintetici.
 // Uso: npx tsx scripts/anonymize-fixtures.ts <cartella_probe> <cartella_fixture>
-// Legge <cartella_probe>/identities.json (scritto dal probe) e copia ogni file .html e
-// .json con lo stesso nome. Stampa solo i nomi dei file e il loro numero, mai il contenuto
-// né lo spostamento. Exit code: 0 ok · 64 argomenti · 65 identities.json o profilo non
-// interpretabili (nessun file scritto) · 78 identities.json mancante.
+// Legge <cartella_probe>/identities.json (scritto dal probe) e copia con lo stesso nome i
+// soli file ammessi (degli altri stampa un conteggio su stderr). Prima di scrivere rilegge
+// ogni output in forma normalizzata: a ogni residuo (identità o data) non scrive nulla e
+// stampa solo `file:riga: tipo`. Stampa i nomi dei file e il loro numero, mai il contenuto
+// né la mappa dei giorni. Exit code: 0 ok · 64 argomenti · 65 identities.json o profilo non
+// interpretabili, o residuo trovato (nessun file scritto) · 78 identities.json mancante.
 import { randomInt } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";

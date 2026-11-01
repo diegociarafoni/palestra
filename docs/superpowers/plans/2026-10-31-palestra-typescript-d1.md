@@ -104,6 +104,8 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 
 ### Task 0: Probe Mywellness in locale
 
+> Nota (2026-11-01, fix round 1): la revisione del progetto e la lente privacy hanno ampliato l'anonimizzatore e il probe. **Ruling: `dayOffset` → `mapDay`** — una traslazione fissa è ricavabile da una data nota (per esempio il `toDate` di oggi) e dalla data pubblica del commit — costo: gli intervalli tra i giorni non sono reali (restano solo l'ordine e l'adiacenza di 1 giorno). Aggiunti inoltre: più codifiche e più formati di data riconosciuti; un controllo fail-closed che non scrive nulla e stampa `file:riga:tipo` su ogni residuo (identità o data); una allowlist dei file in uscita; valori biometrici sintetici. Nel probe: file `session_<n>.json` numerati per indice (mai l'IdCr), una sola serie cardio, raccolta identità più ampia, `probe_out/` a `0700` e file a `0600`, redirect seguiti solo verso host Mywellness in HTTPS. **Ruling: `--days` (predefinito 30) resta** — l'ultima seduta può essere più vecchia della finestra predefinita — costo: nessuno.
+
 **Accettazione:** `docs/mywellness-api.md` § 2 riporta "verificato il AAAA-MM-GG" per ogni endpoint; § 1 dice se le misure InBody sono leggibili e con quali campi; le fixture anonimizzate sono in `test/fixtures/mywellness/`; `node scripts/check-public-tree.mjs .` → `0 problemi`; la fixture della seduta di forza contiene l'esercizio registrato a mano con serie, ripetizioni e kg (se mancano: Task 8 diventa obbligatorio, annotarlo in `docs/mywellness-api.md`).
 
 **Prerequisito (utente):** una seduta reale con un esercizio del catalogo app registrato a mano (kg e ripetizioni) e un esercizio cardio connesso.
@@ -114,8 +116,8 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
 - Modify: `docs/mywellness-api.md` § 1–2
 
 - [x] **Step 1: Test** `anonymize: removes identities and shifts dates`: input con e-mail, `userId`, nome, token, cookie e due timestamp a 3 giorni di distanza → output senza le stringhe originali, timestamp diversi dagli originali ma ancora a 3 giorni di distanza, valori numerici di carico invariati.
-- [x] **Step 2:** FAIL → implementare `anonymize(input: string, opts: { identities: string[]; dayOffset: number }): string` → PASS.
-- [x] **Step 3:** `scripts/probe-mywellness.ts` (usa solo `fetch`, credenziali da env): login, elenco sedute, una seduta, dettaglio forza, serie cardio, ricerca dei dati biometrici; scrive le risposte grezze in `probe_out/` (ignorato da git); poi `scripts/anonymize-fixtures.ts probe_out test/fixtures/mywellness` con offset di giorni casuale.
+- [x] **Step 2:** FAIL → implementare `anonymize(input: string, opts: { identities: string[]; mapDay: (isoDay: string) => string }): string` (era `dayOffset`, vedi la nota) → PASS.
+- [x] **Step 3:** `scripts/probe-mywellness.ts` (usa solo `fetch`, credenziali da env): login, elenco sedute, una seduta, dettaglio forza, serie cardio, ricerca dei dati biometrici; scrive le risposte grezze in `probe_out/` (ignorato da git); poi `scripts/anonymize-fixtures.ts probe_out test/fixtures/mywellness` con una mappa dei giorni casuale.
 - [ ] **Step 4 (utente, sul proprio computer):** `MYWELLNESS_EMAIL=… MYWELLNESS_PASSWORD=… npx tsx scripts/probe-mywellness.ts`, poi l'anonimizzazione; rileggere le fixture; cancellare `probe_out/`; aprire la PR con le fixture.
 - [ ] **Step 5:** aggiornare `docs/mywellness-api.md`; commit `docs: verify mywellness endpoints with anonymized fixtures`.
 
