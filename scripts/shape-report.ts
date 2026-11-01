@@ -98,6 +98,8 @@ const DIGITS = /^\p{N}/u;
 const SPACES = /^[\s\p{Cc}]/u;
 /** Caratteri invisibili: spazio di larghezza zero, trattino morbido, BOM… */
 const INVISIBLE = /\p{Cf}/gu;
+/** Una sequenza di 1 o 2 cifre diventa `99`; oltre 20, 20 `9` e `…`. */
+const MIN_DIGITS = 2;
 const MAX_DIGITS = 20;
 
 /** Forma di confronto: NFKC, senza caratteri invisibili, minuscole, senza accenti. */
@@ -126,7 +128,10 @@ export function shapeContext(identities: readonly string[]): ShapeContext {
   };
 }
 
-/** Il formato di un testo: lettere `a`/`A`, cifre `9`, spazi singoli, il resto com'è. */
+/**
+ * Il formato di un testo: lettere `a`/`A`, cifre `9` (almeno 2: una cifra sola direbbe che il
+ * valore è sotto 10), spazi singoli, il resto com'è.
+ */
 export function maskText(text: string, vocab: readonly string[]): string {
   const runs = text.normalize("NFKC").replace(INVISIBLE, "").match(RUN) ?? [];
   return runs
@@ -136,7 +141,7 @@ export function maskText(text: string, vocab: readonly string[]): string {
         const length = [...run].length;
         return length > MAX_DIGITS
           ? `${"9".repeat(MAX_DIGITS)}…`
-          : "9".repeat(length);
+          : "9".repeat(Math.max(length, MIN_DIGITS));
       }
       if (!LETTERS.test(run)) return run;
       if (vocab.includes(fold(run))) return run;
@@ -197,7 +202,10 @@ function jsonBlock(value: unknown, ctx: ShapeContext): Block {
   if (value === null) return { head: "null", body: [] };
   if (typeof value === "boolean") return { head: "booleano", body: [] };
   if (typeof value === "number") {
-    return { head: `numero ${maskText(String(value), ctx.vocab)}`, body: [] };
+    // Solo segno e tipo: il numero di cifre direbbe l'ordine di grandezza.
+    const sign = value < 0 ? "-" : "";
+    const kind = Number.isInteger(value) ? "9" : "9.9";
+    return { head: `numero ${sign}${kind}`, body: [] };
   }
   if (typeof value === "string") {
     const nested = parseNested(value);

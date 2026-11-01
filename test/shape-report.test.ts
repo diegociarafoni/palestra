@@ -88,13 +88,13 @@ describe("shape", () => {
     );
     expect(lines).toEqual([
       'email: "a.a@a.a"',
-      'userId: "9a9a9a9a-9a9a-9a9a-9a9a-9a9a9a9a9a9a"',
+      'userId: "99a99a99a99a-99a99a-99a99a-99a99a-99a99a99a99a99a99a"',
       'name: "A A"',
       'token: "a-a-a-9999999999"',
-      'cookie: "_a=a99a9a-a-a-a-9999"',
+      'cookie: "_a=a99a99a-a-a-a-9999"',
       'startedOn: "9999-99-99 99:99:99 +99:99"',
       'endedOn: "9999-99-99T99:99:99Z"',
-      "load: numero 99",
+      "load: numero 9",
       "done: booleano",
       "note: null",
     ]);
@@ -114,8 +114,8 @@ describe("shape", () => {
   });
 
   it("shape: keeps vocabulary words and units", () => {
-    expect(maskText("12,5 km", VOCAB)).toBe("99,9 km");
-    expect(maskText("1.234 MOVEs", VOCAB)).toBe("9.999 MOVEs");
+    expect(maskText("12,5 km", VOCAB)).toBe("99,99 km");
+    expect(maskText("1.234 MOVEs", VOCAB)).toBe("99.999 MOVEs");
     expect(maskText("Serie", VOCAB)).toBe("Serie");
     expect(maskText("Velocità media", VOCAB)).toBe("Velocità a");
     // Nessun nome di mese o di giorno nel vocabolario: le date a parole restano mascherate.
@@ -187,6 +187,25 @@ describe("shape", () => {
     expect(maskText("Tempo: 99", surname.vocab)).toBe("A: 99");
   });
 
+  it("shape: digit counts do not show magnitudes", () => {
+    expect(
+      shapeOfJson({ a: 7, b: 120, c: 81.5, d: -3, e: -0.25, f: 1e21 }, ctx),
+    ).toEqual([
+      "a: numero 9",
+      "b: numero 9",
+      "c: numero 9.9",
+      "d: numero -9",
+      "e: numero -9.9",
+      "f: numero 9",
+    ]);
+    // Nei testi 1 o 2 cifre diventano `99`; da 3 a 20 restano lunghe quanto sono.
+    expect(maskText("7 kg", VOCAB)).toBe("99 kg");
+    expect(maskText("60 kg", VOCAB)).toBe("99 kg");
+    expect(maskText("1/11/2026 8:30", VOCAB)).toBe("99/99/9999 99:99");
+    expect(maskText("2026-11-01", VOCAB)).toBe("9999-99-99");
+    expect(maskText("123", VOCAB)).toBe("999");
+  });
+
   it("shape: no month or weekday in the vocabulary", () => {
     // "set" è settembre in it-IT: resta mascherato, mentre "sets" e "serie" restano scritti.
     expect([...DATE_ABBREVIATIONS].sort()).toEqual([
@@ -235,7 +254,7 @@ describe("shape", () => {
       ),
     ).toEqual([]);
     expect(maskText("29 set 2026", VOCAB)).toBe("99 a 9999");
-    expect(maskText("3 sets, Serie", VOCAB)).toBe("9 sets, Serie");
+    expect(maskText("3 sets, Serie", VOCAB)).toBe("99 sets, Serie");
     // Il controllo finale trova anche le abbreviazioni, tra confini di lettera.
     expect(
       checkReport(
@@ -271,19 +290,21 @@ describe("shape", () => {
     expect(shapeOfJson({ samples, empty: [], none: {} }, ctx)).toEqual([
       "samples:",
       "  - t: numero 9",
-      "    hr: numero 999",
+      "    hr: numero 9",
       "empty: []",
       "none: {}",
     ]);
     // Le forme diverse nell'ordine in cui compaiono, al massimo 5.
-    expect(shapeOfJson([1, 22, "x", 3, [true], null, {}, false], ctx)).toEqual([
-      "- numero 9",
-      "- numero 99",
-      '- "a"',
-      "- - booleano",
-      "- null",
-      "… altre varianti",
-    ]);
+    expect(shapeOfJson([1, 2.5, "x", 3, [true], null, {}, false], ctx)).toEqual(
+      [
+        "- numero 9",
+        "- numero 9.9",
+        '- "a"',
+        "- - booleano",
+        "- null",
+        "… altre varianti",
+      ],
+    );
   });
 
   it("shape: masks data-like keys and identity keys", () => {
@@ -308,10 +329,10 @@ describe("shape", () => {
     expect(lines).toEqual([
       '«999999»: "a"',
       "«9999-99-99»:",
-      "  hr2: numero 999",
+      "  hr2: numero 9",
       '«9999-99-99»: "a"',
       '«a999999»: "a"',
-      '«a9a9a9a9a»: "a"',
+      '«a99a99a99a99a»: "a"',
       "«A»: numero 9",
       "«a»: numero 9",
       "«a a»: numero 9",
@@ -339,7 +360,7 @@ describe("shape", () => {
       '- property: "AvgRpm"',
       '- physicalProperty: "A"',
       '- property: "A A"',
-      '- property: "a9a9a9"',
+      '- property: "a99a99a99"',
     ]);
   });
 
@@ -356,9 +377,9 @@ describe("shape", () => {
     );
     expect(lines).toEqual([
       "payload: json in stringa:",
-      '  id: "9a9a9a9a-9a9a-9a9a-9a9a-9a9a9a9a9a9a"',
+      '  id: "99a99a99a99a-99a99a-99a99a-99a99a-99a99a99a99a99a99a"',
       "  sets:",
-      "    - kg: numero 99",
+      "    - kg: numero 9",
       "list: json in stringa:",
       "  - numero 9",
       "empty: json in stringa:",
@@ -407,10 +428,10 @@ describe("shape", () => {
       "  body",
       "    script[type=«a/a»]",
       "      EU.currentUser:",
-      '        id: "9a9a9a9a-9a9a-9a9a-9a9a-9a9a9a9a9a9a"',
+      '        id: "99a99a99a99a-99a99a-99a99a-99a99a-99a99a99a99a99a99a"',
       '        firstName: "A"',
-      "        weight: numero 99.9",
-      "    a[class=profile-link, href=«/a/A/9a9a9a9a-9a9a-9a9a-9a9a-9a9a9a9a9a9a»]",
+      "        weight: numero 9.9",
+      "    a[class=profile-link, href=«/a/A/99a99a99a99a-99a99a-99a99a-99a99a-99a99a99a99a99a99a»]",
       '      "A A"',
       "    table[class=sets]",
       "      tr",
@@ -420,10 +441,8 @@ describe("shape", () => {
       '          "Ripetizioni"',
       "        th",
       '          "Carico"',
-      // Anche le celle consecutive uguali (12 e 60 hanno la stessa forma).
+      // Anche le celle consecutive uguali: 1, 12 e 60 hanno la stessa forma.
       "      tr (ripetuto)",
-      "        td",
-      '          "9"',
       "        td (ripetuto)",
       '          "99"',
       "    input[type=hidden, name=hdSessionIdCR, value=«9999»]",
@@ -439,7 +458,7 @@ describe("shape", () => {
   it("shape: encodings cannot leak", () => {
     expect(maskText("&#77;ario", VOCAB)).toBe("&#99;a");
     expect(maskText("\\u004dario", VOCAB)).toBe("\\a999a");
-    expect(maskText("%4Dario", VOCAB)).toBe("%9A");
+    expect(maskText("%4Dario", VOCAB)).toBe("%99A");
     // Caratteri invisibili (\p{Cf}): spazio di larghezza zero, trattino morbido, BOM.
     expect(maskText("Ma\u200Brio", VOCAB)).toBe("A");
     expect(maskText("Ma\u00ADrio", VOCAB)).toBe("A");
@@ -570,9 +589,7 @@ describe("shape", () => {
         "    th",
         '      "Kg"',
         "  tr",
-        "    td",
-        '      "9"',
-        "    td",
+        "    td (ripetuto)",
         '      "99"',
         "```",
         "",
@@ -586,7 +603,7 @@ describe("shape", () => {
         "data:",
         "  lastMeasurements:",
         '    - measuredOn: "9999-99-99 99:99:99 +99:99"',
-        "      value: numero 99.9",
+        "      value: numero 9.9",
         '      unitOfMeasure: "kg"',
         '      name: "Weight"',
         "```",
