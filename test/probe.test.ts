@@ -4,6 +4,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -298,13 +299,19 @@ describe("probe", () => {
       "last_sessions_2.html",
       "login_form.html",
       "login_ok.html",
-      "session_111.json",
-      "session_222.json",
-      "session_333.json",
+      "session_1.json",
+      "session_2.json",
+      "session_3.json",
       "session_cardio_only.json",
       "session_strength.json",
       "strength_detail.html",
     ]);
+    // probe_out/ e i suoi file restano privati (solo il proprietario).
+    expect(statSync(outDir).mode & 0o777).toBe(0o700);
+    expect(statSync(join(outDir, "session_strength.json")).mode & 0o777).toBe(
+      0o600,
+    );
+    expect(statSync(join(outDir, "identities.json")).mode & 0o777).toBe(0o600);
     const saved = (name: string) => readFileSync(join(outDir, name), "utf8");
     expect(saved("session_strength.json")).toBe(strength);
     expect(saved("session_cardio_only.json")).toBe(cardioOnly);
@@ -313,9 +320,11 @@ describe("probe", () => {
       EMAIL,
       USER_ID,
       TOKEN,
+      "3f2a9c1e7b4d4e8a9c6f1d2e3f4a5b6c",
       "Mario",
       "Rossi",
       "+39 000 0000000",
+      "390000000000",
       "Palestra di prova",
       "s3ss10n-di-prova-0123",
       "c00k1e-di-prova-lungo-0123",
@@ -358,6 +367,55 @@ describe("probe", () => {
     expect(stderr).not.toHaveBeenCalled();
     expect(sleeps).toEqual(Array(12).fill(1000));
   });
+
+  it.each([
+    {
+      label: "host esterno",
+      location: "https://evil.example.com/cloud/",
+      message: "login: redirect verso un host non consentito",
+      leak: "evil.example.com",
+    },
+    {
+      label: "downgrade a http",
+      location: "http://www.mywellness.com/cloud/",
+      message: "login: redirect verso un host non consentito",
+      leak: "http://www.mywellness.com",
+    },
+    {
+      label: "Location malformato",
+      location: "http://[",
+      message: "login: redirect non valido",
+      leak: "http://[",
+    },
+  ])(
+    "probe: refuses a redirect ($label)",
+    async ({ location, message, leak }) => {
+      server.use(
+        http.get(`${SITE}/cloud/User/Login`, () =>
+          HttpResponse.html(LOGIN_FORM),
+        ),
+        http.post(
+          `${SITE}/cloud/User/Login`,
+          () =>
+            new HttpResponse(null, {
+              status: 302,
+              headers: { Location: location },
+            }),
+        ),
+      );
+      const code = await main(
+        [],
+        { MYWELLNESS_EMAIL: EMAIL, MYWELLNESS_PASSWORD: PASSWORD },
+        deps(),
+      );
+      expect(code).toBe(69);
+      expect(stderr.mock.calls).toEqual([[message]]);
+      // Mai l'URL del redirect rifiutato nei log.
+      expect(stderr.mock.calls.flat().join("\n")).not.toContain(leak);
+      // Si ferma prima di seguire il redirect: solo il modulo di login su disco.
+      expect(readdirSync(outDir)).toEqual(["login_form.html"]);
+    },
+  );
 
   it.each([
     {
