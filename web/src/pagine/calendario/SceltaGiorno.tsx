@@ -13,13 +13,19 @@ type SceltaGiornoProps = {
   slot: DashboardSlot;
   /** Giorni della settimana non disponibili nel modello: non si propongono. */
   unavailable: Weekday[];
+  /** Dopo il giorno salvato, con il calendario già ricaricato. */
+  onSaved: () => void;
 };
 
 /**
  * Giorno scelto di uno slot programmato, fra quelli ammessi: la finestra e il sabato e la
  * domenica della sua settimana, senza i giorni non disponibili (spec § 5). Si salva alla scelta.
  */
-export function SceltaGiorno({ slot, unavailable }: SceltaGiornoProps) {
+export function SceltaGiorno({
+  slot,
+  unavailable,
+  onSaved,
+}: SceltaGiornoProps) {
   const mutation = useScrittura((date: string) => patchSlot(slot.id, { date }));
   // Durante l'invio il giorno appena scelto; poi quello del calendario ricaricato (o, se il
   // salvataggio fallisce, quello di prima).
@@ -31,7 +37,10 @@ export function SceltaGiorno({ slot, unavailable }: SceltaGiornoProps) {
         label={testi.chooseDay.label}
         value={value}
         disabled={mutation.isPending}
-        onChange={(event) => mutation.mutate(event.target.value)}
+        // Durante l'invio la scelta è bloccata e perde il focus: dopo, `onSaved` lo sposta.
+        onChange={(event) =>
+          mutation.mutate(event.target.value, { onSuccess: onSaved })
+        }
         slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
         sx={{ alignSelf: "flex-start", minWidth: "12em" }}
       >

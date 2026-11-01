@@ -14,13 +14,20 @@ type AzioniSlotProps = {
   feedback: Feedback | undefined;
   /** Giorni della settimana non disponibili nel modello. */
   unavailable: Weekday[];
+  /** Dopo una scelta salvata, con il calendario già ricaricato: il testo dell'esito. */
+  onSaved: (message: string) => void;
 };
 
 /**
  * Sotto uno slot del calendario: con la seduta, il suo feedback modificabile; senza, la scelta
  * del giorno se è programmato, la domanda "Saltata?" se è da confermare.
  */
-export function AzioniSlot({ slot, feedback, unavailable }: AzioniSlotProps) {
+export function AzioniSlot({
+  slot,
+  feedback,
+  unavailable,
+  onSaved,
+}: AzioniSlotProps) {
   const [skipping, setSkipping] = useState(false);
   if (slot.session !== null) {
     return (
@@ -46,12 +53,19 @@ export function AzioniSlot({ slot, feedback, unavailable }: AzioniSlotProps) {
           slot={slot}
           open={skipping}
           onClose={() => setSkipping(false)}
+          onSaved={() => onSaved(testi.skip.saved)}
         />
       </>
     );
   }
   if (slot.status === "programmata") {
-    return <SceltaGiorno slot={slot} unavailable={unavailable} />;
+    return (
+      <SceltaGiorno
+        slot={slot}
+        unavailable={unavailable}
+        onSaved={() => onSaved(testi.chooseDay.saved)}
+      />
+    );
   }
   return null;
 }

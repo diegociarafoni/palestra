@@ -158,6 +158,8 @@ export const testi = {
     none: "Senza feedback",
     add: "Aggiungi feedback",
     edit: "Modifica feedback",
+    // Esito annunciato (`role="status"`) dopo il salvataggio del modulo di oggi.
+    saved: "Feedback salvato.",
   },
   // Slot da confermare: "Saltata?" con il motivo facoltativo (spec § 5).
   skip: {
@@ -171,10 +173,12 @@ export const testi = {
       altro: "Altro",
     } satisfies Record<SkipReason, string>,
     confirm: "Conferma",
+    saved: "Seduta segnata come saltata.",
   },
   // Giorno scelto di uno slot programmato.
   chooseDay: {
     label: "Scegli il giorno",
+    saved: "Giorno scelto salvato.",
   },
   write: {
     cancel: "Annulla",

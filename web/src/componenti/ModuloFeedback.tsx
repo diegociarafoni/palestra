@@ -18,7 +18,8 @@ import { SessionError } from "../api/session";
 import { testi } from "../testi";
 
 type ModuloFeedbackProps = {
-  title: string;
+  /** Senza `title` il titolo lo mostra chi contiene il modulo, con l'id `titleId`. */
+  title?: string;
   /** Giorno della seduta (`AAAA-MM-GG`). */
   date: string;
   /** Numero della seduta nel giorno (1 = la prima): con `date`, la chiave del feedback. */
@@ -99,9 +100,11 @@ export function ModuloFeedback({
         save(seq);
       }}
     >
-      <Typography id={titleId} variant="h6" component="h2">
-        {title}
-      </Typography>
+      {title !== undefined && (
+        <Typography id={titleId} variant="h6" component="h2">
+          {title}
+        </Typography>
+      )}
       <Stack spacing={0.5}>
         <ToggleButtonGroup
           exclusive

@@ -2,7 +2,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { Feedback } from "../../../../src/domain/types";
 import { getCalendar } from "../../api/client";
 import { queryKeys } from "../../api/keys";
@@ -52,6 +52,11 @@ export default function Calendario() {
         ) ?? null,
   });
   const last = todays.data ?? null;
+  // Il titolo del modulo di oggi sta fuori dal modulo, che si rimonta dopo ogni salvataggio: il
+  // focus ci torna e l'esito si annuncia (il pulsante premuto sparisce con il modulo vecchio).
+  const titleId = useId();
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const [status, setStatus] = useState("");
   return (
     <Stack spacing={3}>
       <Typography variant="h5" component="h1">
@@ -60,15 +65,31 @@ export default function Calendario() {
       <SelettoreMese month={month} onChange={setChosenMonth} />
       {month === today.slice(0, 7) && todays.isSuccess && (
         <Paper variant="outlined" sx={{ p: 2 }}>
-          {/* Un modulo nuovo per ogni feedback salvato: riparte dai suoi valori. */}
-          <ModuloFeedback
-            key={`${today} ${last?.seq} ${last?.updated_at}`}
-            title={testi.feedbackForm.title}
-            date={today}
-            seq={last?.seq ?? 1}
-            feedback={last ?? undefined}
-            anotherSeq={last === null ? undefined : last.seq + 1}
-          />
+          <Stack spacing={2}>
+            <Typography
+              id={titleId}
+              ref={titleRef}
+              tabIndex={-1}
+              variant="h6"
+              component="h2"
+            >
+              {testi.feedbackForm.title}
+            </Typography>
+            {/* Un modulo nuovo per ogni feedback salvato: riparte dai suoi valori. */}
+            <ModuloFeedback
+              key={`${today} ${last?.seq} ${last?.updated_at}`}
+              titleId={titleId}
+              date={today}
+              seq={last?.seq ?? 1}
+              feedback={last ?? undefined}
+              anotherSeq={last === null ? undefined : last.seq + 1}
+              onSaved={() => {
+                titleRef.current?.focus();
+                setStatus(testi.feedbackForm.saved);
+              }}
+            />
+            <Typography role="status">{status}</Typography>
+          </Stack>
         </Paper>
       )}
       <StatoQuery query={query}>

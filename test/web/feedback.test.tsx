@@ -838,4 +838,107 @@ describe("web", () => {
     expect(choice.value).toBe("2026-11-05");
     expect(calendar.requests).toBe(1);
   });
+
+  it("web: saved feedback keeps the focus on the form title", async () => {
+    todayIsThursday();
+    const user = userEvent.setup();
+    // Dopo la scrittura il calendario ha il feedback di oggi: il modulo riparte dai suoi valori.
+    let saved = false;
+    server.use(
+      http.get("/api/calendar", () =>
+        HttpResponse.json(
+          saved
+            ? {
+                ...EMPTY,
+                feedback: [
+                  feedback({ updated_at: "2026-11-05T18:05:00.000Z" }),
+                ],
+              }
+            : EMPTY,
+        ),
+      ),
+      http.put("/api/feedback", () => {
+        saved = true;
+        return HttpResponse.json(
+          feedback({ updated_at: "2026-11-05T18:05:00.000Z" }),
+        );
+      }),
+    );
+    renderConTema(<Calendario />);
+
+    const form = await screen.findByRole("form", {
+      name: "Come è andata oggi?",
+    });
+    await user.click(within(form).getByRole("button", { name: "Buona" }));
+    await user.click(within(form).getByRole("button", { name: "Salva" }));
+    expect(
+      await screen.findByRole("button", { name: "Un'altra seduta oggi" }),
+    ).toBeTruthy();
+    // Il pulsante premuto non c'è più: il focus è sul titolo, e l'esito è annunciato.
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { name: "Come è andata oggi?" }),
+    );
+    expect(screen.getByText("Feedback salvato.").getAttribute("role")).toBe(
+      "status",
+    );
+  });
+
+  it("web: slot writes move the focus to the week title", async () => {
+    todayIsThursday();
+    const user = userEvent.setup();
+    // W45-1 da confermare, W45-2 programmato per giovedì 5/11; ogni scrittura cambia il calendario.
+    let first = { ...W45_1, status: "da_confermare", session_id: null };
+    let second = { ...slots[2], session_id: null };
+    server.use(
+      http.get("/api/calendar", () =>
+        HttpResponse.json({
+          ...EMPTY,
+          slots: [
+            { ...first, session: null },
+            { ...second, session: null },
+          ],
+        }),
+      ),
+      http.patch("/api/slots/2026-W45-1", () => {
+        first = { ...first, status: "saltata", reason: null };
+        return HttpResponse.json(first);
+      }),
+      http.patch("/api/slots/2026-W45-2", () => {
+        second = { ...second, date: "2026-11-07" };
+        return HttpResponse.json(second);
+      }),
+    );
+    renderConTema(<Calendario />);
+
+    const week = await screen.findByRole("region", { name: "Settimana 45" });
+    const title = within(week).getByRole("heading", { name: "Settimana 45" });
+    await user.click(within(week).getByRole("button", { name: "Saltata?" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Seduta A saltata?",
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Conferma" }));
+    // "Saltata?" sparisce con il calendario nuovo: il focus va al titolo della settimana.
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+      expect(
+        within(week).queryByRole("button", { name: "Saltata?" }),
+      ).toBeNull(),
+    );
+    expect(document.activeElement).toBe(title);
+    expect(within(week).getByRole("status").textContent).toBe(
+      "Seduta segnata come saltata.",
+    );
+
+    // Il giorno scelto: la scelta si blocca durante l'invio, poi il focus torna al titolo.
+    await user.selectOptions(
+      within(week).getByRole("combobox", { name: "Scegli il giorno" }),
+      "sab 7 nov",
+    );
+    await waitFor(() =>
+      expect(within(week).getByRole("status").textContent).toBe(
+        "Giorno scelto salvato.",
+      ),
+    );
+    expect(document.activeElement).toBe(title);
+  });
 });

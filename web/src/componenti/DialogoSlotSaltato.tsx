@@ -13,6 +13,7 @@ import Stack from "@mui/material/Stack";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useId, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   type SkipReason,
   SkipReasonSchema,
@@ -28,6 +29,8 @@ type DialogoSlotSaltatoProps = {
   slot: PlannedSlot;
   open: boolean;
   onClose: () => void;
+  /** Dopo la conferma salvata, a dialogo chiuso e con il calendario già ricaricato. */
+  onSaved: () => void;
 };
 
 /**
@@ -38,6 +41,7 @@ export function DialogoSlotSaltato({
   slot,
   open,
   onClose,
+  onSaved,
 }: DialogoSlotSaltatoProps) {
   const titleId = useId();
   const reasonsId = useId();
@@ -100,7 +104,17 @@ export function DialogoSlotSaltato({
           variant="contained"
           loading={mutation.isPending}
           onClick={() =>
-            mutation.mutate({ status: "saltata", reason }, { onSuccess: close })
+            mutation.mutate(
+              { status: "saltata", reason },
+              {
+                onSuccess: () => {
+                  // Chiuso subito, prima che il calendario nuovo tolga "Saltata?": il dialogo
+                  // riporta il focus al pulsante, poi `onSaved` lo sposta dove resta.
+                  flushSync(close);
+                  onSaved();
+                },
+              },
+            )
           }
         >
           {testi.skip.confirm}
