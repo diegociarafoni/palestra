@@ -1,5 +1,6 @@
+import { z } from "zod";
 import type { Db } from "../db/types";
-import type { SessionSummary } from "../domain/dashboard";
+import type { ExtraSession, SessionSummary } from "../domain/dashboard";
 import { romeDate } from "../domain/dates";
 import { type Session, SessionSchema } from "../domain/types";
 import { parseJsonColumn, parseStored } from "./json";
@@ -72,6 +73,47 @@ export async function listSessionStarts(
   );
 }
 
+const SessionDaySchema = z.object({
+  session_id: z.string(),
+  date: z.iso.date(),
+  seq: z.int().min(1),
+});
+export type SessionDay = z.infer<typeof SessionDaySchema>;
+
+/**
+ * Giorno (Europe/Rome) e numero nel giorno (`seq`, 1 = la prima) delle sedute `ids`, in ordine
+ * cronologico; gli id sconosciuti mancano. Il numero conta tutte le sedute del giorno, in ordine
+ * di istante: è il `seq` del feedback della seduta (chiave data e `seq`).
+ */
+export async function listSessionDays(
+  db: Db,
+  ids: string[],
+): Promise<SessionDay[]> {
+  // Gli id arrivano come un solo array JSON (json_each), qualunque sia il loro numero.
+  const { results } = await db
+    .prepare(
+      `SELECT rowid, session_id, date, seq FROM (
+         SELECT rowid, session_id, date, started_at,
+           ROW_NUMBER() OVER (
+             PARTITION BY date ORDER BY julianday(started_at), session_id
+           ) AS seq
+         FROM sessions
+         WHERE date IN (
+           SELECT date FROM sessions
+           WHERE session_id IN (SELECT value FROM json_each(?1))
+         )
+       )
+       WHERE session_id IN (SELECT value FROM json_each(?1))
+       ORDER BY julianday(started_at), session_id`,
+    )
+    .bind(JSON.stringify(ids))
+    .all<{ rowid: number; session_id: string; date: string; seq: number }>();
+  // Nel messaggio d'errore il rowid, mai session_id o date (finirebbero nei log).
+  return results.map(({ rowid, ...row }) =>
+    parseStored(SessionDaySchema, row, "sessions", `rowid ${rowid}`),
+  );
+}
+
 /** Sedute del mese `YYYY-MM` (data Europe/Rome), in ordine cronologico. */
 export async function listSessionsByMonth(
   db: Db,
@@ -122,23 +164,31 @@ export async function listSessionSummaries(
 
 /**
  * Riassunti delle sedute del mese `YYYY-MM` (data Europe/Rome) che nessuno slot cita, in ordine
- * cronologico. Contano tutti gli slot, non solo quelli del mese: una seduta di inizio mese può
- * recuperare uno slot la cui finestra è nel mese precedente.
+ * cronologico, ognuna con il suo numero nel giorno (`seq`), contando anche le sedute abbinate.
+ * Contano tutti gli slot, non solo quelli del mese: una seduta di inizio mese può recuperare uno
+ * slot la cui finestra è nel mese precedente.
  */
 export async function listUnmatchedSessionSummaries(
   db: Db,
   month: string,
-): Promise<SessionSummary[]> {
+): Promise<ExtraSession[]> {
+  // Il numero si calcola su tutte le sedute del giorno, prima di togliere quelle abbinate.
   const { results } = await db
     .prepare(
-      `SELECT rowid, date, json FROM sessions WHERE substr(date, 1, 7) = ?1
-         AND NOT EXISTS (
-           SELECT 1 FROM planned_sessions
-           WHERE planned_sessions.session_id = sessions.session_id
-         )
+      `SELECT rowid, date, json, seq FROM (
+         SELECT rowid, session_id, date, started_at, json,
+           ROW_NUMBER() OVER (
+             PARTITION BY date ORDER BY julianday(started_at), session_id
+           ) AS seq
+         FROM sessions WHERE substr(date, 1, 7) = ?1
+       ) AS day
+       WHERE NOT EXISTS (
+         SELECT 1 FROM planned_sessions
+         WHERE planned_sessions.session_id = day.session_id
+       )
        ORDER BY julianday(started_at), session_id`,
     )
     .bind(month)
-    .all<SummaryRow>();
-  return results.map(toSummary);
+    .all<SummaryRow & { seq: number }>();
+  return results.map((r) => ({ ...toSummary(r), seq: r.seq }));
 }

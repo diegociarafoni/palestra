@@ -6,6 +6,7 @@ import type { Session } from "../../src/domain/types";
 import { ParseError } from "../../src/errors";
 import {
   knownSessionIds,
+  listSessionDays,
   listSessionStarts,
   listSessionSummaries,
   listSessionsByMonth,
@@ -200,10 +201,12 @@ describe("store sessions", () => {
         null,
       ),
     ]);
+    // Il 3/11 una seduta extra dopo quella dello slot: è la seconda del giorno (`seq` 2).
     for (const s of [
       session("sess-016", "2026-11-26T19:00:00+01:00", 450),
       session("sess-011", "2026-11-01T10:00:00+01:00"),
       session("sess-012", "2026-11-03T18:00:00+01:00"),
+      session("sess-021", "2026-11-03T20:00:00+01:00", 410),
       session("sess-013", "2026-11-04T18:00:00+01:00"),
       session("sess-014", "2026-10-28T18:00:00+01:00"),
       session("sess-015", "2026-12-01T18:00:00+01:00"),
@@ -211,8 +214,9 @@ describe("store sessions", () => {
       await upsertSession(env.DB, s, {});
     }
     expect(await listUnmatchedSessionSummaries(env.DB, "2026-11")).toEqual([
-      { date: "2026-11-04", name: "Seduta libera", moves: 400 },
-      { date: "2026-11-26", name: "Seduta libera", moves: 450 },
+      { date: "2026-11-03", name: "Seduta libera", moves: 410, seq: 2 },
+      { date: "2026-11-04", name: "Seduta libera", moves: 400, seq: 1 },
+      { date: "2026-11-26", name: "Seduta libera", moves: 450, seq: 1 },
     ]);
   });
 
@@ -234,10 +238,48 @@ describe("store sessions", () => {
     expect(
       await listSessionSummaries(env.DB, "2026-11-02", "2026-11-08"),
     ).toEqual(expected);
-    // Nessuno slot: tutte non abbinate, stesso ordine.
-    expect(await listUnmatchedSessionSummaries(env.DB, "2026-11")).toEqual(
-      expected,
+    // Nessuno slot: tutte non abbinate, stesso ordine, numerate nel giorno.
+    expect(await listUnmatchedSessionSummaries(env.DB, "2026-11")).toEqual([
+      { date: "2026-11-04", name: "Seduta libera", moves: 401, seq: 1 },
+      { date: "2026-11-04", name: "Seduta libera", moves: 402, seq: 2 },
+      { date: "2026-11-04", name: "Seduta libera", moves: 403, seq: 3 },
+    ]);
+  });
+
+  it("store: day and order in the day of given sessions", async () => {
+    // 4/11 a Roma: 17:00Z, 17:30Z, 18:00Z (il testo ISO metterebbe 17:30Z per prima); 5/11: una.
+    // L'ordine nel giorno conta tutte le sedute del giorno, anche quelle non chieste.
+    for (const s of [
+      session("sess-019", "2026-11-04T19:00:00+01:00"),
+      session("sess-017", "2026-11-04T17:30:00Z"),
+      session("sess-018", "2026-11-04T18:00:00+01:00"),
+      session("sess-020", "2026-11-05T18:00:00+01:00"),
+    ]) {
+      await upsertSession(env.DB, s, {});
+    }
+    expect(
+      await listSessionDays(env.DB, ["sess-020", "sess-017", "sess-missing"]),
+    ).toEqual([
+      { session_id: "sess-017", date: "2026-11-04", seq: 2 },
+      { session_id: "sess-020", date: "2026-11-05", seq: 1 },
+    ]);
+    expect(await listSessionDays(env.DB, [])).toEqual([]);
+  });
+
+  it("store: invalid session day raises ParseError", async () => {
+    await env.DB.prepare(
+      "INSERT INTO sessions (session_id, date, started_at, json) VALUES (?1, ?2, ?3, ?4)",
+    )
+      .bind("sess-bad", "secret-content", "2026-11-03T10:00:00+01:00", "{}")
+      .run();
+    const error = await listSessionDays(env.DB, ["sess-bad"]).catch(
+      (e: unknown) => e,
     );
+    expect(error).toBeInstanceOf(ParseError);
+    expect((error as Error).message).toContain("sessions (rowid 1)");
+    for (const leaked of ["sess-bad", "secret-content"]) {
+      expect((error as Error).message).not.toContain(leaked);
+    }
   });
 
   it.each([

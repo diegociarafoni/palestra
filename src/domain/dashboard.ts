@@ -44,9 +44,28 @@ export const SessionSummarySchema = /* @__PURE__ */ z.object({
 });
 export type SessionSummary = z.infer<typeof SessionSummarySchema>;
 
+/**
+ * Seduta extra del calendario: il riassunto e il suo numero nel giorno (`seq`, 1 = la prima,
+ * contando tutte le sedute del giorno in ordine di istante), la chiave del suo feedback.
+ */
+export const ExtraSessionSchema = /* @__PURE__ */ SessionSummarySchema.extend({
+  seq: z.int().min(1),
+});
+export type ExtraSession = z.infer<typeof ExtraSessionSchema>;
+
+/**
+ * Slot programmato con la seduta abbinata dalla sync: suo giorno (Europe/Rome) e suo numero nel
+ * giorno (`seq`), la chiave del feedback; null se lo slot non ha seduta. `date` resta il giorno
+ * scelto dall'utente (spec § 5), che la sync non scrive.
+ */
+export const DashboardSlotSchema = /* @__PURE__ */ PlannedSlotSchema.extend({
+  session: z.object({ date: z.iso.date(), seq: z.int().min(1) }).nullable(),
+});
+export type DashboardSlot = z.infer<typeof DashboardSlotSchema>;
+
 /** `GET /api/week?date=`: slot della settimana ISO di `date`, sedute da lunedì a domenica. */
 export const WeekResponseSchema = /* @__PURE__ */ z.object({
-  slots: z.array(PlannedSlotSchema),
+  slots: z.array(DashboardSlotSchema),
   sessions: z.array(SessionSummarySchema),
   // Somma dei MOVEs delle sedute che li hanno.
   moves_total: z.number(),
@@ -55,8 +74,8 @@ export type WeekResponse = z.infer<typeof WeekResponseSchema>;
 
 /** `GET /api/calendar?month=`: slot del mese, sedute che nessuno slot cita, feedback del mese. */
 export const CalendarResponseSchema = /* @__PURE__ */ z.object({
-  slots: z.array(PlannedSlotSchema),
-  extra: z.array(SessionSummarySchema),
+  slots: z.array(DashboardSlotSchema),
+  extra: z.array(ExtraSessionSchema),
   feedback: z.array(FeedbackSchema),
 });
 export type CalendarResponse = z.infer<typeof CalendarResponseSchema>;

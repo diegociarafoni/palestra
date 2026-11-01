@@ -1,7 +1,7 @@
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useId } from "react";
-import type { PlannedSlot } from "../../../../src/domain/planning";
+import type { DashboardSlot } from "../../../../src/domain/dashboard";
 import type { Feedback } from "../../../../src/domain/types";
 import { Elenco } from "../../componenti/Elenco";
 import { VoceSlot } from "../../componenti/VoceSlot";
@@ -10,7 +10,7 @@ import { isoWeekNumber } from "../../utils/date";
 import { FeedbackSeduta } from "./FeedbackSeduta";
 
 export type SlotWithFeedback = {
-  slot: PlannedSlot;
+  slot: DashboardSlot;
   feedback: Feedback | undefined;
 };
 

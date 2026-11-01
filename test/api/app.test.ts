@@ -32,8 +32,10 @@ const bindings = { ...TEST_ENV, DB: env.DB };
 const withToken = { "Cf-Access-Jwt-Assertion": token };
 
 // Modello fittizio: slot 1 martedì/mercoledì (giorno A), slot 2 giovedì (giorno B).
-// slots: W44-2 recuperato domenica 1/11, W45-1 fatto martedì 3/11, W45-2 programmato,
-// W46-1 fatto martedì 10/11. sessions: d00 28/10 e d03 4/11 non abbinate a nessuno slot.
+// slots, nella forma della sync (lo slot fatto ha `date` null e il `session_id`): W44-2
+// recuperato domenica 1/11 (d01), W45-1 fatto martedì 3/11 (d02), W45-2 programmato con il
+// giorno scelto 5/11, W46-1 fatto martedì 10/11 (d04). sessions: d00 28/10 e d03 4/11 non
+// abbinate a nessuno slot.
 const slots = PlannedSlotSchema.array().parse(slotsFixture);
 const sessions = SessionSchema.array().parse(sessionsFixture);
 
@@ -306,7 +308,10 @@ describe("api", () => {
     // Domenica 1/11 è della settimana prima, martedì 10/11 di quella dopo.
     await seedSessions(["sess-d01", "sess-d02", "sess-d04"]);
     const expected = {
-      slots: [slots[1], slots[2]],
+      slots: [
+        { ...slots[1], session: { date: "2026-11-03", seq: 1 } },
+        { ...slots[2], session: null },
+      ],
       sessions: [{ date: "2026-11-03", name: "Giorno A", moves: 400 }],
       moves_total: 400,
     };
@@ -344,6 +349,25 @@ describe("api", () => {
     });
   });
 
+  it("api: week gives the day a slot was done", async () => {
+    // Forma della sync: lo slot fatto ha `date` null e il `session_id` della seduta. Il 3/11 una
+    // seduta libera alle 9 e poi quella dello slot alle 18:30: la seduta dello slot è la seconda.
+    await seedSlots(env.DB, slots.slice(1, 3));
+    await seedSessions(["sess-d02"]);
+    await seedSessionAt("sess-w13", "2026-11-03T09:00:00+01:00", 150);
+    const body = await getWeek("2026-11-04");
+    expect(
+      WeekResponseSchema.parse(body).slots.map((s) => [
+        s.id,
+        s.date,
+        s.session,
+      ]),
+    ).toEqual([
+      ["2026-W45-1", null, { date: "2026-11-03", seq: 2 }],
+      ["2026-W45-2", "2026-11-05", null],
+    ]);
+  });
+
   it("api: week includes sunday and excludes next monday", async () => {
     // Domenica 8/11 chiude la settimana di giovedì 5/11; 23:30Z dell'8/11 è già lunedì 9/11
     // a Roma (colonna `date`): settimana dopo.
@@ -374,8 +398,12 @@ describe("api", () => {
     await seedSessionAt("sess-w06", "2026-11-02T10:00:00+01:00", 360);
     await seedSessionAt("sess-w07", "2026-11-08T10:00:00+01:00", 370);
     await seedSessionAt("sess-w08", "2026-11-09T10:00:00+01:00", 380);
+    // La seduta di W45-1 (d02) non è nel D1 di questo test: niente giorno.
     const expected = {
-      slots: [slots[1], slots[2]],
+      slots: [
+        { ...slots[1], session: null },
+        { ...slots[2], session: null },
+      ],
       sessions: [
         { date: "2026-11-02", name: "Seduta libera", moves: 360 },
         { date: "2026-11-08", name: "Seduta libera", moves: 370 },
@@ -431,7 +459,10 @@ describe("api", () => {
     await seedSessionAt("sess-w11", "2027-01-03T10:00:00+01:00", 410);
     await seedSessionAt("sess-w12", "2027-01-04T10:00:00+01:00", 420);
     expect(await getWeek("2027-01-01")).toEqual({
-      slots: [yearEnd[0], yearEnd[1]],
+      slots: [
+        { ...yearEnd[0], session: null },
+        { ...yearEnd[1], session: null },
+      ],
       sessions: [
         { date: "2026-12-28", name: "Seduta libera", moves: 400 },
         { date: "2027-01-03", name: "Seduta libera", moves: 410 },
@@ -449,6 +480,67 @@ describe("api", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
     expect(await res.json()).toEqual({ slots: [], extra: [], feedback: [] });
+  });
+
+  it("api: calendar gives day and order of each slot session", async () => {
+    // Il 3/11 una seduta libera alle 9 (extra, prima del giorno) e quella di W45-1 alle 18:30.
+    await seedSlots(env.DB, slots);
+    await seedSessions(["sess-d02", "sess-d04"]);
+    await seedSessionAt("sess-w13", "2026-11-03T09:00:00+01:00", 150);
+    const res = await app.request(
+      "/api/calendar?month=2026-11",
+      { headers: withToken },
+      bindings,
+    );
+    expect(res.status).toBe(200);
+    const body = CalendarResponseSchema.parse(await res.json());
+    expect(body.slots.map((s) => [s.id, s.date, s.session])).toEqual([
+      ["2026-W45-1", null, { date: "2026-11-03", seq: 2 }],
+      ["2026-W45-2", "2026-11-05", null],
+      ["2026-W46-1", null, { date: "2026-11-10", seq: 1 }],
+    ]);
+    expect(body.extra).toEqual([
+      { date: "2026-11-03", name: "Seduta libera", moves: 150, seq: 1 },
+    ]);
+  });
+
+  it("api: calendar includes feedback of a slot session in the next month", async () => {
+    // W44-2 (finestra 29/10) è di ottobre e la sua seduta (d01) è di domenica 1/11: il suo
+    // feedback va con ottobre. Il feedback del 3/11 no.
+    await seedSlots(env.DB, slots);
+    await seedSessions(["sess-d00", "sess-d01", "sess-d02"]);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-03T20:00:00Z"));
+    for (const [date, cls] of [
+      ["2026-10-28", "normale"],
+      ["2026-11-01", "buona"],
+      ["2026-11-03", "ottima"],
+    ] as const) {
+      await upsertFeedback(
+        env.DB,
+        { date, class: cls, joint_pain: false },
+        "test",
+      );
+    }
+    vi.useRealTimers();
+
+    const res = await app.request(
+      "/api/calendar?month=2026-10",
+      { headers: withToken },
+      bindings,
+    );
+    expect(res.status).toBe(200);
+    const body = CalendarResponseSchema.parse(await res.json());
+    expect(body.slots.map((s) => [s.id, s.session])).toEqual([
+      ["2026-W44-2", { date: "2026-11-01", seq: 1 }],
+    ]);
+    expect(body.extra).toEqual([
+      { date: "2026-10-28", name: "Seduta libera", moves: 300, seq: 1 },
+    ]);
+    expect(body.feedback.map((f) => [f.date, f.seq, f.class])).toEqual([
+      ["2026-10-28", 1, "normale"],
+      ["2026-11-01", 1, "buona"],
+    ]);
   });
 
   it("api: calendar lists extra sessions", async () => {
@@ -491,8 +583,14 @@ describe("api", () => {
     // W44-2 (finestra 29/10) è di ottobre. Extra solo d03: d00 è di ottobre; d01, d02 e d04
     // sono abbinate, d01 a W44-2, uno slot che non è del mese.
     expect(body).toEqual({
-      slots: [slots[1], slots[2], slots[3]],
-      extra: [{ date: "2026-11-04", name: "Seduta libera", moves: null }],
+      slots: [
+        { ...slots[1], session: { date: "2026-11-03", seq: 1 } },
+        { ...slots[2], session: null },
+        { ...slots[3], session: { date: "2026-11-10", seq: 1 } },
+      ],
+      extra: [
+        { date: "2026-11-04", name: "Seduta libera", moves: null, seq: 1 },
+      ],
       feedback: [
         {
           id: 1,

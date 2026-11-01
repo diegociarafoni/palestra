@@ -2,29 +2,16 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useId } from "react";
 import type { CalendarResponse } from "../../../../src/domain/dashboard";
-import type { Feedback } from "../../../../src/domain/types";
 import { Elenco } from "../../componenti/Elenco";
 import { testi } from "../../testi";
 import { FeedbackSeduta } from "./FeedbackSeduta";
 import { SettimanaSlot, type SlotWithFeedback } from "./SettimanaSlot";
 import { VoceExtra } from "./VoceExtra";
+import { VoceFeedback } from "./VoceFeedback";
 
-/**
- * Feedback di ogni seduta, nello stesso ordine di `sedute`. Un feedback si riconosce da data e
- * `seq`, il numero della seduta nel giorno (src/store/manual.ts): la k-esima seduta di un giorno
- * ha il feedback con `seq` k. Nel giorno contano prima gli slot con quella data, poi le extra.
- */
-function feedbackOf(
-  sedute: { date: string | null }[],
-  feedback: Feedback[],
-): (Feedback | undefined)[] {
-  return sedute.map(({ date }, index) => {
-    if (date === null) return undefined;
-    const seq =
-      sedute.slice(0, index).filter((other) => other.date === date).length + 1;
-    return feedback.find((f) => f.date === date && f.seq === seq);
-  });
-}
+// Chiave di un feedback e della sua seduta: giorno e numero della seduta nel giorno (`seq`), che il
+// server calcola per ogni seduta (slot e extra) contando tutte le sedute del giorno.
+const key = (date: string, seq: number): string => `${date} ${seq}`;
 
 /** Slot raggruppati per settimana; l'API li dà in ordine di settimana e di numero. */
 function byWeek(slots: SlotWithFeedback[]) {
@@ -37,18 +24,36 @@ function byWeek(slots: SlotWithFeedback[]) {
   return weeks;
 }
 
-type MeseCalendarioProps = { calendar: CalendarResponse };
+type MeseCalendarioProps = { month: string; calendar: CalendarResponse };
 
-/** Il mese del calendario: slot per settimana e sedute extra, ognuno con il suo feedback. */
-export function MeseCalendario({ calendar }: MeseCalendarioProps) {
+/**
+ * Il mese del calendario: slot per settimana e sedute extra, ognuno con il suo feedback; poi i
+ * feedback del mese che non hanno una seduta qui (salvati prima della sync, o di una seduta di
+ * uno slot di un altro mese), per data.
+ */
+export function MeseCalendario({ month, calendar }: MeseCalendarioProps) {
   const { slots, extra, feedback } = calendar;
   const slotsId = useId();
   const extraId = useId();
-  const all = feedbackOf([...slots, ...extra], feedback);
+  const othersId = useId();
+  const byKey = new Map(feedback.map((f) => [key(f.date, f.seq), f]));
   const weeks = byWeek(
-    slots.map((slot, index) => ({ slot, feedback: all[index] })),
+    slots.map((slot) => ({
+      slot,
+      feedback:
+        slot.session === null
+          ? undefined
+          : byKey.get(key(slot.session.date, slot.session.seq)),
+    })),
   );
-  const extraFeedback = all.slice(slots.length);
+  const extraFeedback = extra.map((e) => byKey.get(key(e.date, e.seq)));
+  const shown = new Set([
+    ...weeks.flatMap((w) => w.slots.map((s) => s.feedback)),
+    ...extraFeedback,
+  ]);
+  const others = feedback.filter(
+    (f) => f.date.startsWith(month) && !shown.has(f),
+  );
   return (
     <>
       <Stack component="section" aria-labelledby={slotsId} spacing={2}>
@@ -85,6 +90,18 @@ export function MeseCalendario({ calendar }: MeseCalendarioProps) {
           </Elenco>
         )}
       </Stack>
+      {others.length > 0 && (
+        <Stack component="section" aria-labelledby={othersId} spacing={1}>
+          <Typography id={othersId} variant="h6" component="h2">
+            {testi.calendar.othersTitle}
+          </Typography>
+          <Elenco>
+            {others.map((f) => (
+              <VoceFeedback key={f.id} feedback={f} />
+            ))}
+          </Elenco>
+        </Stack>
+      )}
     </>
   );
 }

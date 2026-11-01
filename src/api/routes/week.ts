@@ -4,6 +4,7 @@ import { isoWeek } from "../../domain/dates";
 import { listSlotsByWeek } from "../../store/planning";
 import { listSessionSummaries } from "../../store/sessions";
 import type { AppEnv } from "../app";
+import { withSessionDays } from "../slots";
 
 const DAY_MS = 86_400_000;
 
@@ -25,5 +26,8 @@ export const weekRoute = new Hono<AppEnv>().get("/", async (c) => {
     listSessionSummaries(c.env.DB, monday, sunday),
   ]);
   const moves_total = sessions.reduce((sum, s) => sum + (s.moves ?? 0), 0);
-  return c.json({ slots, sessions, moves_total }, 200);
+  return c.json(
+    { slots: await withSessionDays(c.env.DB, slots), sessions, moves_total },
+    200,
+  );
 });

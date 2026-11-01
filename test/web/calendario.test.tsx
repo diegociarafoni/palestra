@@ -8,9 +8,15 @@ import { renderConTema } from "./render";
 import { server } from "./setup";
 
 // Novembre 2026 sintetico, modello di esempio (slot 1 martedì o mercoledì, giorno A; slot 2
-// giovedì, giorno B): tre slot dalla fixture più lo slot 2 della 2026-W46 saltato per lavoro;
-// una seduta extra il 4/11. Feedback del 3/11 (slot 1) e del 4/11 (extra), senza id abbinati:
-// si riconoscono da data e numero della seduta nel giorno.
+// giovedì, giorno B), nella forma dell'API: gli slot fatti hanno `date` null (la sync non la
+// scrive) e `session`, giorno e numero nel giorno della seduta abbinata; W45-2 ha il giorno
+// scelto 5/11. Tre slot dalla fixture più lo slot 2 della 2026-W46 saltato per lavoro; una seduta
+// extra il 4/11. Feedback del 3/11 (seduta di W45-1) e del 4/11 (extra): un feedback si
+// riconosce da data e numero della seduta nel giorno, che dà il server.
+const SESSION_DAYS: Record<string, { date: string; seq: number }> = {
+  "2026-W45-1": { date: "2026-11-03", seq: 1 },
+  "2026-W46-1": { date: "2026-11-10", seq: 1 },
+};
 const SKIPPED = {
   id: "2026-W46-2",
   week: "2026-W46",
@@ -21,7 +27,14 @@ const SKIPPED = {
   status: "saltata",
   reason: "lavoro",
   session_id: null,
+  session: null,
 };
+const NOVEMBER_SLOTS = [
+  ...slots
+    .filter((s) => s.week !== "2026-W44")
+    .map((s) => ({ ...s, session: SESSION_DAYS[s.id] ?? null })),
+  SKIPPED,
+];
 const feedback = (fields: object) => ({
   planned_id: null,
   session_id: null,
@@ -32,8 +45,8 @@ const feedback = (fields: object) => ({
   ...fields,
 });
 const CALENDAR = {
-  slots: [...slots.filter((s) => s.week !== "2026-W44"), SKIPPED],
-  extra: [{ date: "2026-11-04", name: "Seduta libera", moves: null }],
+  slots: NOVEMBER_SLOTS,
+  extra: [{ date: "2026-11-04", name: "Seduta libera", moves: null, seq: 1 }],
   feedback: [
     feedback({
       id: 1,
@@ -88,7 +101,7 @@ describe("web", () => {
     expect(
       within(slot1).getByText("Giorni ammessi: mar 3 nov o mer 4 nov"),
     ).toBeTruthy();
-    expect(within(slot1).getByText("Data: mar 3 nov")).toBeTruthy();
+    expect(within(slot1).getByText("Svolta: mar 3 nov")).toBeTruthy();
     expect(within(slot1).getByText("Feedback: Buona")).toBeTruthy();
     expect(
       within(slot1).getByText("Fastidio articolare: sì, ginocchio"),
@@ -96,13 +109,14 @@ describe("web", () => {
     expect(within(slot1).getByText("Note: Ultima serie pesante")).toBeTruthy();
     expect(within(slot2).getByText("Seduta B")).toBeTruthy();
     expect(within(slot2).getByText("Programmata")).toBeTruthy();
+    expect(within(slot2).getByText("Giorno scelto: gio 5 nov")).toBeTruthy();
     expect(within(slot2).queryByText(/^Feedback/)).toBeNull();
 
     const [slot3, skipped, ...others46] =
       within(week46).getAllByRole("listitem");
     if (!slot3 || !skipped) throw new Error("slot della settimana 46 mancanti");
     expect(others46).toHaveLength(0);
-    expect(within(slot3).getByText("Data: mar 10 nov")).toBeTruthy();
+    expect(within(slot3).getByText("Svolta: mar 10 nov")).toBeTruthy();
     expect(within(slot3).queryByText(/^Feedback/)).toBeNull();
     expect(within(skipped).getByText("Saltata")).toBeTruthy();
     expect(within(skipped).getByText("Motivo: lavoro")).toBeTruthy();
@@ -127,13 +141,17 @@ describe("web", () => {
   });
 
   it("web: calendario feedback of two sedute on the same day", async () => {
-    // Il 3/11 lo slot 1 e poi una seduta extra: il feedback con `seq` 1 è dello slot, quello
-    // con `seq` 2 della seduta extra.
+    // Il 3/11 prima una seduta extra (9:00, `seq` 1) e poi quella di W45-1 (`seq` 2): l'ordine
+    // nel giorno viene dal server, non dall'ordine "prima gli slot".
     server.use(
       http.get("/api/calendar", () =>
         HttpResponse.json({
-          slots: slots.filter((s) => s.id === "2026-W45-1"),
-          extra: [{ date: "2026-11-03", name: "Seduta libera", moves: 120 }],
+          slots: NOVEMBER_SLOTS.filter((s) => s.id === "2026-W45-1").map(
+            (s) => ({ ...s, session: { date: "2026-11-03", seq: 2 } }),
+          ),
+          extra: [
+            { date: "2026-11-03", name: "Seduta libera", moves: 120, seq: 1 },
+          ],
           feedback: [
             feedback({
               id: 1,
@@ -159,11 +177,127 @@ describe("web", () => {
     const extra = screen.getByRole("region", { name: "Sedute extra" });
     const [session] = within(extra).getAllByRole("listitem");
     if (!slot || !session) throw new Error("sedute mancanti");
-    expect(within(slot).getByText("Feedback: Ottima")).toBeTruthy();
-    expect(within(slot).queryByText("Feedback: Pessima")).toBeNull();
-    expect(within(session).getByText("Feedback: Pessima")).toBeTruthy();
-    expect(within(session).getByText("Fastidio articolare: sì")).toBeTruthy();
+    expect(within(slot).getByText("Feedback: Pessima")).toBeTruthy();
+    expect(within(slot).getByText("Fastidio articolare: sì")).toBeTruthy();
+    expect(within(slot).queryByText("Feedback: Ottima")).toBeNull();
+    expect(within(session).getByText("Feedback: Ottima")).toBeTruthy();
     expect(within(session).getByText("MOVEs: 120")).toBeTruthy();
+  });
+
+  it("web: calendario shows feedback of synced slots", async () => {
+    // Slot nella forma della sync (`date` null): il feedback va con il giorno della seduta
+    // abbinata, anche se cade nel mese dopo (W44-2 di ottobre, recuperato domenica 1/11). L'API
+    // dà anche il feedback di un'altra seduta di quella domenica (`seq` 2): è di novembre, non
+    // va tra gli altri feedback di ottobre.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-20T12:00:00Z"));
+    server.use(
+      http.get("/api/calendar", () =>
+        HttpResponse.json({
+          slots: slots
+            .filter((s) => s.week === "2026-W44")
+            .map((s) => ({ ...s, session: { date: "2026-11-01", seq: 1 } })),
+          extra: [],
+          feedback: [
+            feedback({
+              id: 3,
+              date: "2026-11-01",
+              class: "normale",
+              joint_pain: false,
+              notes: "Recupero",
+            }),
+            feedback({
+              id: 6,
+              date: "2026-11-01",
+              seq: 2,
+              class: "pessima",
+              joint_pain: false,
+            }),
+          ],
+        }),
+      ),
+    );
+    renderConTema(<Calendario />);
+
+    const week = await screen.findByRole("region", { name: "Settimana 44" });
+    const [slot] = within(week).getAllByRole("listitem");
+    if (!slot) throw new Error("slot mancante");
+    expect(within(slot).getByText("Spostata")).toBeTruthy();
+    expect(within(slot).getByText("Svolta: dom 1 nov")).toBeTruthy();
+    expect(within(slot).getByText("Feedback: Normale")).toBeTruthy();
+    expect(within(slot).getByText("Note: Recupero")).toBeTruthy();
+    expect(screen.getByText("ottobre 2026")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Altri feedback" })).toBeNull();
+    expect(screen.queryByText("Feedback: Pessima")).toBeNull();
+  });
+
+  it("web: calendario lists feedback without seduta", async () => {
+    // Feedback salvati prima della sync: il 5/11 (giorno scelto di W45-2, ancora senza seduta) e
+    // il 6/11 (nessuna seduta). Restano visibili, per data, in una sezione propria.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-15T12:00:00Z"));
+    server.use(
+      http.get("/api/calendar", () =>
+        HttpResponse.json({
+          slots: NOVEMBER_SLOTS.filter((s) => s.id === "2026-W45-2"),
+          extra: [],
+          feedback: [
+            feedback({
+              id: 4,
+              date: "2026-11-05",
+              class: "buona",
+              joint_pain: false,
+            }),
+            feedback({
+              id: 5,
+              date: "2026-11-06",
+              class: "faticosa",
+              joint_pain: true,
+              joint_where: "spalla",
+            }),
+          ],
+        }),
+      ),
+    );
+    const { unmount } = renderConTema(<Calendario />);
+
+    const others = await screen.findByRole("region", {
+      name: "Altri feedback",
+    });
+    const [first, second, ...rest] = within(others).getAllByRole("listitem");
+    if (!first || !second) throw new Error("feedback mancanti");
+    expect(rest).toHaveLength(0);
+    expect(within(first).getByText("Data: gio 5 nov")).toBeTruthy();
+    expect(within(first).getByText("Feedback: Buona")).toBeTruthy();
+    expect(within(second).getByText("Data: ven 6 nov")).toBeTruthy();
+    expect(
+      within(second).getByText("Fastidio articolare: sì, spalla"),
+    ).toBeTruthy();
+    const week = screen.getByRole("region", { name: "Settimana 45" });
+    expect(within(week).queryByText(/^Feedback/)).toBeNull();
+    unmount();
+
+    // Un mese con i soli feedback non è "Nessun dato".
+    server.use(
+      http.get("/api/calendar", () =>
+        HttpResponse.json({
+          slots: [],
+          extra: [],
+          feedback: [
+            feedback({
+              id: 5,
+              date: "2026-11-06",
+              class: "faticosa",
+              joint_pain: false,
+            }),
+          ],
+        }),
+      ),
+    );
+    renderConTema(<Calendario />);
+
+    const only = await screen.findByRole("region", { name: "Altri feedback" });
+    expect(within(only).getByText("Feedback: Faticosa")).toBeTruthy();
   });
 
   it("web: calendario empty state", async () => {

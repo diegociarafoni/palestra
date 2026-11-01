@@ -7,10 +7,16 @@ import slots from "../fixtures/dashboard/slots.json";
 import { renderConTema } from "./render";
 import { server } from "./setup";
 
-// Settimana sintetica 2026-W45 del modello di esempio: slot 1 (martedì o mercoledì, giorno A)
-// fatto il 3/11, slot 2 (giovedì, giorno B) ancora da fare; una seduta extra il 4/11 senza MOVEs.
+// Settimana sintetica 2026-W45 del modello di esempio, nella forma della sync: slot 1 (martedì
+// o mercoledì, giorno A) fatto il 3/11 (`date` null, giorno dalla seduta abbinata), slot 2
+// (giovedì, giorno B) da fare, con il giorno scelto 5/11; una seduta extra il 4/11 senza MOVEs.
+const SESSION_DAYS: Record<string, { date: string; seq: number }> = {
+  "2026-W45-1": { date: "2026-11-03", seq: 1 },
+};
 const WEEK = {
-  slots: slots.filter((s) => s.week === "2026-W45"),
+  slots: slots
+    .filter((s) => s.week === "2026-W45")
+    .map((s) => ({ ...s, session: SESSION_DAYS[s.id] ?? null })),
   sessions: [
     { date: "2026-11-03", name: "Giorno A", moves: 400 },
     { date: "2026-11-04", name: "Seduta libera", moves: null },
@@ -51,12 +57,26 @@ describe("web", () => {
     expect(
       within(done).getByText("Giorni ammessi: mar 3 nov o mer 4 nov"),
     ).toBeTruthy();
-    expect(within(done).getByText("Data: mar 3 nov")).toBeTruthy();
     expect(within(open).getByText("Seduta B")).toBeTruthy();
     expect(within(open).getByText("Programmata")).toBeTruthy();
     expect(within(open).getByText("Giorni ammessi: gio 5 nov")).toBeTruthy();
-    expect(within(open).queryByText(/^Data:/)).toBeNull();
     expect(dates).toEqual(["2026-11-05"]);
+  });
+
+  it("web: settimana shows the day a slot was done", async () => {
+    // Il giorno svolto viene dalla seduta abbinata; il giorno scelto (`date`) è un'altra cosa.
+    server.use(http.get("/api/week", () => HttpResponse.json(WEEK)));
+    renderConTema(<Settimana />);
+
+    const planned = await screen.findByRole("region", {
+      name: "Sedute programmate",
+    });
+    const [done, open] = within(planned).getAllByRole("listitem");
+    if (!done || !open) throw new Error("slot mancanti");
+    expect(within(done).getByText("Svolta: mar 3 nov")).toBeTruthy();
+    expect(within(done).queryByText(/^Giorno scelto/)).toBeNull();
+    expect(within(open).getByText("Giorno scelto: gio 5 nov")).toBeTruthy();
+    expect(within(open).queryByText(/^Svolta/)).toBeNull();
   });
 
   it("web: settimana shows sessions and moves total", async () => {

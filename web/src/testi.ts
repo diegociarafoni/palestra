@@ -68,6 +68,8 @@ export const testi = {
     schedaDay: (day: string) => `Seduta ${day}`,
     window: (days: string) => `Giorni ammessi: ${days}`,
     date: (day: string) => `Data: ${day}`,
+    done: (day: string) => `Svolta: ${day}`,
+    chosen: (day: string) => `Giorno scelto: ${day}`,
     reason: (reason: string) => `Motivo: ${reason}`,
     status: {
       programmata: "Programmata",
@@ -115,6 +117,7 @@ export const testi = {
     slotsTitle: "Sedute programmate",
     week: (number: number) => `Settimana ${number}`,
     extraTitle: "Sedute extra",
+    othersTitle: "Altri feedback",
     moves: (moves: string) => `MOVEs: ${moves}`,
   },
   feedback: {
