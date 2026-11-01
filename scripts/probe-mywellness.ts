@@ -30,6 +30,8 @@ const MIN_INTERVAL_MS = 1000;
 const MAX_REDIRECTS = 10;
 const MAX_SESSIONS = 10;
 const MAX_DETAILS = 8;
+// Una sola serie cardio: basta una fixture, e meno dati grezzi restano in probe_out.
+const MAX_CARDIO = 1;
 const DEFAULT_DAYS = 30;
 const MAX_DAYS = 365;
 const DAY_MS = 86_400_000;
@@ -97,12 +99,29 @@ class Http {
       if (hop === MAX_REDIRECTS) {
         throw new SyncError(`${label}: troppi redirect`);
       }
-      current = new URL(location, current);
+      current = this.nextUrl(label, location, current);
       if (response.status !== 307 && response.status !== 308) {
         method = "GET";
         body = undefined;
       }
     }
+  }
+
+  /** Destinazione di un redirect, solo se è un host Mywellness in HTTPS; mai l'URL nel messaggio. */
+  private nextUrl(label: string, location: string, base: URL): URL {
+    let next: URL;
+    try {
+      next = new URL(location, base);
+    } catch {
+      throw new SyncError(`${label}: redirect non valido`);
+    }
+    const host = next.hostname;
+    const sameSite =
+      host === "mywellness.com" || host.endsWith(".mywellness.com");
+    if (next.protocol !== "https:" || !sameSite) {
+      throw new SyncError(`${label}: redirect verso un host non consentito`);
+    }
+    return next;
   }
 
   private cookieHeader(url: URL): string {
@@ -239,6 +258,11 @@ function analyticsIdOf(activity: Activity): string {
   return id === null || id === undefined ? "" : String(id);
 }
 
+// Chiavi del profilo il cui valore identifica: ogni forma di nome, contatto, indirizzo, tessera.
+const IDENTITY_KEY =
+  /name|surname|first|last|nick|mail|phone|mobile|cell|address|street|city|zip|postal|cap|fiscal|tax|card|badge|mifare|member|external|crm|picture|photo|avatar|birth/i;
+const PHONE_KEY = /phone|mobile|cell/i;
+
 /** Identità da togliere dalle fixture: e-mail, id, token, dati anagrafici, cookie. */
 function collectIdentities(
   email: string,
@@ -247,9 +271,18 @@ function collectIdentities(
   cookies: string[],
 ): string[] {
   const found = [email, profile.id, profile.token];
+  // Lo userId compare anche senza trattini (es. nelle query): va tolto in entrambe le forme.
+  if (profile.id.includes("-")) found.push(profile.id.replaceAll("-", ""));
   const visit = (value: unknown, key: string): void => {
-    if (typeof value === "string") {
-      if (/name|mail|phone|birth/i.test(key)) found.push(value);
+    if (typeof value === "string" || typeof value === "number") {
+      if (!IDENTITY_KEY.test(key)) return;
+      const text = String(value);
+      found.push(text);
+      // I telefoni compaiono anche con le sole cifre (senza +, spazi o trattini).
+      if (PHONE_KEY.test(key)) {
+        const digits = text.replace(/\D/g, "");
+        if (digits.length >= 6) found.push(digits);
+      }
     } else if (Array.isArray(value)) {
       for (const item of value) visit(item, key);
     } else if (value !== null && typeof value === "object") {
@@ -259,7 +292,7 @@ function collectIdentities(
   visit(user, "");
   // Cookie di sessione e di autenticazione; quelli brevi (lingua, flag) non identificano.
   found.push(...cookies.filter((value) => value.length >= 16));
-  return [...new Set(found)];
+  return [...new Set(found.filter((value) => value !== ""))];
 }
 
 /** Primo valore testuale di una chiave che contiene "facilityUrl", a qualunque profondità. */
@@ -385,10 +418,11 @@ async function probe(
     now: Date;
   },
 ): Promise<void> {
-  await mkdir(opts.outDir, { recursive: true });
+  // Permessi stretti: i corpi grezzi contengono dati personali finché non sono anonimizzati.
+  await mkdir(opts.outDir, { recursive: true, mode: 0o700 });
   const written = new Set<string>();
   const save: Saver = async (name, bytes) => {
-    await writeFile(join(opts.outDir, name), bytes);
+    await writeFile(join(opts.outDir, name), bytes, { mode: 0o600 });
     written.add(name);
   };
 
@@ -441,7 +475,8 @@ async function probe(
           json,
         ),
       );
-      await save(`session_${id}.json`, reply.bytes);
+      // Nome per indice, mai l'IdCr: l'identificativo della seduta non entra in probe_out.
+      await save(`session_${i + 1}.json`, reply.bytes);
       const session = Session.safeParse(
         isJson(reply.text) ? JSON.parse(reply.text) : undefined,
       );
@@ -512,7 +547,7 @@ async function probe(
       );
     }
     const cardio = cardioSource ? cardioOf(cardioSource) : [];
-    for (const [i, activity] of cardio.slice(0, MAX_DETAILS).entries()) {
+    for (const [i, activity] of cardio.slice(0, MAX_CARDIO).entries()) {
       const label = `cardio timeseries ${i + 1}`;
       const facilityId = activity.performedPhysicalActivity?.facilityId;
       const query = new URLSearchParams({
@@ -543,6 +578,7 @@ async function probe(
     await writeFile(
       join(opts.outDir, "identities.json"),
       JSON.stringify(identities, null, 2),
+      { mode: 0o600 },
     );
     console.log(`${written.size + 1} file scritti in ${opts.outDir}`);
   }
