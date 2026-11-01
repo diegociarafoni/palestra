@@ -250,7 +250,13 @@ function plainName(
   if (!shape.test(name) || (name.match(/\d/g)?.length ?? 0) >= 3) {
     return undefined;
   }
-  const parts = name.split(/[^\p{L}]+|(?<=\p{Ll})(?=\p{Lu})/u);
+  const parts = name
+    .split(/[^\p{L}]+|(?<=\p{Ll})(?=\p{Lu})/u)
+    .filter((part) => part !== "");
+  // Almeno 4 parti di 1 o 2 lettere (`AbCdEfGh9j`): ha l'aria di un token, non di un nome.
+  if (parts.filter((part) => [...part].length <= 2).length >= 4) {
+    return undefined;
+  }
   if (
     parts.some((part) => {
       const word = fold(part);
@@ -762,6 +768,12 @@ export function checkReport(
     const at = identity.indexOf("@");
     if (at > 0) substrings.add(identity.slice(0, at));
     if (GUID.test(identity)) substrings.add(identity.replaceAll("-", ""));
+  }
+  // Le stesse identità scritte con i 9: una cifra per `9`, e ogni sequenza di cifre per `99`
+  // come nei nomi stampati, così un token con 1 o 2 cifre non passa per un nome.
+  for (const text of [...substrings]) {
+    substrings.add(text.replace(/\p{N}/gu, "9"));
+    substrings.add(text.replace(/\p{N}+/gu, "99"));
   }
   const hits: Hit[] = [];
   lines.forEach((raw, i) => {

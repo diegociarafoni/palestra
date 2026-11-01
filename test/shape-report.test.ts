@@ -553,6 +553,24 @@ describe("shape", () => {
     expect(shapeOfJson({ hr2: 1 }, ctx)).toEqual(["hr99: numero 9"]);
   });
 
+  it("shape: random-looking names are masked", () => {
+    // Almeno 4 parti di 1 o 2 lettere: un token, non un nome; `hdSessionIdCR` ne ha 3.
+    expect(shapeOfJson({ AbCdEfGh9j: 1, hdSessionIdCR: 2 }, ctx)).toEqual([
+      "«A99a»: numero 9",
+      "hdSessionIdCR: numero 9",
+    ]);
+    // Un token con 1 o 2 cifre resta un'identità anche scritto con i 9.
+    expect(
+      checkReport(
+        ["Xy99Kq99: numero 9", "ab99cd: numero 9"],
+        ["Xy7Kq2", "ab12cd"],
+      ),
+    ).toEqual([
+      { line: 1, kind: "identity" },
+      { line: 2, kind: "identity" },
+    ]);
+  });
+
   it("shape: only known attribute names are printed", () => {
     // Un valore senza virgolette fa nascere attributi dal testo ("Rossi", "Mantova"); `checked` e
     // `selected` dicono che cosa ha scelto l'utente e non compaiono mai.
