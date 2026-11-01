@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 // Sedute programmate (spec § 5): slot della settimana dal modello salvato in `profile`,
 // abbinamento di una seduta a uno slot, slot scaduti.
 
@@ -26,6 +28,25 @@ export type PlannedSlot = {
   reason: string | null;
   session_id: string | null;
 };
+
+/** Schema di uno slot letto da D1 o ricevuto dall'API; TypeScript lo verifica su `PlannedSlot`. */
+export const PlannedSlotSchema = z.object({
+  id: z.string(),
+  week: z.string().regex(/^\d{4}-W\d{2}$/),
+  slot: z.int().min(1),
+  window: z.array(z.iso.date()).min(1),
+  date: z.iso.date().nullable(),
+  scheda_day: z.string(),
+  status: z.enum([
+    "programmata",
+    "fatta",
+    "spostata",
+    "da_confermare",
+    "saltata",
+  ]),
+  reason: z.string().nullable(),
+  session_id: z.string().nullable(),
+}) satisfies z.ZodType<PlannedSlot>;
 
 const WEEKDAYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const DAY_MS = 86_400_000;

@@ -2,6 +2,8 @@
 
 Generato il {data} da `palestra-report` · Scheda {version} · Ciclo {cycle.number}, blocco {cycle.block} ({cycle.phase}) · Fonti: Technogym/Mywellness (sedute), misure manuali/InBody (composizione), orologio (recupero, se presente)
 
+Una sezione (o una sua parte) senza dati nel mese riporta "Nessun dato".
+
 ## 1. Sintesi del mese
 
 Ogni valore è confrontato con l'inizio del mese (o del ciclo). Lo stato è assegnato dall'algoritmo secondo le soglie di `docs/linee-guida-allenamento.md` § 5 e confermato o corretto da Claude in `{mese}-revisione.md`.
@@ -9,12 +11,12 @@ Ogni valore è confrontato con l'inizio del mese (o del ciclo). Lo stato è asse
 | Indicatore | Valore | Confronto | Stato |
 | --- | --- | --- | --- |
 | Aderenza | {svolte}/{previste} sedute | — | ✓ / ● / ! |
-| Tonnellaggio settimanale | {kg} kg | da {kg0} · {delta %} | |
+| Tonnellaggio settimanale | {kg} kg | da {kg0} · {delta %} · kg per serie (serie con carico) {kg0/serie} → {kg/serie} | |
 | e1RM medio (esercizi tracciati) | {delta %} | media su {n} esercizi | |
 | Serie registrate | {n} | ~{n/sett} a settimana | |
 | Peso | {kg} | da {kg0} · {delta} | |
 | Circonferenza vita | {cm} | da {cm0} · {delta} | |
-| Massa grassa / muscolo (se InBody) | {kg} / {kg} | | |
+| Massa grassa / muscolo (se InBody) | {kg} / {kg} | da {kg0} / {kg0} · {delta} / {delta} | |
 | MOVEs medi per seduta | {n} | | |
 | Sonno · passi (se orologio) | {h} · {n} | | |
 | HRV · FC a riposo (se orologio) | {ms} · {bpm} | | |
@@ -29,6 +31,8 @@ Legenda: ✓ migliorato o come previsto · ● vicino all'obiettivo, da seguire 
 
 | Settimana | Sedute | Serie | Tonnellaggio (kg) | kg per serie | Fase |
 | --- | --- | --- | --- | --- | --- |
+
+Aderenza: {svolti}/{previsti} slot svolti (fatta o spostata). Saltate: {slot} ({motivo}), … (oppure "nessuna"). Gli slot sono quelli programmati del mese; le sedute extra non contano.
 
 Lettura: {2–3 frasi: volume vs tonnellaggio, scarico se c'è stato e perché}.
 
@@ -51,7 +55,7 @@ Serie per distretto (lavoro indiretto al 50 %) e per schema di movimento, nel me
 | Schema di movimento | Serie/settimana |
 | --- | --- |
 
-Rapporti: femorali/quadricipiti {0.xx} (obiettivo ≥ 0,6) · spinta/tirata {0.xx} (obiettivo ≤ 1,0) · spinta verticale {n} serie.
+Rapporti: femorali/quadricipiti {0.xx} (obiettivo ≥ 0,6) · spinta/tirata {0.xx} (obiettivo ≤ 1,0) · spinta verticale {n} serie nel mese.
 
 ## 5. Cardio
 
@@ -65,12 +69,16 @@ Rapporti: femorali/quadricipiti {0.xx} (obiettivo ≥ 0,6) · spinta/tirata {0.x
 
 Protocollo: stesso giorno, stessa ora, a digiuno. Le misure fuori protocollo sono mostrate ma escluse dai trend.
 
-## 7. Recupero (se presente `data/recupero.json`)
+## 7. Recupero e sensazioni
 
 | Settimana | Sonno (h) | Passi/giorno | HRV (ms) | FC riposo (bpm) | Segnale |
 | --- | --- | --- | --- | --- | --- |
 
 Regola: HRV in calo e FC a riposo in salita per più di 3 giorni, o sonno sotto 7 h, anticipano lo scarico.
+
+Feedback delle sedute: ottima {n} · buona {n} · normale {n} · faticosa {n} · pessima {n}.
+
+Fastidi articolari: {n} giorni — {data} ({dove}), …
 
 ## 8. Prossimo ciclo
 

@@ -1,0 +1,18 @@
+[
+  {
+    "week": "2026-W45",
+    "sleep_h": 7.5,
+    "steps_avg": 9000,
+    "hrv_ms": 50,
+    "rhr_bpm": 60,
+    "source": "manuale"
+  },
+  {
+    "week": "2026-W46",
+    "sleep_h": 6.3,
+    "steps_avg": 7000,
+    "hrv_ms": 46,
+    "rhr_bpm": 62,
+    "source": "manuale"
+  }
+]

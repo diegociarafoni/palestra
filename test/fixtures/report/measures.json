@@ -1,0 +1,41 @@
+[
+  {
+    "date": "2026-11-03",
+    "time": "08:00",
+    "weight_kg": 80,
+    "waist_cm": 90,
+    "skeletal_muscle_kg": 35,
+    "fat_mass_kg": 18,
+    "body_fat_pct": 22.5,
+    "condition": "a digiuno",
+    "in_protocol": true,
+    "source": "inbody",
+    "note": "misura fittizia"
+  },
+  {
+    "date": "2026-11-10",
+    "time": "20:00",
+    "weight_kg": 82,
+    "waist_cm": 91,
+    "skeletal_muscle_kg": null,
+    "fat_mass_kg": null,
+    "body_fat_pct": null,
+    "condition": "dopo cena",
+    "in_protocol": false,
+    "source": "bilancia",
+    "note": "misura fittizia"
+  },
+  {
+    "date": "2026-11-17",
+    "time": "08:00",
+    "weight_kg": 79,
+    "waist_cm": 89,
+    "skeletal_muscle_kg": 35.5,
+    "fat_mass_kg": 17,
+    "body_fat_pct": 21.5,
+    "condition": "a digiuno",
+    "in_protocol": true,
+    "source": "inbody",
+    "note": "misura fittizia"
+  }
+]

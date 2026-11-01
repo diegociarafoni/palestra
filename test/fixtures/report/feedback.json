@@ -1,0 +1,38 @@
+[
+  {
+    "id": 1,
+    "planned_id": "2026-W45-1",
+    "session_id": "sess-r01",
+    "date": "2026-11-03",
+    "seq": 1,
+    "class": "buona",
+    "joint_pain": false,
+    "joint_where": null,
+    "notes": null,
+    "updated_at": "2026-11-03T20:00:00.000Z"
+  },
+  {
+    "id": 2,
+    "planned_id": "2026-W45-2",
+    "session_id": "sess-r03",
+    "date": "2026-11-05",
+    "seq": 1,
+    "class": "buona",
+    "joint_pain": false,
+    "joint_where": null,
+    "notes": null,
+    "updated_at": "2026-11-05T20:00:00.000Z"
+  },
+  {
+    "id": 3,
+    "planned_id": "2026-W46-1",
+    "session_id": "sess-r04",
+    "date": "2026-11-10",
+    "seq": 1,
+    "class": "faticosa",
+    "joint_pain": true,
+    "joint_where": "ginocchio",
+    "notes": null,
+    "updated_at": "2026-11-10T20:00:00.000Z"
+  }
+]
