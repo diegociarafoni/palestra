@@ -20,7 +20,9 @@ import {
 import {
   checkReport,
   DATE_ABBREVIATIONS,
+  DATE_PARTS,
   DATE_WORDS,
+  FIXED_TEXT,
   HTML_ATTRIBUTES,
   main,
   maskText,
@@ -281,6 +283,48 @@ describe("shape", () => {
       { line: 5, kind: "date" },
       { line: 6, kind: "date" },
     ]);
+  });
+
+  it("shape: no date part in any language prints", () => {
+    // Mesi e giorni in italiano, inglese, tedesco, francese e spagnolo, interi e abbreviati, le
+    // parole relative (oggi, weekend), i momenti del giorno e le forme di 2 lettere dei giorni.
+    expect(DATE_PARTS.join(" ")).toBe(
+      "abr abril afternoon ago agosto am aout apr april aprile aug august avr avril dec december decembre dez dezember di dic dicembre diciembre dienstag dim dimanche do dom domani domenica domingo donnerstag ene enero evening feb febbraio febrero februar february fevr fevrier fr freitag fri friday gen gennaio gi gio giovedi giu giugno ieri jan januar january janv janvier jeu jeudi jueves juil juillet juin jul juli julio july jun june juni junio lu lug luglio lun lundi lunedi lunes ma mag maggio mai mar march mardi mars martedi martes marz marzo mattina may mayo me mer mercoledi mercredi mi miercoles mittwoch mo mon monday montag morning mrz night notte nov november novembre noviembre oct october octobre octubre oggi okt oktober ott ottobre pm pomeriggio sa sab sabado sabato sam samedi samstag sat saturday sep sept september septembre septiembre sera set sett settembre so sonntag su sun sunday th thu thur thurs thursday today tomorrow tu tue tues tuesday ve ven vendredi venerdi viernes we wed wednesday weekend yesterday",
+    );
+    expect(VOCAB.filter((word) => DATE_PARTS.includes(word))).toEqual([]);
+    expect(
+      shapeOfJson(
+        { montagLoad: 1, oggi: "x", sera: true, amCount: null, toDo: [] },
+        ctx,
+      ),
+    ).toEqual([
+      '«a»: "a"',
+      "«a»: []",
+      "«a»: booleano",
+      "«a»: null",
+      "«a»: numero 9",
+    ]);
+    // I tag sono esclusi: `th` resta, anche se è "giovedì" abbreviato.
+    expect(shapeOfHtml("<p><th>Kg</th></p>", ctx)).toEqual([
+      "p",
+      "  th",
+      '    "Kg"',
+    ]);
+    // Il controllo finale le trova tra confini di lettera, tranne le forme di 2 lettere dei
+    // giorni (`th` è un tag)...
+    expect(
+      checkReport(
+        ["a montag a", "Oggi", "mercredi", "a pm a", "th", "a so a"],
+        [],
+      ),
+    ).toEqual([
+      { line: 1, kind: "date" },
+      { line: 2, kind: "date" },
+      { line: 3, kind: "date" },
+      { line: 4, kind: "date" },
+    ]);
+    // ...e nessuna compare nel testo che il rapporto scrive da sé.
+    expect(checkReport(FIXED_TEXT, [])).toEqual([]);
   });
 
   it("shape: arrays show distinct shapes without counts", () => {

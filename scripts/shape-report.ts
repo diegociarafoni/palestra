@@ -245,6 +245,7 @@ function plainName(
   name: string,
   shape: RegExp,
   ctx: ShapeContext,
+  dateParts = true,
 ): string | undefined {
   if (!shape.test(name) || (name.match(/\d/g)?.length ?? 0) >= 3) {
     return undefined;
@@ -255,8 +256,7 @@ function plainName(
       const word = fold(part);
       return (
         ctx.identityWords.has(word) ||
-        DATE_WORDS.has(word) ||
-        DATE_ABBREVIATIONS.has(word) ||
+        (dateParts && DATE_PART_SET.has(word)) ||
         (/^\p{Lu}{2}$/u.test(part) && ctx.initials.has(word))
       );
     })
@@ -275,8 +275,15 @@ function plainName(
 }
 
 /** Il nome com'è secondo `plainName`, o la sua maschera tra `«»`. */
-function shownName(name: string, shape: RegExp, ctx: ShapeContext): string {
-  return plainName(name, shape, ctx) ?? `«${maskText(name, ctx.vocab)}»`;
+function shownName(
+  name: string,
+  shape: RegExp,
+  ctx: ShapeContext,
+  dateParts = true,
+): string {
+  return (
+    plainName(name, shape, ctx, dateParts) ?? `«${maskText(name, ctx.vocab)}»`
+  );
 }
 
 /** Riga di intestazione e righe interne (non indentate) di un valore JSON. */
@@ -300,6 +307,14 @@ function parseNested(text: string): object | undefined {
 /** Oltre 40 livelli di oggetti, liste o elementi, una riga `(troppo profondo)`. */
 const MAX_DEPTH = 40;
 const TOO_DEEP = "(troppo profondo)";
+// Le altre parole che il rapporto scrive da sé (vedi FIXED_TEXT).
+const OMITTED = "(contenuto omesso)";
+const INVALID_JSON = "(JSON non valido)";
+const NESTED_JSON = "json in stringa:";
+const CURRENT_USER = "EU.currentUser:";
+const REPEATED = " (ripetuto)";
+const MORE_VARIANTS = "… altre varianti";
+const MORE_COLUMNS = "… altre colonne";
 
 function jsonBlock(value: unknown, ctx: ShapeContext, depth: number): Block {
   if (typeof value === "object" && value !== null && depth >= MAX_DEPTH) {
@@ -317,7 +332,7 @@ function jsonBlock(value: unknown, ctx: ShapeContext, depth: number): Block {
     const nested = parseNested(value);
     if (nested !== undefined) {
       return {
-        head: "json in stringa:",
+        head: NESTED_JSON,
         body: shapeOfJson(nested, ctx, depth + 1),
       };
     }
@@ -383,9 +398,9 @@ function variantLines(items: readonly string[][], repeated: boolean): string[] {
   const out = texts.slice(0, MAX_VARIANTS).flatMap((text) => {
     const { lines, count } = variants.get(text) ?? { lines: [], count: 0 };
     const [first = "", ...rest] = lines;
-    return [repeated && count > 1 ? `${first} (ripetuto)` : first, ...rest];
+    return [repeated && count > 1 ? `${first}${REPEATED}` : first, ...rest];
   });
-  if (texts.length > MAX_VARIANTS) out.push("… altre varianti");
+  if (texts.length > MAX_VARIANTS) out.push(MORE_VARIANTS);
   return out;
 }
 
@@ -484,7 +499,6 @@ const NAMING_ATTRIBUTES = new Set(["method", "name", "type"]);
 const NAMING_VALUE = /^[A-Za-z][A-Za-z0-9_. :-]{0,60}$/;
 /** Virgolette con la barra: il parser spezza male gli attributi e ne fa nascere dal testo. */
 const ESCAPED_QUOTE = /\\["']/;
-const OMITTED = "(contenuto omesso)";
 
 /** Il nome di un attributo dell'elenco o `data-…`/`aria-…`, in minuscolo; altrimenti `undefined`. */
 function attributeName(name: string, ctx: ShapeContext): string | undefined {
@@ -519,7 +533,8 @@ function attributeText(
 }
 
 function elementLine(element: HTMLElement, ctx: ShapeContext): string {
-  const shown = shownName(element.rawTagName.toLowerCase(), TAG, ctx);
+  // I tag sono esclusi dalla regola delle date: `th` è anche "giovedì" abbreviato.
+  const shown = shownName(element.rawTagName.toLowerCase(), TAG, ctx, false);
   const maskValues = ESCAPED_QUOTE.test(element.rawAttrs);
   const attributes = Object.entries(element.attributes)
     .filter(([name]) => !CHOICE_ATTRIBUTES.has(name.toLowerCase()))
@@ -534,10 +549,10 @@ function scriptLines(text: string, ctx: ShapeContext, depth: number): string[] {
     user = readCurrentUser(text);
   } catch (error) {
     if (!(error instanceof ParseError)) throw error;
-    return ["EU.currentUser:", "  (JSON non valido)"];
+    return [CURRENT_USER, `  ${INVALID_JSON}`];
   }
   if (user === undefined) return [OMITTED];
-  return ["EU.currentUser:", ...indent(shapeOfJson(user, ctx, depth))];
+  return [CURRENT_USER, ...indent(shapeOfJson(user, ctx, depth))];
 }
 
 /**
@@ -617,7 +632,7 @@ function cellLines(
     .map((node) => nodeLines(node, ctx, depth, setTable))
     .filter((lines) => lines.length > 0);
   const lines = cells.slice(0, MAX_COLUMNS).flat();
-  if (cells.length > MAX_COLUMNS) lines.push("… altre colonne");
+  if (cells.length > MAX_COLUMNS) lines.push(MORE_COLUMNS);
   return lines;
 }
 
@@ -682,6 +697,43 @@ export const DATE_ABBREVIATIONS: ReadonlySet<string> = new Set([
   ...["lun", "mar", "mer", "gio", "ven", "sab", "dom"],
   ...["mon", "tue", "tues", "wed", "thu", "thur", "thurs", "fri", "sat", "sun"],
 ]);
+/** Le forme di 2 lettere dei giorni: il controllo finale non le cerca (`th` è un tag). */
+const TWO_LETTER_DAYS: ReadonlySet<string> = new Set([
+  ...["lu", "ma", "me", "gi", "ve", "sa", "do", "mo", "tu", "we", "th", "fr"],
+  ...["su", "di", "mi", "so"],
+]);
+/**
+ * Ogni parola di data che un nome stampato non può contenere, minuscola e senza accenti, in
+ * ordine: DATE_WORDS, DATE_ABBREVIATIONS, mesi e giorni in tedesco, francese e spagnolo, interi
+ * e abbreviati, parole relative, momenti del giorno e forme di 2 lettere dei giorni.
+ */
+export const DATE_PARTS: readonly string[] = [
+  ...new Set([
+    ...DATE_WORDS,
+    ...DATE_ABBREVIATIONS,
+    // Mesi in tedesco, francese e spagnolo.
+    ...["januar", "februar", "marz", "april", "mai", "juni", "juli", "august"],
+    ...["september", "oktober", "november", "dezember", "jan", "feb", "mrz"],
+    ...["apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "dez"],
+    ...["janvier", "fevrier", "mars", "avril", "juin", "juillet", "aout"],
+    ...["septembre", "octobre", "novembre", "decembre", "janv", "fevr", "avr"],
+    ...["juil", "sept", "oct", "dec", "enero", "febrero", "marzo", "abril"],
+    ...["mayo", "junio", "julio", "agosto", "septiembre", "octubre"],
+    ...["noviembre", "diciembre", "ene", "abr", "ago", "dic"],
+    // Giorni in tedesco, francese e spagnolo.
+    ...["montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag"],
+    ...["sonntag", "mo", "di", "mi", "do", "fr", "sa", "so", "lundi", "mardi"],
+    ...["mercredi", "jeudi", "vendredi", "samedi", "dimanche", "lun", "mar"],
+    ...["mer", "jeu", "ven", "sam", "dim", "lunes", "martes", "miercoles"],
+    ...["jueves", "viernes", "sabado", "domingo"],
+    // Parole relative e momenti del giorno.
+    ...["oggi", "ieri", "domani", "today", "yesterday", "tomorrow", "weekend"],
+    ...["mattina", "pomeriggio", "sera", "notte", "morning", "afternoon"],
+    ...["evening", "night", "am", "pm"],
+    ...TWO_LETTER_DAYS,
+  ]),
+].sort();
+const DATE_PART_SET: ReadonlySet<string> = new Set(DATE_PARTS);
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const ALL_DIGITS = /^\p{N}+$/u;
 
@@ -728,7 +780,7 @@ export function checkReport(
     }
     if (
       letterRuns.some(
-        (run) => DATE_WORDS.has(run) || DATE_ABBREVIATIONS.has(run),
+        (run) => DATE_PART_SET.has(run) && !TWO_LETTER_DAYS.has(run),
       )
     ) {
       hits.push({ line: i + 1, kind: "date" });
@@ -769,6 +821,20 @@ const HEADER = [
   "Dell'ordine della pagina resta solo l'ordine in cui compaiono per la prima volta i tag diversi tra fratelli. Nient'altro: nessun nome, data, numero o identificativo.",
 ].join("\n");
 
+/**
+ * Il testo che il rapporto scrive da sé: intestazione, titoli delle sezioni e parole del
+ * renderer. Un test controlla che non contenga parole di DATE_PARTS, che il controllo finale
+ * segnalerebbe.
+ */
+export const FIXED_TEXT: readonly string[] = [
+  ...HEADER.split("\n"),
+  ...INPUTS.map(({ heading }) => `## ${heading}`),
+  "```text",
+  ...["numero 9", "numero 9.9", "numero -9", "booleano", "null", "[]", "{}"],
+  ...[NESTED_JSON, CURRENT_USER, OMITTED, INVALID_JSON, REPEATED],
+  ...[MORE_VARIANTS, MORE_COLUMNS, TOO_DEEP],
+];
+
 export async function readIdentities(src: string): Promise<string[]> {
   const text = await readFile(join(src, IDENTITIES_FILE), "utf8");
   try {
@@ -787,7 +853,7 @@ function shapeOfFile(name: string, text: string, ctx: ShapeContext): string[] {
   try {
     value = JSON.parse(text);
   } catch {
-    return ["(JSON non valido)"];
+    return [INVALID_JSON];
   }
   return shapeOfJson(value, ctx);
 }
