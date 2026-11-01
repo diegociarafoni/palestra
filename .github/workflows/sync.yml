@@ -23,7 +23,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # Log: solo "sedute nuove: N" e "slot aggiornati: N", o la classe d'errore con l'exit code.
+      # Log: di notte solo "sync completata" (i conteggi rivelerebbero i giorni di allenamento);
+      # avviato a mano, "sedute nuove: N" e "slot aggiornati: N". In errore, il messaggio e l'exit code.
       # Un login per run; il token di sessione resta nel processo ed è mascherato con ::add-mask::.
       - name: Sync Mywellness sessions into D1
         env:
