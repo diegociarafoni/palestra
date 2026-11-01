@@ -173,7 +173,7 @@ describe("cli sync", () => {
     );
   });
 
-  it("cli sync: masks the session token on github actions", async () => {
+  it("cli sync: manual run on github actions masks the token and prints counts", async () => {
     const io = capture();
     // Login riuscito (token synthetic-token-0001 della fixture), nessuna seduta.
     useLogin(fixture("login_ok.html"));
@@ -184,15 +184,38 @@ describe("cli sync", () => {
     );
     emptyD1();
 
-    expect(await main([], { ...ENV, GITHUB_ACTIONS: "true" }, realClient)).toBe(
-      0,
-    );
+    // Run manuale (workflow_dispatch), come quelle di accettazione: i conteggi restano.
+    const env = {
+      ...ENV,
+      GITHUB_ACTIONS: "true",
+      GITHUB_EVENT_NAME: "workflow_dispatch",
+    };
+    expect(await main([], env, realClient)).toBe(0);
 
     // Prima di ogni altra riga: GitHub nasconde il token da lì in poi.
     expect(io.stdout().split("\n")).toEqual([
       "::add-mask::synthetic-token-0001",
       "sedute nuove: 0",
       "slot aggiornati: 0",
+    ]);
+  });
+
+  it("cli sync: scheduled run prints no counts", async () => {
+    const io = capture();
+    emptyD1();
+    const { deps } = fakeClient([["s-1", raw("2026-11-03 18:00:00 +01:00")]]);
+    const env = {
+      ...ENV,
+      GITHUB_ACTIONS: "true",
+      GITHUB_EVENT_NAME: "schedule",
+    };
+
+    expect(await main([], env, deps)).toBe(0);
+
+    // Log pubblico ogni notte: un conteggio direbbe in quali giorni l'utente si allena.
+    expect(io.stdout().split("\n")).toEqual([
+      "::add-mask::token-finto",
+      "sync completata",
     ]);
   });
 
