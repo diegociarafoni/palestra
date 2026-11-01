@@ -3,12 +3,12 @@ tipo: decisione
 slug: 2026-11-01-report-mensile-in-workflow-separato
 titolo: Il report mensile gira in un workflow proprio, il 1° del mese dopo la sync
 data: 2026-11-01
-stato: accettata
+stato: superata
 aggiornato: 2026-11-01
 ---
 # Il report mensile gira in un workflow proprio, il 1° del mese dopo la sync
 
-**Data**: 2026-11-01 · **Stato**: accettata · **Decisa da**: Claude, nel Task 6b, durante la delega notturna dell'utente (31/10 → 1/11)
+**Data**: 2026-11-01 · **Stato**: superata da [il report il 1° e l'8 del mese](2026-11-01-report-il-1-e-l-8-del-mese.md) · **Decisa da**: Claude, nel Task 6b, durante la delega notturna dell'utente (31/10 → 1/11)
 
 ## Decisione e motivazione
 - Il report del mese precedente si genera con un workflow separato, `report.yml`. Il piano prevedeva invece un passo dentro `sync.yml`, ma `sync.yml` non esisteva ancora (Task 5 in corso nella corsia sync). Un file a parte non tocca il lavoro di un'altra corsia e non la blocca.
