@@ -1,10 +1,14 @@
 import { z } from "zod";
 import { romeDate } from "../domain/dates";
 import { AuthError, ParseError, SyncError, TransientError } from "../errors";
+import { VERSION } from "../index";
 
 // Costante pubblica dell'app web, inviata come parametro `AppId` ai servizi.
 const APP_ID = "ec1d38d7-d359-48d0-a60c-d8c0b8fb9df9";
+const USER_AGENT = `palestra-sync/${VERSION}`;
+const LOGIN_FAILED = "Login Mywellness fallito";
 const RETRY_DELAYS_MS = [2000, 4000];
+const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_REDIRECTS = 5;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -52,7 +56,7 @@ function parseDay(day: string): Date {
     Number.isNaN(date.getTime()) ||
     date.toISOString().slice(0, 10) !== day
   ) {
-    throw new RangeError("Mywellness: data non valida (atteso AAAA-MM-GG)");
+    throw new SyncError("Mywellness: data non valida (atteso AAAA-MM-GG)");
   }
   return date;
 }
@@ -127,7 +131,6 @@ export class MywellnessClient {
   }
 
   async login(): Promise<void> {
-    discard(await this.#request(this.#siteUrl("/cloud/User/Login")));
     const form = new URLSearchParams([
       ["UserBinder.MifareId", ""],
       ["UserBinder.IsFromLogin", "True"],
@@ -136,17 +139,36 @@ export class MywellnessClient {
       ["UserBinder.Password", this.#password],
       ["UserBinder.KeepMeLogged", "true"],
     ]);
-    discard(await this.#request(this.#siteUrl("/cloud/User/Login"), { form }));
-    const page = await readText(
-      await this.#request(this.#siteUrl("/cloud/Training")),
-    );
+    let page: string;
+    try {
+      discard(await this.#request(this.#siteUrl("/cloud/User/Login")));
+      discard(
+        await this.#request(this.#siteUrl("/cloud/User/Login"), { form }),
+      );
+      page = await readText(
+        await this.#request(this.#siteUrl("/cloud/Training")),
+      );
+    } catch (error) {
+      // 401/403 in un passo qualunque del login: credenziali rifiutate.
+      if (error instanceof AuthError) {
+        throw new AuthError(LOGIN_FAILED, { cause: error });
+      }
+      throw error;
+    }
+    // Di nuovo il form di login: credenziali rifiutate.
+    if (LOGIN_FORM_PATTERN.test(page)) throw new AuthError(LOGIN_FAILED);
     const literal = CURRENT_USER_PATTERN.exec(page)?.[1];
-    // Senza l'utente corrente la pagina è di nuovo il form di login.
-    if (literal === undefined) throw new AuthError("Login Mywellness fallito");
+    // Né utente né form: la pagina è cambiata.
+    if (literal === undefined) {
+      throw new ParseError("Mywellness: utente corrente assente");
+    }
     let payload: unknown;
     try {
-      // Stringa JS tra apici singoli → stringa JSON → oggetto.
-      payload = JSON.parse(JSON.parse(`"${literal.replace(/\\'/g, "'")}"`));
+      // Stringa JS tra apici singoli → stringa JSON (`"` escapato o no) → oggetto.
+      const json = literal.replace(/\\.|"/g, (token) =>
+        token === '"' ? '\\"' : token === "\\'" ? "'" : token,
+      );
+      payload = JSON.parse(JSON.parse(`"${json}"`));
     } catch {
       // Niente cause: il SyntaxError cita il payload, che contiene dati personali.
       throw new ParseError("Mywellness: utente corrente non interpretabile");
@@ -164,7 +186,11 @@ export class MywellnessClient {
     return this.#requireUser().id;
   }
 
-  /** Id delle sedute tra `since` e `until` (`YYYY-MM-DD`, inclusi), nell'ordine della pagina. */
+  /**
+   * Id delle sedute tra `since` e `until` (`YYYY-MM-DD`, inclusi), senza duplicati: mese per
+   * mese da `since` a `until` e, in ogni mese, nell'ordine della pagina. Nessun ordinamento
+   * per data: chi chiama riordina per `started_at`.
+   */
   async listSessionIds(
     opts: { since?: string; until?: string } = {},
   ): Promise<string[]> {
@@ -174,6 +200,11 @@ export class MywellnessClient {
       opts.since === undefined
         ? new Date(until.getTime() - DEFAULT_RANGE_DAYS * DAY_MS)
         : parseDay(opts.since);
+    if (since > until) {
+      throw new SyncError(
+        "Mywellness: intervallo di date non valido (since dopo until)",
+      );
+    }
     const ids = new Set<string>();
     for (const [from, to] of monthRanges(since, until)) {
       const url = this.#siteUrl("/cloud/Training/LastPerformedWorkoutSession", {
@@ -236,9 +267,7 @@ export class MywellnessClient {
   /** Pagina HTML del sito; il form di login al posto dei dati è una sessione scaduta. */
   async #readSitePage(url: URL): Promise<string> {
     const html = await readText(await this.#request(url));
-    if (LOGIN_FORM_PATTERN.test(html)) {
-      throw new AuthError("Login Mywellness fallito");
-    }
+    if (LOGIN_FORM_PATTERN.test(html)) throw new AuthError(LOGIN_FAILED);
     return html;
   }
 
@@ -285,7 +314,7 @@ export class MywellnessClient {
     let form = opts.form;
     for (let hop = 0; ; hop++) {
       const site = current.origin === this.#site.origin;
-      const headers = new Headers();
+      const headers = new Headers({ "User-Agent": USER_AGENT });
       if (opts.accept !== undefined) headers.set("Accept", opts.accept);
       if (form !== undefined) {
         headers.set("Content-Type", "application/x-www-form-urlencoded");
@@ -324,7 +353,10 @@ export class MywellnessClient {
     }
   }
 
-  /** Un passo HTTP: limite di frequenza e retry su rete, 429 e 5xx; mai su 401/403. */
+  /**
+   * Un passo HTTP: limite di frequenza e retry solo su 429 e 5xx. Mai su 401/403 né su errore
+   * di rete o timeout: la richiesta potrebbe essere arrivata (il POST di login non si ripete).
+   */
   async #exchange(url: URL, init: RequestInit): Promise<Response> {
     for (let attempt = 0; ; attempt++) {
       const delay = RETRY_DELAYS_MS[attempt];
@@ -334,16 +366,12 @@ export class MywellnessClient {
         response = await (this.#fetch ?? fetch)(url.toString(), {
           ...init,
           redirect: "manual",
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         });
       } catch (error) {
-        if (delay === undefined) {
-          throw new TransientError(
-            "Mywellness: richiesta non riuscita (rete)",
-            { cause: error },
-          );
-        }
-        await this.#sleep(delay);
-        continue;
+        throw new TransientError("Mywellness: richiesta non riuscita (rete)", {
+          cause: error,
+        });
       }
       if (response.status === 401 || response.status === 403) {
         discard(response);

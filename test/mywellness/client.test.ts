@@ -67,13 +67,16 @@ describe("client", () => {
     const posted = useLogin();
     // Il Cookie si legge dalla richiesta del client: MSW aggiunge il proprio.
     const sent: { method: string; url: string; cookie: string | null }[] = [];
+    const agents: (string | null)[] = [];
     const client = newClient({
       fetch: (input, init) => {
+        const headers = new Headers(init?.headers);
         sent.push({
           method: init?.method ?? "GET",
           url: String(input),
-          cookie: new Headers(init?.headers).get("cookie"),
+          cookie: headers.get("cookie"),
         });
+        agents.push(headers.get("user-agent"));
         return fetch(input, init);
       },
     });
@@ -105,6 +108,36 @@ describe("client", () => {
       { method: "GET", url: `${SITE}/cloud/`, cookie: cookies },
       { method: "GET", url: `${SITE}/cloud/Training`, cookie: cookies },
     ]);
+    expect(agents).toEqual([
+      "palestra-sync/0.1.0",
+      "palestra-sync/0.1.0",
+      "palestra-sync/0.1.0",
+      "palestra-sync/0.1.0",
+    ]);
+  });
+
+  it("client: login accepts unescaped quotes in user payload", async () => {
+    // Variante della pagina con `JSON.parse('{"id":…}')`, senza `\"`.
+    useLogin(fixture("login_ok.html").replaceAll('\\"', '"'));
+    const client = newClient();
+
+    await client.login();
+
+    expect(client.userId).toBe(USER_ID);
+  });
+
+  it("client: training page without user payload raises ParseError", async () => {
+    // Né utente corrente né form di login: la pagina è cambiata (exit 65).
+    useLogin("<html><body><p>pagina diversa</p></body></html>");
+
+    const error = await newClient()
+      .login()
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ParseError);
+    expect((error as Error).message).toBe(
+      "Mywellness: utente corrente assente",
+    );
   });
 
   it("client: login failure", async () => {
@@ -203,7 +236,57 @@ describe("client", () => {
       .catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(AuthError);
+    expect((error as Error).message).toBe("Login Mywellness fallito");
     expect(posts).toBe(1);
+  });
+
+  it("client: network error is not retried", async () => {
+    let posts = 0;
+    server.use(
+      http.get(`${SITE}/cloud/User/Login`, () =>
+        HttpResponse.html(fixture("login_form.html")),
+      ),
+      http.post(`${SITE}/cloud/User/Login`, () => {
+        posts++;
+        return HttpResponse.error();
+      }),
+    );
+
+    const error = await newClient()
+      .login()
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(TransientError);
+    expect((error as Error).message).toBe(
+      "Mywellness: richiesta non riuscita (rete)",
+    );
+    expect(inspect(error)).not.toContain(PASSWORD);
+    expect(posts).toBe(1); // il POST con le credenziali non si ripete
+  });
+
+  it("client: refuses cross-origin redirect", async () => {
+    server.use(
+      http.get(`${SITE}/cloud/User/Login`, () =>
+        HttpResponse.html(fixture("login_form.html")),
+      ),
+      // 307 ripeterebbe il POST con la password verso l'altro dominio.
+      http.post(
+        `${SITE}/cloud/User/Login`,
+        () =>
+          new HttpResponse(null, {
+            status: 307,
+            headers: { Location: "https://altro-dominio.example/raccolta" },
+          }),
+      ),
+    );
+
+    // Nessun handler per l'altro dominio: una richiesta lì sarebbe un errore di rete.
+    const error = await newClient()
+      .login()
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(SyncError);
+    expect((error as Error).message).toBe("Mywellness: redirect non ammesso");
   });
 
   it("client: list after expired session raises AuthError", async () => {
@@ -221,6 +304,30 @@ describe("client", () => {
 
     expect(error).toBeInstanceOf(AuthError);
     expect((error as Error).message).toBe("Login Mywellness fallito");
+  });
+
+  it("client: invalid date range raises SyncError", async () => {
+    useLogin();
+    // Nessun handler per l'elenco: le date si controllano prima di ogni richiesta.
+    const client = newClient({ today: () => "2026-11-20" });
+    await client.login();
+
+    for (const until of ["20/11/2026", "2026-02-30"]) {
+      const error = await client
+        .listSessionIds({ until })
+        .catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(SyncError);
+      expect((error as Error).message).toBe(
+        "Mywellness: data non valida (atteso AAAA-MM-GG)",
+      );
+    }
+    const reversed = await client
+      .listSessionIds({ since: "2026-11-20", until: "2026-11-10" })
+      .catch((e: unknown) => e);
+    expect(reversed).toBeInstanceOf(SyncError);
+    expect((reversed as Error).message).toBe(
+      "Mywellness: intervallo di date non valido (since dopo until)",
+    );
   });
 
   it("client: getSession invalid json raises ParseError", async () => {
@@ -275,10 +382,7 @@ describe("client", () => {
     server.use(
       http.get(`${SERVICES}/Training/CardioLog/:analyticsId/Details`, () => {
         calls++;
-        // Il primo tentativo fallisce in rete: anche quello si ritenta.
-        return calls === 1
-          ? HttpResponse.error()
-          : new HttpResponse(null, { status: 429 });
+        return new HttpResponse(null, { status: 429 });
       }),
     );
     const sleeps: number[] = [];
@@ -370,6 +474,24 @@ describe("client", () => {
     await client.login();
 
     // Quattro richieste del login, un'attesa prima di ognuna dopo la prima.
+    expect(sleeps).toEqual([1000, 1000, 1000]);
+  });
+
+  it("client: default min interval is 1000 ms", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: 0 });
+    useLogin();
+    const sleeps: number[] = [];
+    // Senza minIntervalMs: vale il default.
+    const client = new MywellnessClient({
+      email: EMAIL,
+      password: PASSWORD,
+      sleep: async (ms) => {
+        sleeps.push(ms);
+      },
+    });
+
+    await client.login();
+
     expect(sleeps).toEqual([1000, 1000, 1000]);
   });
 });
