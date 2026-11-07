@@ -21,6 +21,18 @@ const monthName = new Intl.DateTimeFormat("it-IT", {
   month: "long",
   year: "numeric",
 });
+const dayMonth = new Intl.DateTimeFormat("it-IT", {
+  timeZone: TIME_ZONE,
+  day: "numeric",
+  month: "short",
+});
+const dayOfWeek = new Intl.DateTimeFormat("it-IT", {
+  timeZone: TIME_ZONE,
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+});
+const alternatives = new Intl.ListFormat("it-IT", { type: "disjunction" });
 
 // Mezzogiorno UTC cade nello stesso giorno di calendario a Roma (UTC+1 o UTC+2).
 const middayOf = (date: string): Date => new Date(`${date}T12:00:00Z`);
@@ -38,9 +50,39 @@ export function chartDate(date: string): Date {
   return new Date(`${date}T00:00:00Z`);
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Estremi di un asse di giorni: un giorno prima della prima data e uno dopo l'ultima. Il primo e
+ * l'ultimo punto non stanno sulle linee degli assi, e una data sola ha comunque un asse con le
+ * sue tacche (ridotto a un punto non ne avrebbe).
+ */
+export function dayAxisBounds(
+  first: string,
+  last: string,
+): { min: Date; max: Date } {
+  return {
+    min: new Date(chartDate(first).getTime() - DAY_MS),
+    max: new Date(chartDate(last).getTime() + DAY_MS),
+  };
+}
+
 /** Data di un asse del tempo → "3 nov 2026". */
 export function formatChartDate(value: Date): string {
   return shortDate.format(value);
+}
+
+/**
+ * Formattatore di un asse di giorni dentro un mese (MUI X `valueFormatter`): sulle tacche senza
+ * anno, "3 nov"; altrove (tooltip) la data completa, "3 nov 2026".
+ */
+export function formatDayAxis(
+  value: Date,
+  context: { location: string },
+): string {
+  return context.location === "tick"
+    ? dayMonth.format(value)
+    : shortDate.format(value);
 }
 
 /** `2026-11-03`, `08:00` → "3 nov 2026, 08:00"; senza ora solo la data. L'ora (`HH:MM`, scritta a mano) resta com'è. */
@@ -55,14 +97,34 @@ export function formatDate(date: string): string {
   return longDate.format(middayOf(date));
 }
 
+/** `2026-11-03` → "mar 3 nov". */
+export function formatDay(date: string): string {
+  return dayOfWeek.format(middayOf(date));
+}
+
+/** `["2026-11-03", "2026-11-04"]` → "mar 3 nov o mer 4 nov". */
+export function formatDays(dates: string[]): string {
+  return alternatives.format(dates.map(formatDay));
+}
+
 /** `2026-11` → "novembre 2026". */
 export function formatMonth(month: string): string {
   return monthName.format(middayOf(`${month}-15`));
 }
 
+/** Settimana ISO `2026-W45` → 45. */
+export function isoWeekNumber(week: string): number {
+  return Number(week.slice(6));
+}
+
+/** Data di oggi a Roma (`AAAA-MM-GG`). */
+export function todayInRome(): string {
+  return romeDate(new Date().toISOString());
+}
+
 /** Mese di oggi a Roma (`AAAA-MM`). */
 export function currentMonthInRome(): string {
-  return romeDate(new Date().toISOString()).slice(0, 7);
+  return todayInRome().slice(0, 7);
 }
 
 // Mese `AAAA-MM` spostato di `delta` mesi, con il cambio d'anno.

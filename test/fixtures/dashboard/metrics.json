@@ -1,0 +1,39 @@
+{
+  "strength_table": [
+    {
+      "slug": "leg-press",
+      "name": "Leg Press",
+      "sessions": 2,
+      "first": { "date": "2026-11-03", "load_kg": 60, "reps": 12 },
+      "last": { "date": "2026-11-10", "load_kg": 65, "reps": 10 },
+      "e1rm_start_kg": 84,
+      "e1rm_end_kg": 86.67,
+      "e1rm_delta_pct": 3.2,
+      "reliability": "confermato",
+      "next": { "load_kg": 65, "reps_target": 12, "action": "hold" }
+    },
+    {
+      "slug": "chest-press",
+      "name": "Chest Press",
+      "sessions": 0,
+      "first": null,
+      "last": null,
+      "e1rm_start_kg": null,
+      "e1rm_end_kg": null,
+      "e1rm_delta_pct": null,
+      "reliability": null,
+      "next": { "load_kg": null, "reps_target": 12, "action": "calibrate" }
+    }
+  ],
+  "e1rm_series": [
+    {
+      "slug": "leg-press",
+      "name": "Leg Press",
+      "points": [
+        { "date": "2026-11-03", "e1rm_kg": 84 },
+        { "date": "2026-11-10", "e1rm_kg": 86.67 }
+      ]
+    },
+    { "slug": "chest-press", "name": "Chest Press", "points": [] }
+  ]
+}

@@ -18,6 +18,7 @@ import {
   TransientError,
   UpstreamError,
 } from "../../src/errors";
+import { BAD_NAMES, STOP_LINES } from "../fixtures/d1-export-casi-limite";
 
 const ENV = {
   CLOUDFLARE_API_TOKEN: "t",
@@ -327,6 +328,89 @@ describe("restore-test", () => {
     );
   });
 
+  it("restore-test: counting edge cases, the same as scripts/prova-ripristino.sh", async () => {
+    const io = output();
+    const tables = [
+      "Mixed_Case1",
+      "_cfg",
+      "_x",
+      "a_cf_b",
+      "audit",
+      "sessions",
+      "sqlitex",
+    ];
+    const counts = {
+      Mixed_Case1: 1,
+      _cfg: 1,
+      _x: 1,
+      a_cf_b: 1,
+      audit: 3,
+      sessions: 1,
+      sqlitex: 1,
+    };
+    const f = fakes(
+      {
+        tables: { "palestra-restore-test": tables, palestra: tables },
+        counts: { "palestra-restore-test": counts, palestra: counts },
+      },
+      async () =>
+        new TextEncoder().encode(
+          readFileSync(
+            join(
+              import.meta.dirname,
+              "..",
+              "fixtures",
+              "d1-export-casi-limite.sql",
+            ),
+            "utf8",
+          ),
+        ),
+    );
+    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(0);
+    expect(io.stdout()).toContain(
+      [
+        HEADER,
+        "Mixed_Case1                  1           1           1",
+        "_cfg                         1           1           1",
+        "_x                           1           1           1",
+        "a_cf_b                       1           1           1",
+        "audit                        3           3           3",
+        "sessions                     1           1           1",
+        "sqlitex                      1           1           1",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it.each(STOP_LINES)(
+    "restore-test: counting stops at %j after the data, as in scripts/prova-ripristino.sh",
+    async (stop) => {
+      const io = output();
+      const f = fakes(
+        {
+          tables: { "palestra-restore-test": ["audit"], palestra: ["audit"] },
+          counts: {
+            "palestra-restore-test": { audit: 1 },
+            palestra: { audit: 1 },
+          },
+        },
+        async () =>
+          new TextEncoder().encode(
+            [
+              'INSERT INTO "audit" ("id") VALUES(1);',
+              stop,
+              'INSERT INTO "audit" ("id") VALUES(2);',
+              "",
+            ].join("\n"),
+          ),
+      );
+      expect(await main(["2026-10-31"], ENV, f.deps)).toBe(0);
+      expect(io.stdout()).toContain(
+        "audit                        1           1           1\n",
+      );
+    },
+  );
+
   it("restore-test: a table of the dump missing from the restore is a difference", async () => {
     const io = output();
     const f = fakes({
@@ -508,20 +592,21 @@ describe("restore-test", () => {
     expect(f.calls.at(-1)).toEqual(del);
   });
 
-  it("restore-test: a dump table name that is not an identifier exits 65 before creating", async () => {
-    const io = output();
-    const f = fakes({}, async () =>
-      new TextEncoder().encode(
-        'INSERT INTO "dato personale" ("x") VALUES(1);\n',
-      ),
-    );
-    expect(await main(["2026-10-31"], ENV, f.deps)).toBe(65);
-    expect(io.stderr()).toContain(
-      "Nome di tabella non ammesso nel dump: palestra-2026-10-31.sql",
-    );
-    expect(f.calls).toEqual([]);
-    expect(`${io.stdout()}${io.stderr()}`).not.toContain("dato personale");
-  });
+  it.each(BAD_NAMES)(
+    "restore-test: dump table name %j exits 65 before creating, as in scripts/prova-ripristino.sh",
+    async (name) => {
+      const io = output();
+      const f = fakes({}, async () =>
+        new TextEncoder().encode(`INSERT INTO "${name}" ("x") VALUES(1);\n`),
+      );
+      expect(await main(["2026-10-31"], ENV, f.deps)).toBe(65);
+      expect(io.stderr()).toContain(
+        "Nome di tabella non ammesso nel dump: palestra-2026-10-31.sql",
+      );
+      expect(f.calls).toEqual([]);
+      expect(`${io.stdout()}${io.stderr()}`).not.toContain(name);
+    },
+  );
 
   it("restore-test: a palestra table name that is not an identifier only empties its column", async () => {
     const io = output();

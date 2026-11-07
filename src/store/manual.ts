@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type { Db } from "../db/types";
+import type { SlotPatchBody } from "../domain/dashboard";
+import type { PlannedSlot } from "../domain/planning";
 import {
   type Feedback,
   type FeedbackInput,
@@ -13,6 +15,7 @@ import {
 import { ParseError } from "../errors";
 import { auditStatement } from "./audit";
 import { parseJsonColumn, parseStored } from "./json";
+import { COLUMNS as SLOT_COLUMNS, type SlotRow, toSlot } from "./planning";
 
 // La colonna usata per filtrare e ordinare deve coincidere con il campo del json.
 const incoherent = (table: string, key: string): ParseError =>
@@ -86,13 +89,63 @@ export async function upsertFeedback(
   );
 }
 
-/** Feedback del mese `YYYY-MM`, in ordine di data e di seduta nel giorno. */
-export async function listFeedback(db: Db, month: string): Promise<Feedback[]> {
+// Slot che l'utente può cambiare: senza seduta e non fatto. La sync abbina le sedute solo agli
+// slot aperti senza seduta, e una scelta su uno slot con la seduta verrebbe sovrascritta.
+const USER_EDITABLE =
+  "id = ?1 AND session_id IS NULL AND status IN ('programmata', 'da_confermare', 'saltata')";
+
+/**
+ * Scelta dell'utente sullo slot `id` dal calendario: conferma "saltata" con il motivo (o null),
+ * oppure giorno scelto. Lo slot cambia solo se è senza seduta e non fatto, e la riga `audit`
+ * si scrive solo se cambia: stessa condizione, nello stesso batch (una transazione), così una
+ * seduta abbinata dalla sync dopo la lettura della rotta non lascia una riga `audit` a vuoto.
+ * Restituisce lo slot aggiornato, o null se non è cambiato nulla.
+ */
+export async function updateSlotByUser(
+  db: Db,
+  id: string,
+  change: SlotPatchBody,
+  actor: string,
+): Promise<PlannedSlot | null> {
+  const [set, value] =
+    "date" in change
+      ? ["date = ?2", change.date]
+      : ["status = 'saltata', reason = ?2", change.reason ?? null];
+  const [updated] = await db.batch<SlotRow>([
+    db
+      .prepare(
+        `UPDATE planned_sessions SET ${set} WHERE ${USER_EDITABLE}
+         RETURNING ${SLOT_COLUMNS}`,
+      )
+      .bind(id, value),
+    db
+      .prepare(
+        `INSERT INTO audit (at, actor, table_name, row_key, action)
+         SELECT ?2, ?3, 'planned_sessions', ?1, 'update'
+         WHERE EXISTS (SELECT 1 FROM planned_sessions WHERE ${USER_EDITABLE})`,
+      )
+      .bind(id, new Date().toISOString(), actor),
+  ]);
+  const row = updated?.results[0];
+  return row === undefined ? null : toSlot(row);
+}
+
+/**
+ * Feedback del mese `YYYY-MM` e dei giorni `days` (`YYYY-MM-DD`, anche di altri mesi), in ordine
+ * di data e di seduta nel giorno.
+ */
+export async function listFeedback(
+  db: Db,
+  month: string,
+  days: string[] = [],
+): Promise<Feedback[]> {
   const { results } = await db
     .prepare(
-      "SELECT * FROM feedback WHERE substr(date, 1, 7) = ?1 ORDER BY date, seq",
+      `SELECT * FROM feedback
+       WHERE substr(date, 1, 7) = ?1 OR date IN (SELECT value FROM json_each(?2))
+       ORDER BY date, seq`,
     )
-    .bind(month)
+    .bind(month, JSON.stringify(days))
     .all<{ id: number }>();
   return results.map((r) =>
     parseStored(FeedbackRowSchema, r, "feedback", String(r.id)),

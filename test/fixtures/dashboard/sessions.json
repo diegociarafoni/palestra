@@ -1,0 +1,62 @@
+[
+  {
+    "session_id": "sess-d00",
+    "source": "mywellness-api",
+    "started_at": "2026-10-28T18:30:00+01:00",
+    "ended_at": null,
+    "name": "Seduta libera",
+    "program": null,
+    "moves": 300,
+    "calories_kcal": null,
+    "duration_s": null,
+    "exercises": []
+  },
+  {
+    "session_id": "sess-d01",
+    "source": "mywellness-api",
+    "started_at": "2026-11-01T10:00:00+01:00",
+    "ended_at": null,
+    "name": "Giorno B",
+    "program": null,
+    "moves": 350,
+    "calories_kcal": null,
+    "duration_s": null,
+    "exercises": []
+  },
+  {
+    "session_id": "sess-d02",
+    "source": "mywellness-api",
+    "started_at": "2026-11-03T18:30:00+01:00",
+    "ended_at": null,
+    "name": "Giorno A",
+    "program": null,
+    "moves": 400,
+    "calories_kcal": null,
+    "duration_s": null,
+    "exercises": []
+  },
+  {
+    "session_id": "sess-d03",
+    "source": "mywellness-api",
+    "started_at": "2026-11-04T18:30:00+01:00",
+    "ended_at": null,
+    "name": "Seduta libera",
+    "program": null,
+    "moves": null,
+    "calories_kcal": null,
+    "duration_s": null,
+    "exercises": []
+  },
+  {
+    "session_id": "sess-d04",
+    "source": "mywellness-api",
+    "started_at": "2026-11-10T18:30:00+01:00",
+    "ended_at": null,
+    "name": "Giorno A",
+    "program": null,
+    "moves": 420,
+    "calories_kcal": null,
+    "duration_s": null,
+    "exercises": []
+  }
+]

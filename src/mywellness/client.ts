@@ -40,6 +40,9 @@ type CurrentUser = z.infer<typeof CurrentUserSchema>;
 
 const SessionIdsSchema = z.array(z.string().regex(/^\d+$/));
 
+/** Passo della sync, citato negli errori di redirect. */
+type Step = "login" | "elenco" | "dettaglio";
+
 export type MywellnessClientOptions = {
   email: string;
   password: string;
@@ -146,12 +149,14 @@ export class MywellnessClient {
     ]);
     let page: string;
     try {
-      discard(await this.#request(this.#siteUrl("/cloud/User/Login")));
+      discard(await this.#request(this.#siteUrl("/cloud/User/Login"), "login"));
       discard(
-        await this.#request(this.#siteUrl("/cloud/User/Login"), { form }),
+        await this.#request(this.#siteUrl("/cloud/User/Login"), "login", {
+          form,
+        }),
       );
       page = await readText(
-        await this.#request(this.#siteUrl("/cloud/Training")),
+        await this.#request(this.#siteUrl("/cloud/Training"), "login"),
       );
     } catch (error) {
       // 401/403 in un passo qualunque del login: credenziali rifiutate.
@@ -221,7 +226,7 @@ export class MywellnessClient {
         fromDate: formatQueryDay(from),
         toDate: formatQueryDay(to),
       });
-      const html = await this.#readSitePage(url);
+      const html = await this.#readSitePage(url, "elenco");
       const values: string[] = [];
       for (const [tag] of html.matchAll(INPUT_TAG_PATTERN)) {
         if (!SESSION_INPUT_PATTERN.test(tag)) continue;
@@ -255,7 +260,7 @@ export class MywellnessClient {
       performedPhysicalActivityId: activityId,
       day,
     });
-    return this.#readSitePage(url);
+    return this.#readSitePage(url, "dettaglio");
   }
 
   /** Serie temporale JSON di un esercizio cardio (servizi). */
@@ -275,8 +280,8 @@ export class MywellnessClient {
   }
 
   /** Pagina HTML del sito; il form di login al posto dei dati è una sessione scaduta. */
-  async #readSitePage(url: URL): Promise<string> {
-    const html = await readText(await this.#request(url));
+  async #readSitePage(url: URL, step: Step): Promise<string> {
+    const html = await readText(await this.#request(url, step));
     if (LOGIN_FORM_PATTERN.test(html)) throw new AuthError(LOGIN_FAILED);
     return html;
   }
@@ -305,7 +310,7 @@ export class MywellnessClient {
       url.searchParams.set(key, value);
     }
     const text = await readText(
-      await this.#request(url, { accept: "application/json" }),
+      await this.#request(url, "dettaglio", { accept: "application/json" }),
     );
     try {
       return JSON.parse(text);
@@ -318,6 +323,7 @@ export class MywellnessClient {
   /** Richiesta con redirect seguiti a mano, per raccogliere i cookie di ogni passo. */
   async #request(
     url: URL,
+    step: Step,
     opts: { form?: URLSearchParams; accept?: string } = {},
   ): Promise<Response> {
     let current = url;
@@ -347,14 +353,20 @@ export class MywellnessClient {
         return response;
       }
       discard(response);
-      // Messaggi senza la destinazione: l'URL può contenere parametri di sessione.
+      // Della destinazione mai percorso né query: possono contenere parametri di sessione.
       if (hop === MAX_REDIRECTS) {
         throw new SyncError("Mywellness: troppi redirect");
       }
       const next = URL.parse(location, current.href);
       // Cookie e corpo del form restano sullo stesso dominio.
       if (next === null || next.origin !== current.origin) {
-        throw new SyncError("Mywellness: redirect non ammesso");
+        const target =
+          next === null
+            ? "destinazione non valida"
+            : `verso ${next.protocol}//${next.host}`;
+        throw new SyncError(
+          `Mywellness: redirect non ammesso (passo ${step}, HTTP ${response.status}, ${target})`,
+        );
       }
       // Come fetch: 307/308 ripetono metodo e corpo, gli altri diventano GET.
       if (response.status !== 307 && response.status !== 308) form = undefined;

@@ -215,7 +215,7 @@ Ogni PR riporta l'evidenza della propria riga **Accettazione** (comando, output,
   - `type SlotStatus = "programmata" | "fatta" | "spostata" | "da_confermare" | "saltata"`; `type PlannedSlot = { id: string; week: string; slot: number; window: string[]; date: string | null; scheda_day: string; status: SlotStatus; reason: string | null; session_id: string | null }`.
   - `weekSlots(isoWeek: string, t: WeekTemplate): PlannedSlot[]` (id = `"<week>-<slot>"`, `window` = date della settimana nei giorni dello slot).
   - `matchSession(date: string, slots: PlannedSlot[], t: WeekTemplate): { kind: "slot"; id: string; status: "fatta" | "spostata" } | { kind: "extra" }`.
-  - `overdue(slots: PlannedSlot[], today: string): string[]` — id degli slot `programmata` la cui finestra è finita prima di `today`.
+  - `overdue(slots: PlannedSlot[], today: string): string[]` — id degli slot `programmata` la cui finestra è finita prima di `today`, e anche il giorno scelto (`date`) se c'è (Task 12, scelta dell'utente del 1/11: `kb/decisioni/2026-11-01-giorno-scelto-nell-abbinamento.md`).
 
 - [x] **Step 1: Test** (modello di esempio, fittizio: `tpl = { slots: [{ slot: 1, days: ["tue","wed"], scheda_day: "A" }, { slot: 2, days: ["thu"], scheda_day: "B" }], unavailable: ["mon","fri"] }`):
   - `planning: week slots` — `weekSlots("2026-W45", tpl)` → slot 1 con finestra `["2026-11-03","2026-11-04"]`, slot 2 `["2026-11-05"]`.
@@ -347,14 +347,14 @@ Prima di scrivere codice leggere `docs/buone-pratiche-react.md`, `docs/buone-pra
   - Rotte: `GET /api/week?date=AAAA-MM-GG` → `{ slots: PlannedSlot[], sessions: { date, name, moves }[], moves_total }`; `GET /api/exercises?month=` → `strength_table`, `e1rm_series`; `GET /api/measures` → misure con `in_protocol`; `GET /api/scheda` → scheda attiva (`md`, `json`); `GET /api/reports/:month` → Markdown di report e revisione; `GET /api/calendar?month=` → slot, sedute extra, feedback del mese.
   - Frontend: client `hc<AppType>("/")`; pagine con `lazy()`; navigazione `BottomNavigation` (sotto `md`) / `Tabs`; grafici `LineChart`/`BarChart` di `@mui/x-charts`; report con `react-markdown` + `remark-gfm` mappati su componenti MUI; `renderConTema(ui: ReactElement)` in `test/web/render.tsx`.
 
-- [ ] **Step 1: Test:**
+- [x] **Step 1: Test:**
   - `access: rejects missing token` (401), `access: rejects expired token` (401), `access: rejects wrong audience` (401), `access: rejects other email` (403), `access: accepts valid token` — JWT firmati nel test con una chiave RSA generata e un JWKS locale passato come `jwks`.
   - `api: week returns slots and sessions` (D1 locale con fixture); `api: calendar with no data` → liste vuote, 200; `api: reports unknown month` → 404 senza corpo informativo.
   - `web: settimana shows slots` (MSW) — due slot, uno "Fatta" e uno "Programmata", testi visibili per ruolo.
   - `web: esercizi empty state` → "Nessun dato"; `web: api error shows retry` → `Alert` con pulsante "Riprova".
   - `web: report renders markdown table` — una tabella del report diventa `role="table"`.
-- [ ] **Step 2:** FAIL → implementare → PASS; `npm run build:web`, misura del bundle, screenshot con Playwright (già presente nell'ambiente cloud).
-- [ ] **Step 3: Commit** `feat(dashboard): hono read api and react mui frontend`
+- [x] **Step 2:** FAIL → implementare → PASS; `npm run build:web`, misura del bundle, screenshot con Playwright (già presente nell'ambiente cloud).
+- [x] **Step 3: Commit** `feat(dashboard): hono read api and react mui frontend`
 
 ---
 
@@ -369,8 +369,8 @@ Ordine obbligatorio: Step 1–2 prima del primo deploy.
 
 - [ ] **Step 1 (utente):** progetto Pages `palestra`; dominio personalizzato; nelle impostazioni Functions: binding D1 `DB` → `palestra`, variabili `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, secret `ALLOWED_EMAIL`.
 - [ ] **Step 2 (utente):** applicazione Access self-hosted sull'hostname, One-time PIN, policy Allow per la sola e-mail, sessione 1 mese; verificare che la pagina vuota chieda il PIN; copiare l'AUD nella variabile.
-- [ ] **Step 3: `publish.yml`:** trigger `push` su `main` con `paths` `functions/**`, `web/**`, `src/**`, `package-lock.json`, e `workflow_dispatch`; `permissions: contents: read`; `timeout-minutes: 10`; `concurrency: publish`; `npm ci`, `npm run build:web`, `npx wrangler pages deploy site --project-name palestra --branch main` con `CLOUDFLARE_API_TOKEN: ${{ secrets.CF_TOKEN_PAGES }}` e `CLOUDFLARE_ACCOUNT_ID`.
-- [ ] **Step 4: `docs/dashboard.md`:** pagine, API, configurazione Access e binding passo per passo (senza hostname né e-mail), cosa fare se il deploy fallisce, sezione Grafici.
+- [x] **Step 3: `publish.yml`:** trigger `push` su `main` con `paths` `functions/**`, `web/**`, `src/**`, `package-lock.json`, e `workflow_dispatch`; `permissions: contents: read`; `timeout-minutes: 10`; `concurrency: publish`; `npm ci`, `npm run build:web`, `npx wrangler pages deploy site --project-name palestra --branch main` con `CLOUDFLARE_API_TOKEN: ${{ secrets.CF_TOKEN_PAGES }}` e `CLOUDFLARE_ACCOUNT_ID`. (1/11: solo `workflow_dispatch`, con la guardia di Access prima e dopo il deploy, `src/cli/check-access.ts`; il trigger `push` resta una proposta per l'utente in `docs/dashboard.md`, «Pubblicazione».)
+- [x] **Step 4: `docs/dashboard.md`:** pagine, API, configurazione Access e binding passo per passo (senza hostname né e-mail), cosa fare se il deploy fallisce, sezione Grafici.
 - [ ] **Step 5:** run manuale, verifiche, commit `ci: publish dashboard to cloudflare pages`.
 
 ---
@@ -390,9 +390,9 @@ Ordine obbligatorio: Step 1–2 prima del primo deploy.
   - `PATCH /api/slots/:id` corpo `{ status: "saltata", reason: "lavoro"|"stanchezza"|"fastidio"|"altro" }` oppure `{ date: "AAAA-MM-GG" }` (deve stare nella finestra o essere sabato/domenica della stessa settimana) → 200; `actor` dell'audit = e-mail dal JWT.
   - Modulo nella pagina Calendario esattamente come approvato: titolo "Come è andata oggi?", cinque scelte "😀 Ottima · 🙂 Buona · 😐 Normale · 😓 Faticosa · 😣 Pessima", casella "Ho sentito un fastidio articolare" con campo "dove", campo "Note (facoltative)", pulsante "Salva". Giorni con stato: programmata, fatta, spostata, da confermare (con domanda "Saltata?" e motivo), saltata, extra, senza feedback. Se il giorno ha già un feedback, il modulo si apre in modifica su quello (stesso `seq`) e offre anche il pulsante "Un'altra seduta oggi", che salva con `seq` = il più alto del giorno + 1; nel calendario un giorno con più sedute mostra un feedback per seduta, in ordine di `seq`.
 
-- [ ] **Step 1: Test:** `web: feedback form submits selected class` (scelta "Buona", casella fastidio, "Salva" → corpo PUT atteso, pulsante in caricamento durante l'invio); `feedback: saves and updates the same seduta` (due PUT con stessa data e stesso `seq` → una riga, due `audit`); `feedback: second seduta of the same day` (PUT con `seq: 2` sulla stessa data → due righe, due `audit` `insert`); `web: feedback form offers another seduta` (giorno con un feedback `seq` 1 → modulo precompilato; "Un'altra seduta oggi" → corpo PUT con `seq: 2`); `feedback: rejects invalid class` (400, nessuna riga); `feedback: rejects future date` (400); `feedback: requires access` (401 senza token); `slots: mark skipped with reason`; `slots: rejects date on monday` (400, modello di esempio del Task 4b).
-- [ ] **Step 2:** FAIL → implementare → PASS; prova manuale dal telefono.
-- [ ] **Step 3: Commit** `feat(dashboard): feedback and planned sessions calendar`
+- [x] **Step 1: Test:** `web: feedback form submits selected class` (scelta "Buona", casella fastidio, "Salva" → corpo PUT atteso, pulsante in caricamento durante l'invio); `feedback: saves and updates the same seduta` (due PUT con stessa data e stesso `seq` → una riga, due `audit`); `feedback: second seduta of the same day` (PUT con `seq: 2` sulla stessa data → due righe, due `audit` `insert`); `web: feedback form offers another seduta` (giorno con un feedback `seq` 1 → modulo precompilato; "Un'altra seduta oggi" → corpo PUT con `seq: 2`); `feedback: rejects invalid class` (400, nessuna riga); `feedback: rejects future date` (400); `feedback: requires access` (401 senza token); `slots: mark skipped with reason`; `slots: rejects date on monday` (400, modello di esempio del Task 4b).
+- [ ] **Step 2:** FAIL → implementare → PASS; prova manuale dal telefono. (1/11: FAIL → PASS fatto; manca la prova dal telefono, possibile solo dopo la pubblicazione.)
+- [x] **Step 3: Commit** `feat(dashboard): feedback and planned sessions calendar`
 
 ---
 
