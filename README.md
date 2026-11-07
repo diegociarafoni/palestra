@@ -32,9 +32,10 @@ Il canale con cui la sync legge Mywellness è descritto in [`docs/mywellness-api
 | [`publish`](.github/workflows/publish.yml) | solo a mano, da `main` | build, guardia di Access, deploy su Pages, verifica finale | `Access attivo: …`, `Deploy riuscito` |
 | [`ci`](.github/workflows/ci.yml) | ogni pull request, senza segreti | lint, typecheck, test, controllo dei percorsi | — |
 
-- GitHub avvia le run pianificate con un ritardo variabile: nella prima settimana di novembre 2026 sync e pii-scan delle 03:17 UTC sono partite fra le 10 e le 11:30 UTC.
+- GitHub avvia le run pianificate con un ritardo variabile: nella prima settimana di novembre 2026 sync e pii-scan delle 03:17 UTC sono partite fra le 10 e le 11:30 UTC. Conta l'ora reale della run, visibile nel tab Actions.
+- In un repository pubblico GitHub disattiva i workflow pianificati dopo 60 giorni senza attività nel repository. Se sync o report smettono di partire: Actions → il workflow → Enable workflow.
 - I log sono pubblici: contengono solo conteggi, durate ed exit code, mai date di sedute, nomi, e-mail o token.
-- Dopo ogni merge che tocca `functions/`, `web/` o `src/` la dashboard si ripubblica a mano: Actions → publish → Run workflow, con `main` ([`docs/dashboard.md`](docs/dashboard.md), «Pubblicazione»).
+- Dopo ogni merge che tocca `functions/`, `web/`, `src/`, `package.json` o `package-lock.json` (anche le PR di Dependabot su npm) la dashboard si ripubblica a mano: Actions → publish → Run workflow, con `main` ([`docs/dashboard.md`](docs/dashboard.md), «Pubblicazione»).
 
 ## Uso quotidiano (utente)
 
@@ -47,7 +48,7 @@ Il canale con cui la sync legge Mywellness è descritto in [`docs/mywellness-api
 
 1. **Report automatico.** Il 1° del mese il workflow `report` salva in D1 una prima lettura del mese precedente; l'8 la sostituisce, a slot dell'ultima settimana chiusi. La dashboard lo mostra nella pagina Report.
 2. **Revisione con Claude.** Nel Progetto Claude si chiede «revisione del mese AAAA-MM». Claude segue la procedura di [`CLAUDE.md`](CLAUDE.md), «Revisione mensile». Legge da D1 report, scheda, misure, recupero, feedback e profilo e applica [`docs/linee-guida-allenamento.md`](docs/linee-guida-allenamento.md). Poi scrive in D1, sempre con una riga `audit`, la revisione e la scheda del mese successivo, e propone in una PR solo la conoscenza non personale per [`kb/`](kb/indice.md).
-3. **Scheda nella Technogym App.** La pagina Scheda della dashboard mostra il Markdown della scheda valida oggi. Nella Technogym App si aggiornano i due allenamenti, uno per seduta, con «Crea allenamento» (scelta dell'attrezzo, poi dell'esercizio). Si usano esattamente i nomi della colonna `technogym_name`, presi dal [catalogo della Technogym App](kb/catalogo-app/README.md), con serie, ripetizioni e carico iniziale indicati nella scheda. Un esercizio con un nome diverso finisce fra i «Non riconosciuti» del report.
+3. **Scheda nella Technogym App.** La pagina Scheda della dashboard mostra versione, validità e Markdown della scheda valida oggi. Se la nuova scheda parte dopo oggi (`valid_from` nel futuro), la pagina mostra ancora la precedente: in quel caso il Markdown nuovo si chiede a Claude nel Progetto, alla fine della revisione. Nella Technogym App si aggiornano i due allenamenti, uno per seduta, con «Crea allenamento» (scelta dell'attrezzo, poi dell'esercizio). Per ogni esercizio si usa esattamente il nome Technogym che la scheda indica (`technogym_name`, preso dal [catalogo della Technogym App](kb/catalogo-app/README.md)), con serie, ripetizioni e carico iniziale della scheda. Il report riconosce un esercizio prima dal nome e poi dall'attrezzo: un nome diverso viene attribuito alla prima voce della scheda con lo stesso attrezzo, anche se è un altro esercizio, e solo senza nemmeno l'attrezzo finisce fra i «Non riconosciuti» ([`kb/concetti/report-mensile.md`](kb/concetti/report-mensile.md)).
 4. **Backup.** Il 2 del mese il backup va da solo. Ogni tanto conviene una prova di ripristino con `restore-test`, da annotare nel registro di [`docs/dashboard.md`](docs/dashboard.md), «Registro delle prove di ripristino».
 
 ## Progetto Claude
@@ -71,7 +72,7 @@ npm ci
 npm test && npm run lint && npm run typecheck
 ```
 
-L'hook pre-push legge gli identificativi personali da `~/.config/palestra/identificativi.txt`, fuori dal repository, una espressione regolare per riga. In alternativa li legge dalla variabile `PII_PATTERNS`. Senza nessuno dei due blocca ogni push, e non si aggira ([`docs/migrazione.md`](docs/migrazione.md)). Le dipendenze nuove si aggiungono solo con il via dell'utente.
+L'hook pre-push controlla il contenuto versionato dei commit spinti. Legge gli identificativi personali dalla variabile `PII_PATTERNS` o, se non è impostata, da `~/.config/palestra/identificativi.txt`, fuori dal repository, una espressione regolare per riga. Senza nessuno dei due blocca ogni push. Non va mai aggirato, né con `git push --no-verify` né con un `PII_PATTERNS` che non trova nulla: resterebbe solo il `pii-scan` notturno, che arriva dopo la pubblicazione ([`docs/migrazione.md`](docs/migrazione.md)). Conviene installare anche gitleaks: senza, l'hook salta il controllo dei segreti e lo segnala con una riga. Le dipendenze nuove si aggiungono solo con il via dell'utente.
 
 Output reale su `main` del 7 novembre 2026:
 
@@ -96,6 +97,8 @@ $ npm run typecheck        # nessun output, exit 0
 | `node scripts/check-public-tree.mjs .` | `PII_PATTERNS` oppure `~/.config/palestra/identificativi.txt` | `0 problemi` |
 | `bash scripts/aggiorna-riferimenti.sh` | — (usa la rete) | le pagine ufficiali di React e MUI aggiornate in `docs/riferimenti/` |
 
+Su `.` il controllo dei dati personali legge la cartella di lavoro, compresi i file ignorati da git (per esempio `.env` o `site/`), che possono dare falsi allarmi; l'hook pre-push controlla invece solo il contenuto versionato.
+
 Sync, report e backup girano di norma nelle Actions, con i Secret del repository. In locale le variabili si impostano nella shell, mai in un file del repository. Senza variabili o con argomenti errati le CLI si fermano subito, senza toccare la rete (output reale):
 
 ```
@@ -107,13 +110,15 @@ $ npm run --silent report
 Uso: npm run report -- --month AAAA-MM
 $ echo $?
 64
-$ PII_PATTERNS='(?!)' node scripts/check-public-tree.mjs .   # solo i percorsi, come in ci.yml
-0 problemi
+$ node scripts/check-public-tree.mjs .   # senza PII_PATTERNS né file degli identificativi
+Nessun pattern: impostare PII_PATTERNS o ~/.config/palestra/identificativi.txt
+$ echo $?
+78
 ```
 
 ### Exit code
 
-Tutte le CLI seguono `sysexits` ([`docs/buone-pratiche.md`](docs/buone-pratiche.md) § 8):
+Le CLI seguono `sysexits` ([`docs/buone-pratiche.md`](docs/buone-pratiche.md) § 8):
 
 | Exit | Significato | Cosa fare |
 | --- | --- | --- |
@@ -121,17 +126,17 @@ Tutte le CLI seguono `sysexits` ([`docs/buone-pratiche.md`](docs/buone-pratiche.
 | 64 | argomenti errati | correggere il comando |
 | 65 | dati non interpretabili (`ParseError`) | aprire una issue con la sola riga d'errore |
 | 69 | servizio non disponibile o risposta di errore non transitoria | controllare il servizio; se si ripete, aprire una issue |
-| 70 | errore inatteso | è un bug: aprire una issue con la sola riga d'errore |
+| 70 | errore inatteso (sync, report, guardia di Access) | è un bug: aprire una issue con la sola riga d'errore |
 | 75 | errore transitorio dopo i nuovi tentativi | rilanciare più tardi |
 | 78 | configurazione o credenziali (variabili mancanti, login rifiutato) | controllare Secret e variabili |
 
-`check-public-tree.mjs` fa eccezione: esce con 1 quando trova problemi, e ne stampa solo percorso e numero di riga.
+Fanno eccezione tre casi, tutti con exit 1. `check-public-tree.mjs` esce con 1 quando trova problemi, e ne stampa solo percorso e numero di riga. `restore-test` esce con 1 quando i conteggi del ripristino differiscono dal dump. In `backup` e `restore-test` un errore inatteso chiude il processo con 1 e lo stack di Node: anche questo è un bug da segnalare.
 
 ## Quando qualcosa non va
 
-- **Sync rossa.** L'ultima riga del log dice il motivo, l'exit code dice cosa fare (tabella sopra). Con «Login Mywellness fallito» (78) vanno controllati i Secret `MYWELLNESS_EMAIL` e `MYWELLNESS_PASSWORD`. Nelle issue si incolla solo la riga d'errore, mai dati.
+- **Sync rossa.** L'ultima riga del log dice il motivo, l'exit code dice cosa fare (tabella sopra). Con «Login Mywellness fallito» (78) vanno controllati i Secret `MYWELLNESS_EMAIL` e `MYWELLNESS_PASSWORD`. Nelle issue si incolla solo la riga d'errore, mai dati. La sync guarda indietro 14 giorni, a partire dal lunedì: se è rimasta rossa più a lungo, il rilancio da Actions non recupera le settimane più vecchie. Corretta la causa, serve una run in locale con `npm run sync -- --lookback-days N`, con N pari ai giorni da recuperare (massimo 366), e poi Actions → report per i mesi toccati.
 - **Report, backup, ripristino, pubblicazione.** I casi d'errore e i rimedi sono in [`docs/dashboard.md`](docs/dashboard.md): «Report mensile», «Se il backup fallisce», «Ripristino», «Se il deploy fallisce», «Sessione scaduta».
-- **Un dato personale o una credenziale in un log, un commit o una issue.** Si segue l'ultimo punto di [`docs/buone-pratiche.md`](docs/buone-pratiche.md) § 7: cancellare, ruotare la credenziale, correggere la causa.
+- **Un dato personale o una credenziale in un log, un commit o una issue.** Si segue l'ultimo punto di [`docs/buone-pratiche.md`](docs/buone-pratiche.md) § 7: cancellare i log del run o la issue e ruotare la credenziale. Un commit già pubblicato si riscrive solo insieme all'utente, perché è un'operazione irreversibile. Poi si corregge la causa.
 
 ## Documenti
 
