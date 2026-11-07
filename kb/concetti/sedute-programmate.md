@@ -15,22 +15,32 @@ Ogni settimana ISO (da lunedì a domenica) il sistema crea uno **slot** per ogni
 | `programmata` | Slot creato, nessuna seduta abbinata |
 | `fatta` | Una seduta cade nella finestra dello slot |
 | `spostata` | Lo slot è stato recuperato nel fine settimana |
-| `da_confermare` | La finestra è finita senza seduta: il calendario chiede "Saltata?" |
+| `da_confermare` | Sono finiti, senza seduta, la finestra e anche il giorno scelto dall'utente se c'è: il calendario chiede "Saltata?" |
 | `saltata` | L'utente ha confermato, con motivo facoltativo (lavoro, stanchezza, fastidio, altro) |
 
 Uno slot è **non fatto** finché non diventa `fatta` o `spostata`: quindi `programmata`, `da_confermare` e `saltata`.
+
+## Scelte dell'utente dal calendario
+
+Dalla pagina Calendario della dashboard l'utente può, solo su uno slot non fatto e senza seduta abbinata:
+
+- confermare che è saltato, con motivo facoltativo (lavoro, stanchezza, fastidio, altro): lo stato diventa `saltata`;
+- fissare o spostare il giorno (campo `date` dello slot): un giorno della finestra oppure il sabato o la domenica della stessa settimana ISO, mai un giorno non disponibile del modello.
+
+Ogni scelta lascia una riga in `audit`. Uno slot con la seduta appartiene alla sync: una scelta dell'utente verrebbe sovrascritta, quindi l'API la rifiuta (409), anche quando la sync abbina la seduta mentre la richiesta è in corso. Codice: `src/api/routes/slots.ts`, `updateSlotByUser` in `src/store/manual.ts`, `choosableDays` in `src/domain/planning.ts`.
 
 ## Abbinamento di una seduta
 
 La data della seduta è quella di Roma (una seduta delle 23:30 UTC di giovedì in inverno è di venerdì). Le regole si applicano nell'ordine:
 
+0. Il primo slot non fatto il cui giorno scelto dall'utente è la data della seduta la prende: `fatta` se il giorno è nella sua finestra, `spostata` se è sabato o domenica ([decisione del 2026-11-01](../decisioni/2026-11-01-giorno-scelto-nell-abbinamento.md)).
 1. Il primo slot non fatto la cui finestra contiene la data diventa `fatta`. Vale anche per uno slot già `da_confermare` (seduta arrivata in ritardo da Mywellness) o `saltata`: la seduta reale prevale sulla conferma.
-2. Di sabato o di domenica, il primo slot non fatto della settimana (in ordine di numero) diventa `spostata`: è il recupero ([decisione del 2026-10-31](../decisioni/2026-10-31-recupero-nel-fine-settimana.md)).
+2. Di sabato o di domenica, il primo slot non fatto della settimana (in ordine di numero) diventa `spostata`: è il recupero ([decisione del 2026-10-31](../decisioni/2026-10-31-recupero-nel-fine-settimana.md)). Uno slot che l'utente ha spostato a un giorno successivo (alla domenica, per una seduta del sabato) si salta se c'è un altro slot non fatto; se non c'è, il recupero prende anche lui (scelta dell'utente del 1/11, seconda decisione nella [nota del giorno scelto](../decisioni/2026-11-01-giorno-scelto-nell-abbinamento.md)).
 3. In tutti gli altri casi la seduta è **extra**. È extra anche una seconda seduta nella finestra di uno slot già fatto.
 
 Le sedute non ancora abbinate si abbinano una alla volta, in ordine di data, e ogni abbinamento aggiorna lo stato degli slot prima del successivo: con due slot mancati il sabato recupera lo slot 1 e la domenica lo slot 2.
 
-Uno slot `programmata` la cui finestra è tutta passata diventa `da_confermare` alla sync successiva; uno slot già `da_confermare` non viene ricontato.
+Uno slot `programmata` la cui finestra è tutta passata, e anche il giorno scelto se c'è, diventa `da_confermare` alla sync successiva; uno slot già `da_confermare` non viene ricontato.
 
 ## Nella sync
 
@@ -38,7 +48,7 @@ La sync notturna (`src/sync/sync.ts`) lavora su una finestra che va dal lunedì 
 
 - Il modello si valida prima di ogni scrittura: una finestra vuota, un sabato o una domenica in una finestra, o un numero di slot ripetuto fermano la sync (exit 65).
 - Senza modello in `profile` le sedute si salvano comunque e gli slot non si toccano: le abbina la prima sync con il modello. Lo stesso vale per le sedute salvate da una sync fallita prima degli slot (errore di D1).
-- Uno slot `saltata` che riceve una seduta perde il motivo. Il campo `date` (giorno scelto dall'utente) la sync non lo scrive.
+- Uno slot `saltata` che riceve una seduta perde il motivo. Il campo `date` (giorno scelto dall'utente) la sync lo legge ma non lo scrive.
 - Abbinamenti e scadenze raggiungono solo le settimane della finestra: dopo giorni senza sync (per esempio con il workflow fermo), una run con `--lookback-days N` più grande recupera le settimane rimaste indietro.
 
 Esempio con un modello fittizio (slot 1 martedì o mercoledì, giorno A; slot 2 giovedì, giorno B; lunedì e venerdì non disponibili):
@@ -52,6 +62,8 @@ Esempio con un modello fittizio (slot 1 martedì o mercoledì, giorno A; slot 2 
 | Sabato e domenica | Slot 1 `spostata` (sabato), slot 2 `spostata` (domenica) |
 | Martedì, giovedì e sabato | Slot 1 e 2 `fatta`, sabato extra |
 | Venerdì | Extra, slot 1 e 2 `da_confermare` |
+| Sabato, con lo slot 2 spostato dall'utente a sabato | Slot 2 `spostata`, slot 1 `da_confermare` |
+| Sabato, con lo slot 1 spostato dall'utente a domenica e lo slot 2 mancato | Slot 2 `spostata` (sabato); lo slot 1 aspetta la domenica |
 
 ## Aderenza
 
@@ -59,6 +71,4 @@ Il report mensile (piano, Task 6, `adherence`) conta come svolti gli slot `fatta
 
 ## Punti aperti
 
-- Il giorno fissato o spostato dall'utente nel calendario (campo `date` dello slot, Task 12) non entra ancora nell'abbinamento: uno slot spostato al fine settimana viene recuperato solo dalla regola 2, che sceglie il primo slot non fatto.
-- Anche la scadenza ignora quel giorno: uno slot spostato al fine settimana diventa `da_confermare` alla fine della sua finestra, e il calendario chiede "Saltata?" prima del giorno scelto.
 - Una seduta feriale che arriva da Mywellness dopo che il fine settimana ha già recuperato il suo slot resta extra, perché l'abbinamento già fatto non si rifà.

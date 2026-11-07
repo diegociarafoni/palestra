@@ -1,3 +1,4 @@
+import type { SkipReason } from "../../src/domain/dashboard";
 import type { StrengthTable } from "../../src/domain/metrics";
 import type { SlotStatus } from "../../src/domain/planning";
 import type { Feedback } from "../../src/domain/types";
@@ -132,6 +133,56 @@ export const testi = {
       where ? `Fastidio articolare: sì, ${where}` : "Fastidio articolare: sì",
     noJointPain: "Fastidio articolare: no",
     notes: (notes: string) => `Note: ${notes}`,
+  },
+  // Modulo del feedback: testi approvati dall'utente (spec § 5, piano Task 12).
+  feedbackForm: {
+    title: "Come è andata oggi?",
+    // Per una seduta di un altro giorno, modificata dal calendario.
+    titleOn: (day: string) => `Come è andata ${day}?`,
+    classLabel: "Come è andata",
+    // Accanto all'etichetta di `feedback.classes`, mai da sole.
+    emoji: {
+      ottima: "😀",
+      buona: "🙂",
+      normale: "😐",
+      faticosa: "😓",
+      pessima: "😣",
+    } satisfies Record<Feedback["class"], string>,
+    classMissing: "Scegli come è andata.",
+    jointPain: "Ho sentito un fastidio articolare",
+    jointWhere: "dove",
+    notes: "Note (facoltative)",
+    save: "Salva",
+    another: "Un'altra seduta oggi",
+    // Nel calendario, per ogni seduta.
+    none: "Senza feedback",
+    add: "Aggiungi feedback",
+    edit: "Modifica feedback",
+    // Esito annunciato (`role="status"`) dopo il salvataggio del modulo di oggi.
+    saved: "Feedback salvato.",
+  },
+  // Slot da confermare: "Saltata?" con il motivo facoltativo (spec § 5).
+  skip: {
+    question: "Saltata?",
+    title: (day: string) => `Seduta ${day} saltata?`,
+    reasonLabel: "Motivo (facoltativo)",
+    reasons: {
+      lavoro: "Lavoro",
+      stanchezza: "Stanchezza",
+      fastidio: "Fastidio",
+      altro: "Altro",
+    } satisfies Record<SkipReason, string>,
+    confirm: "Conferma",
+    saved: "Seduta segnata come saltata.",
+  },
+  // Giorno scelto di uno slot programmato.
+  chooseDay: {
+    label: "Scegli il giorno",
+    saved: "Giorno scelto salvato.",
+  },
+  write: {
+    cancel: "Annulla",
+    failed: "Salvataggio non riuscito. Riprova.",
   },
   week: {
     slotsTitle: "Sedute programmate",
