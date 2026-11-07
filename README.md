@@ -33,7 +33,7 @@ Il canale con cui la sync legge Mywellness è descritto in [`docs/mywellness-api
 | [`ci`](.github/workflows/ci.yml) | ogni pull request, senza segreti | lint, typecheck, test, controllo dei percorsi | — |
 
 - GitHub avvia le run pianificate con un ritardo variabile: nella prima settimana di novembre 2026 sync e pii-scan delle 03:17 UTC sono partite fra le 10 e le 11:30 UTC. Conta l'ora reale della run, visibile nel tab Actions.
-- In un repository pubblico GitHub disattiva i workflow pianificati dopo 60 giorni senza attività nel repository. Se sync o report smettono di partire: Actions → il workflow → Enable workflow.
+- In un repository pubblico GitHub disattiva i workflow pianificati dopo 60 giorni senza attività nel repository. Se sync, report, backup o pii-scan smettono di partire: Actions → il workflow → Enable workflow, per ciascuno.
 - I log sono pubblici: contengono solo conteggi, durate ed exit code, mai date di sedute, nomi, e-mail o token.
 - Dopo ogni merge che tocca `functions/`, `web/`, `src/`, `package.json` o `package-lock.json` (anche le PR di Dependabot su npm) la dashboard si ripubblica a mano: Actions → publish → Run workflow, con `main` ([`docs/dashboard.md`](docs/dashboard.md), «Pubblicazione»).
 
@@ -72,7 +72,7 @@ npm ci
 npm test && npm run lint && npm run typecheck
 ```
 
-L'hook pre-push controlla il contenuto versionato dei commit spinti. Legge gli identificativi personali dalla variabile `PII_PATTERNS` o, se non è impostata, da `~/.config/palestra/identificativi.txt`, fuori dal repository, una espressione regolare per riga. Senza nessuno dei due blocca ogni push. Non va mai aggirato, né con `git push --no-verify` né con un `PII_PATTERNS` che non trova nulla: resterebbe solo il `pii-scan` notturno, che arriva dopo la pubblicazione ([`docs/migrazione.md`](docs/migrazione.md)). Conviene installare anche gitleaks: senza, l'hook salta il controllo dei segreti e lo segnala con una riga. Le dipendenze nuove si aggiungono solo con il via dell'utente.
+L'hook pre-push controlla il contenuto versionato dell'ultimo commit di ogni ramo spinto, non i commit intermedi: un dato personale aggiunto e poi tolto prima del push resta nella storia pubblicata (gitleaks, se installato, scorre tutti i commit spinti, ma cerca solo segreti). Legge gli identificativi personali dalla variabile `PII_PATTERNS` o, se non è impostata, da `~/.config/palestra/identificativi.txt`, fuori dal repository, una espressione regolare per riga. Senza nessuno dei due blocca ogni push. Non va mai aggirato, né con `git push --no-verify` né con un `PII_PATTERNS` che non trova nulla: resterebbe solo il `pii-scan` notturno, che arriva dopo la pubblicazione ([`docs/migrazione.md`](docs/migrazione.md)). Conviene installare anche gitleaks: senza, l'hook salta il controllo dei segreti e lo segnala con una riga. Le dipendenze nuove si aggiungono solo con il via dell'utente.
 
 Output reale su `main` del 7 novembre 2026:
 
@@ -127,8 +127,8 @@ Le CLI seguono `sysexits` ([`docs/buone-pratiche.md`](docs/buone-pratiche.md) §
 | 65 | dati non interpretabili (`ParseError`) | aprire una issue con la sola riga d'errore |
 | 69 | servizio non disponibile o risposta di errore non transitoria | controllare il servizio; se si ripete, aprire una issue |
 | 70 | errore inatteso (sync, report, guardia di Access) | è un bug: aprire una issue con la sola riga d'errore |
-| 75 | errore transitorio dopo i nuovi tentativi | rilanciare più tardi |
-| 78 | configurazione o credenziali (variabili mancanti, login rifiutato) | controllare Secret e variabili |
+| 75 | errore transitorio (rete, 429, 5xx), per alcuni servizi dopo nuovi tentativi | rilanciare più tardi |
+| 78 | configurazione o credenziali (variabili mancanti, login rifiutato); in publish anche Access non attivo | controllare Secret e variabili; per publish [`docs/dashboard.md`](docs/dashboard.md), «Se il deploy fallisce» |
 
 Fanno eccezione tre casi, tutti con exit 1. `check-public-tree.mjs` esce con 1 quando trova problemi, e ne stampa solo percorso e numero di riga. `restore-test` esce con 1 quando i conteggi del ripristino differiscono dal dump. In `backup` e `restore-test` un errore inatteso chiude il processo con 1 e lo stack di Node: anche questo è un bug da segnalare.
 
