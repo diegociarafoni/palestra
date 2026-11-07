@@ -2,28 +2,144 @@
 
 Scheda di allenamento per Virgin Active Roma Via Mantova (attrezzi Technogym), sincronizzazione automatica dei risultati da Mywellness, report mensili per la revisione con Claude e dashboard personale. Costo ricorrente: zero.
 
-Il repository è **pubblico** e non contiene dati personali: sedute, misure, profilo, scheda personale e report vivono in un database Cloudflare D1. La guida operativa completa arriva con il Task 7 del piano.
+Il repository è **pubblico** e non contiene dati personali: sedute, misure, profilo, scheda personale e report vivono in un database Cloudflare D1. Questo file è la guida operativa: cosa succede da solo, cosa fa l'utente, quali comandi esistono e dove cercare quando qualcosa non va.
 
 ## Come funziona
 
 ```
-Technogym App ─► Mywellness ─► Actions (notturno) ─► D1 ◄─► Dashboard (Pages + Functions, dietro Cloudflare Access)
-                                                      ▲
-                    Progetto Claude ── connettore Cloudflare (revisione mensile, dati manuali, scheda)
-                    Backup mensile D1 ─► R2
+Technogym App ─► Mywellness ─► Actions (pubblico, notturno) ─► D1 ◄─► Dashboard (Pages + Functions, dietro Access)
+                                                                ▲            │ feedback dalla pagina
+                               Progetto Claude ── connettore Cloudflare ─────┘ (lettura, dati manuali, scheda, revisione)
+                               Backup mensile D1 ─► R2 (bucket privato)
 ```
 
-1. La scheda vive in D1 e viene inserita una volta al mese nella Technogym App, che in sala fa da guida (timer, spunta serie, tutorial, regolazioni macchina).
-2. Gli attrezzi connessi registrano le sedute; il workflow notturno le scarica in D1.
+1. La scheda vive in D1 e viene inserita una volta al mese nella Technogym App, che in sala fa da guida (timer, spunta delle serie, tutorial, regolazioni delle macchine).
+2. Gli attrezzi connessi registrano le sedute; il workflow notturno le scarica in D1 e abbina ogni seduta agli slot della settimana (sedute programmate).
 3. Il 1° del mese il report riassume aderenza, progressione e volume, e l'8 lo rigenera con l'ultima settimana chiusa; Claude, nel Progetto, propone la scheda successiva.
-4. La dashboard (React + MUI su Cloudflare Pages, API Hono nelle Functions) legge D1 a ogni richiesta ed è raggiungibile solo dopo il login di Cloudflare Access; l'hostname viene da una variabile, mai dal codice.
+4. La dashboard (React + MUI su Cloudflare Pages, API Hono nelle Functions) legge e scrive D1 a ogni richiesta ed è raggiungibile solo dopo il login di Cloudflare Access; l'hostname viene da un Secret, mai dal codice.
+
+Il canale con cui la sync legge Mywellness è descritto in [`docs/mywellness-api.md`](docs/mywellness-api.md).
+
+## Calendario dei job (GitHub Actions)
+
+| Workflow | Quando | Cosa fa | Log pubblico se va bene |
+| --- | --- | --- | --- |
+| [`sync`](.github/workflows/sync.yml) | ogni notte alle 03:17 UTC; anche a mano | scarica le sedute degli ultimi 14 giorni e aggiorna gli slot programmati in D1 | di notte `sync completata`; a mano `sedute nuove: N` e `slot aggiornati: N` |
+| [`report`](.github/workflows/report.yml) | il 1° e l'8 del mese alle 05:37 UTC; anche a mano, con il mese | report e 9 metriche del mese precedente in D1 | `report salvato` |
+| [`backup`](.github/workflows/backup.yml) | il 2 del mese alle 04:41 UTC; anche a mano | export di D1 nel bucket R2 privato | `Backup caricato: palestra-AAAA-MM-GG.sql (N byte)` |
+| [`pii-scan`](.github/workflows/pii-scan.yml) | ogni notte alle 03:17 UTC; anche a mano | cerca nel repository percorsi vietati e identificativi personali | `0 problemi` |
+| [`restore-test`](.github/workflows/restore-test.yml) | solo a mano, con la data del backup | ripristina un backup in un database di prova e confronta i conteggi | `Esito: conteggi identici al dump in N tabelle.` |
+| [`publish`](.github/workflows/publish.yml) | solo a mano, da `main` | build, guardia di Access, deploy su Pages, verifica finale | `Access attivo: …`, `Deploy riuscito` |
+| [`ci`](.github/workflows/ci.yml) | ogni pull request, senza segreti | lint, typecheck, test, controllo dei percorsi | — |
+
+- GitHub avvia le run pianificate con un ritardo variabile: nella prima settimana di novembre 2026 sync e pii-scan delle 03:17 UTC sono partite fra le 10 e le 11:30 UTC.
+- I log sono pubblici: contengono solo conteggi, durate ed exit code, mai date di sedute, nomi, e-mail o token.
+- Dopo ogni merge che tocca `functions/`, `web/` o `src/` la dashboard si ripubblica a mano: Actions → publish → Run workflow, con `main` ([`docs/dashboard.md`](docs/dashboard.md), «Pubblicazione»).
+
+## Uso quotidiano (utente)
+
+- **In sala** si segue l'allenamento della scheda nella Technogym App. Per gli esercizi a registrazione manuale (pesi liberi, macchine a dischi, corpo libero) serie, ripetizioni e carico vanno inseriti nell'app: è l'unico modo perché arrivino a Mywellness. Che la sync le riceva anche da lì lo verifica il Task 0 del piano; se non fosse così, la via di riserva è l'export ufficiale (Task 8).
+- **Dopo la seduta**, nella dashboard, pagina Calendario, si compila «Come è andata oggi?». Il feedback si può salvare subito, prima della sync, e modificare in qualsiasi momento.
+- **Durante la settimana**, sempre nel Calendario, «Scegli il giorno» fissa il giorno di uno slot programmato e «Saltata?» conferma uno slot non fatto, con un motivo facoltativo. Pagine, testi e regole sono in [`docs/dashboard.md`](docs/dashboard.md).
+- **Misure e recupero** (referti BIA, dati dell'orologio, profilo) si mandano a Claude nel Progetto, che li trascrive in D1 con la fonte e una riga `audit` ([`CLAUDE.md`](CLAUDE.md), «Dati manuali»).
+
+## Ogni mese
+
+1. **Report automatico.** Il 1° del mese il workflow `report` salva in D1 una prima lettura del mese precedente; l'8 la sostituisce, a slot dell'ultima settimana chiusi. La dashboard lo mostra nella pagina Report.
+2. **Revisione con Claude.** Nel Progetto Claude si chiede «revisione del mese AAAA-MM». Claude segue la procedura di [`CLAUDE.md`](CLAUDE.md), «Revisione mensile». Legge da D1 report, scheda, misure, recupero, feedback e profilo e applica [`docs/linee-guida-allenamento.md`](docs/linee-guida-allenamento.md). Poi scrive in D1, sempre con una riga `audit`, la revisione e la scheda del mese successivo, e propone in una PR solo la conoscenza non personale per [`kb/`](kb/indice.md).
+3. **Scheda nella Technogym App.** La pagina Scheda della dashboard mostra il Markdown della scheda valida oggi. Nella Technogym App si aggiornano i due allenamenti, uno per seduta, con «Crea allenamento» (scelta dell'attrezzo, poi dell'esercizio). Si usano esattamente i nomi della colonna `technogym_name`, presi dal [catalogo della Technogym App](kb/catalogo-app/README.md), con serie, ripetizioni e carico iniziale indicati nella scheda. Un esercizio con un nome diverso finisce fra i «Non riconosciuti» del report.
+4. **Backup.** Il 2 del mese il backup va da solo. Ogni tanto conviene una prova di ripristino con `restore-test`, da annotare nel registro di [`docs/dashboard.md`](docs/dashboard.md), «Registro delle prove di ripristino».
+
+## Progetto Claude
+
+Il Progetto Claude è il punto in cui l'utente parla con Claude di allenamento, dati manuali e revisioni. Va configurato una volta:
+
+- il repository collegato come sorgente;
+- il connettore Cloudflare, con accesso al database D1 `palestra`;
+- come istruzioni di progetto: seguire `CLAUDE.md` del repository.
+
+La prova che il collegamento funziona è una lettura dal Progetto, per esempio `SELECT count(*) FROM sessions`, che restituisce una riga con un numero. Claude legge D1 liberamente. Scrive soltanto alle condizioni di `CLAUDE.md` («Regole di contenuto»): solo `INSERT` e `UPDATE` sulle tabelle dei dati manuali, `scheda` e `reports`, ciascuno con una riga `audit`, e mai su `sessions` o `timeseries`. Memoria del Progetto e connettore non esistono in una sessione locale di Claude Code: lì contano il repository, le descrizioni delle PR e `kb/`.
+
+## Primo avvio in locale (sviluppatore)
+
+Servono Node 22 e git.
+
+```bash
+git clone <indirizzo del repository> && cd palestra
+git config core.hooksPath .githooks   # una volta per clone: hook pre-push contro i dati personali
+npm ci
+npm test && npm run lint && npm run typecheck
+```
+
+L'hook pre-push legge gli identificativi personali da `~/.config/palestra/identificativi.txt`, fuori dal repository, una espressione regolare per riga. In alternativa li legge dalla variabile `PII_PATTERNS`. Senza nessuno dei due blocca ogni push, e non si aggira ([`docs/migrazione.md`](docs/migrazione.md)). Le dipendenze nuove si aggiungono solo con il via dell'utente.
+
+Output reale su `main` del 7 novembre 2026:
+
+```
+$ npm test
+ Test Files  49 passed (49)
+      Tests  543 passed (543)
+$ npm run lint
+Checked 162 files in 132ms. No fixes applied.
+$ npm run typecheck        # nessun output, exit 0
+```
+
+## Comandi
+
+| Comando | Variabili d'ambiente richieste | Output se va bene |
+| --- | --- | --- |
+| `npm run sync [-- --lookback-days N]` | `MYWELLNESS_EMAIL`, `MYWELLNESS_PASSWORD`, `CLOUDFLARE_ACCOUNT_ID`, `D1_DATABASE_ID`, `CF_TOKEN_D1` | `sedute nuove: N`, `slot aggiornati: N` (N giorni da 1 a 366, di default 14) |
+| `npm run report -- --month AAAA-MM` | `CLOUDFLARE_ACCOUNT_ID`, `D1_DATABASE_ID`, `CF_TOKEN_D1` | `report salvato` |
+| `npm run backup` | `CLOUDFLARE_API_TOKEN` (nei workflow il Secret `CF_TOKEN_D1`), `CLOUDFLARE_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | `Backup caricato: palestra-AAAA-MM-GG.sql (N byte)` |
+| `npm run restore-test [-- AAAA-MM-GG]` | come `backup` | `Esito: conteggi identici al dump in N tabelle.` |
+| `npm run build:web` | — | la SPA compilata in `site/` |
+| `node scripts/check-public-tree.mjs .` | `PII_PATTERNS` oppure `~/.config/palestra/identificativi.txt` | `0 problemi` |
+| `bash scripts/aggiorna-riferimenti.sh` | — (usa la rete) | le pagine ufficiali di React e MUI aggiornate in `docs/riferimenti/` |
+
+Sync, report e backup girano di norma nelle Actions, con i Secret del repository. In locale le variabili si impostano nella shell, mai in un file del repository. Senza variabili o con argomenti errati le CLI si fermano subito, senza toccare la rete (output reale):
+
+```
+$ npm run --silent sync
+Variabili d'ambiente mancanti: MYWELLNESS_EMAIL, MYWELLNESS_PASSWORD, CLOUDFLARE_ACCOUNT_ID, D1_DATABASE_ID, CF_TOKEN_D1
+$ echo $?
+78
+$ npm run --silent report
+Uso: npm run report -- --month AAAA-MM
+$ echo $?
+64
+$ PII_PATTERNS='(?!)' node scripts/check-public-tree.mjs .   # solo i percorsi, come in ci.yml
+0 problemi
+```
+
+### Exit code
+
+Tutte le CLI seguono `sysexits` ([`docs/buone-pratiche.md`](docs/buone-pratiche.md) § 8):
+
+| Exit | Significato | Cosa fare |
+| --- | --- | --- |
+| 0 | riuscito | — |
+| 64 | argomenti errati | correggere il comando |
+| 65 | dati non interpretabili (`ParseError`) | aprire una issue con la sola riga d'errore |
+| 69 | servizio non disponibile o risposta di errore non transitoria | controllare il servizio; se si ripete, aprire una issue |
+| 70 | errore inatteso | è un bug: aprire una issue con la sola riga d'errore |
+| 75 | errore transitorio dopo i nuovi tentativi | rilanciare più tardi |
+| 78 | configurazione o credenziali (variabili mancanti, login rifiutato) | controllare Secret e variabili |
+
+`check-public-tree.mjs` fa eccezione: esce con 1 quando trova problemi, e ne stampa solo percorso e numero di riga.
+
+## Quando qualcosa non va
+
+- **Sync rossa.** L'ultima riga del log dice il motivo, l'exit code dice cosa fare (tabella sopra). Con «Login Mywellness fallito» (78) vanno controllati i Secret `MYWELLNESS_EMAIL` e `MYWELLNESS_PASSWORD`. Nelle issue si incolla solo la riga d'errore, mai dati.
+- **Report, backup, ripristino, pubblicazione.** I casi d'errore e i rimedi sono in [`docs/dashboard.md`](docs/dashboard.md): «Report mensile», «Se il backup fallisce», «Ripristino», «Se il deploy fallisce», «Sessione scaduta».
+- **Un dato personale o una credenziale in un log, un commit o una issue.** Si segue l'ultimo punto di [`docs/buone-pratiche.md`](docs/buone-pratiche.md) § 7: cancellare, ruotare la credenziale, correggere la causa.
 
 ## Documenti
 
 | Documento | Per chi |
 | --- | --- |
 | [Specifica di progetto](docs/superpowers/specs/2026-10-30-palestra-technogym-design.md) e [repository pubblico + D1](docs/superpowers/specs/2026-10-31-repo-pubblico-e-database-design.md) | Tutti: perché, cosa, architettura, decisioni |
-| [Piano di implementazione](docs/superpowers/plans/2026-10-31-palestra-typescript-d1.md) | Sviluppatore: task, interfacce, test |
+| [Piano di implementazione](docs/superpowers/plans/2026-10-31-palestra-typescript-d1.md) | Sviluppatore: task, interfacce, test e stato (caselle) |
+| [Dashboard e operazioni](docs/dashboard.md) | Utente e sviluppatore: pagine, API, configurazione di Access, report, backup e ripristino |
 | [Migrazione e controllo dei dati personali](docs/migrazione.md) | Sviluppatore |
 | [Accesso ai dati Mywellness](docs/mywellness-api.md) | Sviluppatore |
 | [Schema dati](scheda/SCHEMA.md) | Sviluppatore e Claude |
@@ -35,22 +151,4 @@ Technogym App ─► Mywellness ─► Actions (notturno) ─► D1 ◄─► Da
 | [Knowledge base](kb/indice.md) | Tutti: esercizi, attrezzi, concetti, decisioni (apribile come vault Obsidian) |
 | [CLAUDE.md](CLAUDE.md) | Claude nel Progetto e chi sviluppa (indice delle regole) |
 
-## Comandi (dopo l'implementazione del piano)
-
-```bash
-npm ci
-npm test && npm run lint && npm run typecheck
-npm run sync                         # variabili d'ambiente in docs/buone-pratiche.md § 7
-npm run report -- --month AAAA-MM
-node scripts/check-public-tree.mjs . # nessun dato personale nell'albero
-git config core.hooksPath .githooks  # una volta per clone: hook pre-push
-```
-
-## Stato
-
-- [x] Specifica, piano e documentazione
-- [ ] Migrazione al repository pubblico (Task M)
-- [ ] Scaffolding TypeScript, D1 e sync notturna (Task 1, 1b, 0, 2–5)
-- [ ] Report mensile (Task 6)
-- [ ] Dashboard, pubblicazione e feedback (Task 10–12)
-- [ ] Backup D1 su R2 (Task 13)
+Lo stato dei lavori sta nelle caselle del piano e nelle issue del repository.
