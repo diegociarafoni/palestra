@@ -45,6 +45,8 @@ const feedback = (fields: object) => ({
   ...fields,
 });
 const CALENDAR = {
+  // Giorni non disponibili del modello di esempio.
+  unavailable: ["mon", "fri"],
   slots: NOVEMBER_SLOTS,
   extra: [{ date: "2026-11-04", name: "Seduta libera", moves: null, seq: 1 }],
   feedback: [
@@ -134,11 +136,29 @@ describe("web", () => {
     // Ogni feedback del mese ha la sua seduta: nessuna sezione "Altri feedback".
     expect(screen.queryByRole("region", { name: "Altri feedback" })).toBeNull();
 
-    // Solo lettura: le scritture (feedback, slot saltato) arrivano con il Task 12.
-    expect(screen.getAllByRole("button").map((b) => b.ariaLabel)).toEqual([
-      "Mese precedente",
-      "Mese successivo",
-    ]);
+    // Le scritture: il modulo di oggi (1/11, mese mostrato); per ogni seduta il suo feedback da
+    // modificare o aggiungere; il giorno di uno slot programmato; niente sullo slot saltato.
+    expect(
+      screen.getByRole("form", { name: "Come è andata oggi?" }),
+    ).toBeTruthy();
+    expect(
+      within(slot1).getByRole("button", { name: "Modifica feedback" }),
+    ).toBeTruthy();
+    expect(
+      within(slot2).getByRole<HTMLSelectElement>("combobox", {
+        name: "Scegli il giorno",
+      }).value,
+    ).toBe("2026-11-05");
+    expect(within(slot2).queryByRole("button")).toBeNull();
+    expect(within(slot3).getByText("Senza feedback")).toBeTruthy();
+    expect(
+      within(slot3).getByRole("button", { name: "Aggiungi feedback" }),
+    ).toBeTruthy();
+    expect(within(skipped).queryByRole("button")).toBeNull();
+    expect(within(skipped).queryByRole("combobox")).toBeNull();
+    expect(
+      within(session).getByRole("button", { name: "Modifica feedback" }),
+    ).toBeTruthy();
     expect(months).toEqual(["2026-11"]);
   });
 
@@ -169,6 +189,7 @@ describe("web", () => {
               joint_pain: true,
             }),
           ],
+          unavailable: ["mon", "fri"],
         }),
       ),
     );
@@ -211,6 +232,7 @@ describe("web", () => {
               joint_pain: true,
             }),
           ],
+          unavailable: ["mon", "fri"],
         }),
       ),
     );
@@ -257,6 +279,7 @@ describe("web", () => {
               joint_pain: false,
             }),
           ],
+          unavailable: ["mon", "fri"],
         }),
       ),
     );
@@ -306,6 +329,7 @@ describe("web", () => {
               joint_where: "spalla",
             }),
           ],
+          unavailable: ["mon", "fri"],
         }),
       ),
     );
@@ -345,6 +369,7 @@ describe("web", () => {
               joint_pain: false,
             }),
           ],
+          unavailable: ["mon", "fri"],
         }),
       ),
     );
@@ -357,7 +382,12 @@ describe("web", () => {
   it("web: calendario empty state", async () => {
     server.use(
       http.get("/api/calendar", () =>
-        HttpResponse.json({ slots: [], extra: [], feedback: [] }),
+        HttpResponse.json({
+          slots: [],
+          extra: [],
+          feedback: [],
+          unavailable: ["mon", "fri"],
+        }),
       ),
     );
     renderConTema(<Calendario />);
@@ -434,7 +464,12 @@ describe("web", () => {
     server.use(
       http.get("/api/calendar", ({ request }) => {
         months.push(new URL(request.url).searchParams.get("month"));
-        return HttpResponse.json({ slots: [], extra: [], feedback: [] });
+        return HttpResponse.json({
+          slots: [],
+          extra: [],
+          feedback: [],
+          unavailable: ["mon", "fri"],
+        });
       }),
     );
     renderConTema(<Calendario />);

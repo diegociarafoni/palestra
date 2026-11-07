@@ -11,7 +11,7 @@ import { parseJsonColumn, parseStored } from "./json";
 
 // Slot programmati: letture (Task 6) e scritture della sync (Task 4, ensureWeekSlots e updateSlot).
 
-type SlotRow = {
+export type SlotRow = {
   rowid: number;
   id: string;
   week: string;
@@ -24,11 +24,11 @@ type SlotRow = {
   session_id: string | null;
 };
 
-const COLUMNS =
+export const COLUMNS =
   "rowid, id, week, slot, window_days, date, scheda_day, status, reason, session_id";
 
 // Nel messaggio d'errore il rowid, mai l'id dello slot: contiene la settimana.
-function toSlot(r: SlotRow): PlannedSlot {
+export function toSlot(r: SlotRow): PlannedSlot {
   const key = `rowid ${r.rowid}`;
   const { rowid: _rowid, window_days, ...rest } = r;
   const window = parseJsonColumn(
@@ -57,6 +57,15 @@ export async function listSlotsByWeek(
     .bind(week)
     .all<SlotRow>();
   return results.map(toSlot);
+}
+
+/** Lo slot `id`, o null se non esiste. */
+export async function getSlot(db: Db, id: string): Promise<PlannedSlot | null> {
+  const row = await db
+    .prepare(`SELECT ${COLUMNS} FROM planned_sessions WHERE id = ?1`)
+    .bind(id)
+    .first<SlotRow>();
+  return row === null ? null : toSlot(row);
 }
 
 /**
