@@ -16,13 +16,13 @@ Scheda di allenamento dell'utente (Virgin Active Roma Via Mantova, attrezzi Tech
 | `scheda/SCHEMA.md`, `reports/TEMPLATE.md` | Schema dei dati (tabelle D1 e JSON) e struttura del report; la scheda e i report reali stanno in D1 | Sviluppatore |
 | `docs/migrazione.md`, `scripts/check-public-tree.mjs`, `.githooks/pre-push` | Controllo che nulla di personale entri nel repository | Sviluppatore |
 | `src/`, `functions/`, `web/`, `migrations/`, `test/` | Codice (sync, report, store, API, frontend), migrazioni D1 e test | Sviluppatore, seguendo il piano |
-| `docs/dashboard.md` | Dashboard (Pages + Functions dietro Cloudflare Access): configurazione senza hostname né e-mail | Sviluppatore; passi manuali Cloudflare: utente |
-| `kb/` | Knowledge base (vault Obsidian): una nota per esercizio, attrezzo, concetto, decisione; `kb/indice.md` è la mappa | Claude e l'utente; le decisioni non si modificano, si sostituiscono |
+| `docs/dashboard.md` | Dashboard (Pages + Functions dietro Cloudflare Access) e operazioni: report mensile, backup su R2, ripristino e registro delle prove; senza hostname né e-mail | Sviluppatore; passi manuali Cloudflare: utente |
+| `kb/` | Knowledge base (vault Obsidian): una nota per esercizio, attrezzo, concetto, metodo, decisione, più il catalogo esercizi della Technogym App (`kb/catalogo-app/`, fonte di `technogym_name`); `kb/indice.md` è la mappa | Claude e l'utente; le decisioni non si modificano, si sostituiscono |
 | `.claude/settings.json`, `.claude/agents/reviewer.md` | Regole di permesso e revisore in sola lettura | Utente |
 
 ## Comandi
 
-`npm ci` · `npm test` · `npm run lint` · `npm run typecheck` · `npm run sync` · `npm run report -- --month AAAA-MM` · `npm run backup` · `node scripts/check-public-tree.mjs .`. Le dipendenze si installano solo con il permesso dell'utente; mai `npm publish`.
+`npm ci` · `npm test` · `npm run lint` · `npm run typecheck` · `npm run sync` · `npm run report -- --month AAAA-MM` · `npm run backup` · `npm run restore-test [-- AAAA-MM-GG]` · `npm run build:web` · `node scripts/check-public-tree.mjs .`. Le dipendenze si installano solo con il permesso dell'utente; mai `npm publish`.
 
 ## Confini
 
@@ -50,11 +50,11 @@ Scheda di allenamento dell'utente (Virgin Active Roma Via Mantova, attrezzi Tech
 ## Regole di contenuto
 
 - La conoscenza va in `kb/`, una nota per soggetto con frontmatter (`tipo`, `slug`, `aggiornato`), link Markdown relativi, niente wikilink; i dati personali in D1, i documenti di processo in `docs/`. Una decisione nuova = nuova nota in `kb/decisioni/`. Le note sono pubbliche: niente storia personale, misure o carichi dell'utente.
-- **Prima** di rispondere o decidere su allenamento, attrezzi, misure o scelte di progetto: aprire `kb/indice.md` e leggere le note pertinenti (esercizio, attrezzo, concetto, decisione); citarle nella risposta con il percorso. Non si contraddice una nota senza aggiornarla o aprire una nuova decisione.
+- **Prima** di rispondere o decidere su allenamento, attrezzi, misure o scelte di progetto: aprire `kb/indice.md` e leggere le note pertinenti (esercizio, attrezzo, concetto, metodo, decisione); citarle nella risposta con il percorso. Non si contraddice una nota senza aggiornarla o aprire una nuova decisione.
 - **Dopo** aver appreso qualcosa di durevole e non personale (una verifica in sala, un dato tecnico confermato, una regola nuova, una fonte letta): aggiornare la nota esistente o crearne una nuova nello stesso commit del lavoro; una conoscenza che resta solo in chat è persa.
 
 - **D1 tramite connettore Cloudflare** (Claude nel Progetto): lettura libera; scrittura solo `INSERT`/`UPDATE` sulle tabelle `measures`, `recovery`, `feedback`, `profile`, `scheda`, `reports`, e ogni scrittura insieme a una riga in `audit` (chi, tabella, chiave, azione, quando). Mai `DROP`; `DELETE` solo con conferma esplicita dell'utente; mai scritture su `sessions`/`timeseries`.
-- **Dati manuali**: Claude trascrive e integra in D1 i dati che l'utente invia (referti BIA → `measures`, recupero → `recovery`, feedback delle sedute → `feedback`, profilo e anamnesi → `profile`), con la fonte nel campo `note` o `source`; ogni valore ricavato (es. peso = massa magra + grassa) va dichiarato come tale.
+- **Dati manuali**: Claude trascrive e integra in D1 i dati che l'utente invia (referti BIA → `measures`, recupero → `recovery`, feedback delle sedute → `feedback`, profilo e anamnesi → `profile`), con la fonte in `source` (`measures`, `recovery`: solo i valori ammessi da `scheda/SCHEMA.md`) e i dettagli in `note` (`measures`) o `notes` (`feedback`); in `profile` la fonte sta in `source` o `note` del `json`, tranne `settimana_tipo`, che deve essere esattamente un `WeekTemplate`: la sua fonte va nella chiave `profilo`; ogni valore ricavato (es. peso = massa magra + grassa) va dichiarato come tale.
 - Un dato sbagliato in `sessions` si segnala nella revisione del mese (`reports`, tipo `revisione`), non si corregge nella tabella.
 - La scheda è una riga per versione nella tabella `scheda` (`version` = `AAAA-MM`, `valid_from`, `valid_to`, `json`, `md`): `json` e `md` cambiano sempre insieme, nella stessa scrittura.
 - Durante lo sviluppo del codice non si toccano `docs/linee-guida-allenamento.md` né i dati in D1: sono di competenza della revisione mensile.
@@ -63,8 +63,8 @@ Scheda di allenamento dell'utente (Virgin Active Roma Via Mantova, attrezzi Tech
 
 Quando l'utente chiede la revisione del mese `AAAA-MM`:
 
-1. Leggere da D1 il report del mese (`reports`, tipo `report`, e `metrics`; se manca, le `sessions` del mese; se `reports.created_at` precede la sync del lunedì dopo la settimana che contiene l'ultimo giorno del mese (03:17 UTC), rigenerarlo con Actions → report; se quella sync non c'è ancora stata, l'aderenza dell'ultima settimana è provvisoria e va detto), la scheda attiva (`scheda`), `measures`, `recovery`, `feedback` e `profile`; poi le note KB degli esercizi in scheda e dei concetti usati (`kb/indice.md`).
-2. Valutare gli indicatori di `docs/linee-guida-allenamento.md` § 5: aderenza sugli slot programmati, progressione per esercizio, volume per gruppo muscolare, misure, MOVEs, feedback.
+1. Leggere da D1 il report del mese (`reports`, tipo `report`, e `metrics`; se manca, le `sessions` e gli slot `planned_sessions` del mese, base dell'aderenza; se `reports.created_at` precede la sync del lunedì dopo la settimana che contiene l'ultimo giorno del mese (pianificata alle 03:17 UTC, ma GitHub può avviarla ore dopo: conta l'ora reale della run, in Actions → sync; se non si può leggere, chiedere all'utente di rilanciare Actions → report), rigenerarlo con Actions → report; se quella sync non c'è ancora stata, l'aderenza dell'ultima settimana è provvisoria e va detto), la scheda attiva (`scheda`), `measures`, `recovery`, `feedback` e `profile`; poi le note KB degli esercizi in scheda e dei concetti usati (`kb/indice.md`).
+2. Valutare tutti gli indicatori di `docs/linee-guida-allenamento.md` § 5 (aderenza sugli slot programmati, progressione, volume, equilibrio, tonnellaggio, e1RM, recupero se disponibile, ricomposizione e misure, MOVEs), confermando o correggendo i giudizi proposti dal report, e il feedback delle sedute, che serve alle regole § 6.
 3. Applicare le regole § 3 e § 6 per decidere carichi, ripetizioni ed eventuali sostituzioni; motivare ogni cambiamento in una riga.
 4. Scrivere in D1, ciascuna con riga `audit`: la revisione (`reports`, tipo `revisione`: sintesi in 10 righe + decisioni) e la nuova scheda (`scheda`: `version` = mese successivo, `valid_from`/`valid_to`, `start_load_kg` con gli ultimi carichi noti, `json` e `md` allineati a `scheda/SCHEMA.md`).
 5. Aggiornare nel repository solo la conoscenza non personale (note tecniche degli esercizi, nota in `kb/decisioni/` per ogni scelta di metodo non ovvia, senza dati dell'utente) e proporne il commit o la PR; ricordare all'utente di aggiornare i due allenamenti nella Technogym App dal `md` della nuova scheda. Lo storico dei carichi si legge dalla dashboard.
