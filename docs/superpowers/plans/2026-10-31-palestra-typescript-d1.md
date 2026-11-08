@@ -420,7 +420,7 @@ Ordine obbligatorio: Step 1–2 prima del primo deploy.
 **Files:**
 - Modify: `README.md` (diagramma della spec 2026-10-31, comandi npm, inserimento della scheda nella Technogym App, revisione mensile via connettore, link ai documenti), `CLAUDE.md` (verifica che comandi e regole corrispondano al codice)
 
-- [ ] **Step 1:** README; **Step 2 (utente):** Progetto "Palestra" con repository e connettore Cloudflare; **Step 3:** lettura di prova; commit `docs: operating guide`.
+- [x] **Step 1:** README; **Step 2 (utente):** Progetto "Palestra" con repository e connettore Cloudflare; **Step 3:** lettura di prova; commit `docs: operating guide`. (7/11: README riscritto come guida operativa; il Progetto Claude dell'utente ha il repository e il connettore Cloudflare; lettura di prova `SELECT count(*) FROM sessions` riuscita dal Progetto, una riga.)
 
 ---
 
